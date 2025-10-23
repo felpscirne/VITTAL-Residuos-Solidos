@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 
 from app import app, server 
 
-from pages import overview, qtde_por_mes
+from pages import overview, qtde_por_ano, media_por_setor, produtos
 # from pages import media_por_setor, produtos 
 
 
@@ -13,11 +13,13 @@ from pages import overview, qtde_por_mes
     [Input('url', 'pathname')]
 )
 def display_page(pathname):
-    if pathname == '/qtde-por-mes':
-        return qtde_por_mes.layout
+    if pathname == '/qtde-por-ano':
+        return qtde_por_ano.layout
     
-    # elif pathname == '/media-por-setor':
-    #     return media_por_setor.layout 
+    elif pathname == '/media-por-setor':
+        return media_por_setor.layout
+    elif pathname == '/produtos':
+        return produtos.layout
     
     elif pathname == '/':
         return overview.layout 
@@ -34,6 +36,6 @@ if __name__ == '__main__':
 
     # run
     #  python3.12 -m venv .venv
-    # . .venv/bin/activate
+    # . .venv/bin/activate    //  .venv\Scripts\activate
     # pip3 install -r requirements.txt
     # python index.py

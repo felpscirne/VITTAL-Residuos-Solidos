@@ -1,0 +1,22 @@
+import dash
+from dash import dcc, html
+
+app = dash.Dash(__name__, suppress_callback_exceptions=True)
+app.title = "IFEsCS - Plataforma Web"
+server = app.server
+
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    
+    # menu lateral
+    html.Div(className='sidebar', children=[
+        html.H2("IFEsCS"),
+        html.Hr(),
+        dcc.Link('Visão Geral', href='/'),
+        dcc.Link('Qtde por Mês/Ano', href='/qtde-por-mes'),
+        dcc.Link('Média por Setor', href='/media-por-setor'),
+        dcc.Link('Análise de Produtos', href='/produtos'),
+    ]),
+    
+    html.Div(id='page-content', className='content')
+])

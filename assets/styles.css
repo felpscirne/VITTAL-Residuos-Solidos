@@ -1,0 +1,67 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 20rem;
+    /* Largura do menu */
+    padding: 2rem 1rem;
+    background-color: #f8f9fa;
+    border-right: 1px solid #ddd;
+}
+
+.sidebar h2 {
+    text-align: center;
+}
+
+.sidebar a {
+    display: block;
+    padding: 1rem 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #007bff;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+.sidebar a:hover {
+    background-color: #e9ecef;
+}
+
+.content {
+    margin-left: 22rem;
+    padding: 2rem 3rem;
+}
+
+.kpi-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+}
+
+.kpi-card {
+    flex-grow: 1;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.kpi-card h3 {
+    font-size: 2.5rem;
+    color: #007bff;
+    margin: 0;
+}
+
+.kpi-card p {
+    font-size: 1rem;
+    color: #6c757d;
+    margin: 5px 0 0 0;
+}

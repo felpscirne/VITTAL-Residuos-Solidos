@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script>
+        async function teste() {
+            try {
+                const response = await fetch("/teste");
+                const data = await response.json();
+                console.log(data);
+            } catch (error) {
+                console.error("Erro ao obter dados:", error);
+            }
+        }
+
+        /*
+        async function enviarDados() {
+            const dados = {
+                nome: 'Igor',
+                idade: 30,
+                cidade: 'Rio Grande'
+            };
+
+            try {
+                const response = await fetch('/api/usuario', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(dados)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Falha na requisição');
+                }
+
+                const resultado = await response.json();
+                console.log('Resposta do servidor:', resultado);
+            } catch (error) {
+                console.error('Erro ao enviar dados:', error);
+            }
+        }*/
+
+        /*
+        https://flask.palletsprojects.com/en/stable/patterns/javascript/
+        */
+
+    </script>
+</head>
+
+<body>
+    <button onclick="teste()">teste</button>
+</body>
+
+</html>

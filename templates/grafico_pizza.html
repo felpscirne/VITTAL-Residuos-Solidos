@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div style="height: 50vh; width: 100%;">
+    <canvas id="myChart"></canvas>
+</div>
+<!-- Store Flask data as a JavaScript variable -->
+<script>
+    function gerarArrayDeCores(tamanho) {
+        const coresBase = [
+            '#4CAF50', // Verde vibrante
+            '#2196F3', // Azul vibrante
+            '#FFC107', // Amarelo âmbar
+            '#E91E63', // Rosa intenso
+            '#9C27B0', // Roxo
+            '#00BCD4', // Ciano
+            '#FF5722', // Laranja avermelhado
+            '#8BC34A', // Verde claro
+            '#607D8B', // Azul cinzento
+            '#795548'  // Marrom
+        ];
+
+        let coresGeradas = [];
+
+        for (let i = 0; i < tamanho; i++) {
+            if (i < coresBase.length) {
+                coresGeradas.push(coresBase[i]);
+            } else {
+                // Se as cores base acabarem, gera uma cor HSL aleatória
+                const hue = Math.floor(Math.random() * 360); // 0-360 para o tom
+                const saturation = Math.floor(Math.random() * (70 - 40) + 40); // 40-70% para saturação (evita cores muito desbotadas ou muito fortes)
+                const lightness = Math.floor(Math.random() * (70 - 40) + 40);   // 40-70% para luminosidade (evita cores muito escuras ou muito claras)
+                coresGeradas.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
+            }
+        }
+
+        return coresGeradas;
+    }
+    const labels = JSON.parse('{{ labels | tojson | safe }}');
+    const chartData = JSON.parse('{{ data | tojson | safe }}');
+    const labelName = JSON.parse('{{ label_name | tojson | safe }}');
+    const colors = gerarArrayDeCores(chartData.length);
+    
+    const data = {
+        labels: labels,
+        datasets: [
+            {
+                label: labelName,
+                data: chartData,
+                backgroundColor: colors,
+            }
+        ]
+    };
+    const config = {
+        type: 'pie',
+        data: data,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: labelName
+                }
+            }
+        },
+    };
+    const myChart = new Chart(
+        document.getElementById('myChart'),
+        config
+    );
+</script>
+{% endblock %}

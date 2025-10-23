@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFEsCS: Painel de Controle</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Cores */
+            --primary-color: #3f51b5;
+            /* Azul índigo mais sofisticado */
+            --primary-light-color: #7986cb;
+            --primary-dark-color: #303f9f;
+            --secondary-color: #ff9800;
+            /* Laranja para destaque */
+            --background-light: #eceff1;
+            /* Cinza bem claro */
+            --text-dark: #263238;
+            /* Quase preto */
+            --text-medium: #546e7a;
+            /* Cinza médio */
+            --text-light: #90a4ae;
+            /* Cinza claro */
+            --card-background: #ffffff;
+            --border-color: #cfd8dc;
+            /* Borda mais suave */
+            --shadow-light: rgba(0, 0, 0, 0.08);
+            /* Sombra mais visível, mas suave */
+            --shadow-medium: rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            background-color: var(--background-light);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            color: var(--text-dark);
+            /* Cor de texto padrão para o body */
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1.8em 1em;
+            /* Um pouco mais de padding */
+            text-align: center;
+            box-shadow: 0 4px 8px var(--shadow-medium);
+            /* Sombra mais pronunciada */
+            position: sticky;
+            /* Torna o cabeçalho fixo ao rolar */
+            top: 0;
+            z-index: 1000;
+            /* Garante que fique acima de outros elementos */
+        }
+
+        header h1 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 2.2em;
+            /* Título um pouco maior */
+            letter-spacing: 0.05em;
+            /* Espaçamento entre letras */
+        }
+
+        nav {
+            background-color: var(--card-background);
+            padding: 1em 1em;
+            /* Um pouco mais de padding */
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px var(--shadow-light);
+            position: sticky;
+            /* Torna a navegação fixa ao rolar */
+            top: calc(52px + 1.8em * 2);
+            /* Ajusta a posição abaixo do header. Aprox 52px de h1 + 1.8em * 2 de padding*/
+            z-index: 999;
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2em;
+            /* Aumenta o espaçamento entre os links */
+        }
+
+        nav a {
+            text-decoration: none;
+            color: var(--text-medium);
+            /* Cor mais suave para links padrão */
+            font-weight: 500;
+            padding: 0.7em 1.2em;
+            /* Mais padding para os botões */
+            transition: all 0.3s ease;
+            /* Transição mais abrangente */
+            border-radius: 6px;
+            /* Borda mais arredondada */
+            position: relative;
+            /* Para o pseudo-elemento */
+            overflow: hidden;
+            /* Garante que o efeito de hover não vaze */
+        }
+
+        nav a:hover {
+            color: var(--primary-color);
+            background-color: rgba(63, 81, 181, 0.08);
+            /* Cor do tema com opacidade */
+            transform: translateY(-2px);
+            /* Leve levantamento no hover */
+        }
+
+        nav a:focus {
+            /* Para acessibilidade com teclado */
+            outline: 2px solid var(--secondary-color);
+            outline-offset: 3px;
+        }
+
+        main {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            /* Min-width um pouco maior */
+            gap: 2.5em;
+            /* Aumenta o gap entre os cards */
+            padding: 2.5em;
+            /* Aumenta o padding interno do main */
+            width: 90%;
+            max-width: 1600px;
+            margin: 2.5em auto;
+            /* Margem vertical para separar do cabeçalho/rodapé */
+            box-sizing: border-box;
+        }
+
+        .card {
+            background-color: var(--card-background);
+            border-radius: 12px;
+            /* Borda mais arredondada */
+            box-shadow: 0 6px 12px var(--shadow-light);
+            /* Sombra mais suave inicialmente */
+            padding: 2em;
+            /* Mais padding */
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid var(--border-color);
+            /* Uma borda sutil */
+        }
+
+        .card:hover {
+            transform: translateY(-7px);
+            /* Leve levantamento */
+            box-shadow: 0 10px 20px var(--shadow-medium);
+            /* Sombra mais pronunciada no hover */
+            background-color: #fcfcfc;
+            /* Fundo ligeiramente mais claro no hover */
+        }
+
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 0.7em;
+            /* Menos margem, para aproximar do texto */
+            color: var(--primary-dark-color);
+            /* Título com cor do tema escuro */
+            font-weight: 700;
+            font-size: 1.5em;
+            /* Título um pouco maior */
+            border-bottom: 2px solid var(--border-color);
+            /* Linha sutil abaixo do título */
+            padding-bottom: 0.5em;
+            /* Espaçamento da linha */
+        }
+
+        .card p {
+            color: var(--text-medium);
+            margin-bottom: 0;
+            line-height: 1.7;
+            /* Mais espaçamento entre linhas para melhor leitura */
+            font-size: 1.05em;
+            /* Texto um pouco maior */
+        }
+
+        footer {
+            background-color: var(--text-dark);
+            color: white;
+            text-align: center;
+            padding: 1.5em;
+            /* Mais padding */
+            font-size: 0.85em;
+            margin-top: auto;
+            box-shadow: 0 -2px 4px var(--shadow-light);
+            /* Sombra para cima */
+        }
+
+        /* Responsividade */
+        @media (max-width: 992px) {
+
+            /* Tablet landscape */
+            main {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                padding: 2em;
+                gap: 2em;
+            }
+        }
+
+        @media (max-width: 768px) {
+
+            /* Tablet portrait */
+            nav ul {
+                flex-direction: column;
+                align-items: center;
+                gap: 1em;
+            }
+
+            main {
+                padding: 1.5em;
+                gap: 1.5em;
+                width: 95%;
+                margin: 1.5em auto;
+            }
+        }
+
+        @media (max-width: 480px) {
+
+            /* Mobile */
+            header {
+                padding: 1.2em 0.5em;
+            }
+
+            header h1 {
+                font-size: 1.6em;
+            }
+
+            nav {
+                padding: 0.6em 0.5em;
+            }
+
+            nav a {
+                padding: 0.6em 1em;
+                font-size: 0.9em;
+            }
+
+            main {
+                padding: 1em;
+                gap: 1em;
+                width: 98%;
+                margin: 1em auto;
+            }
+
+            .card {
+                padding: 1.5em;
+                border-radius: 8px;
+            }
+
+            .card h3 {
+                font-size: 1.3em;
+                padding-bottom: 0.3em;
+            }
+        }
+
+        /* --- Botões e Inputs Submit --- */
+
+        /* Estilo base para todos os botões e inputs de submit */
+        button,
+        input[type="submit"] {
+            /* Cores e Fundo */
+            background-color: var(--primary-color);
+            /* Usa a cor primária do tema */
+            color: white;
+            border: none;
+            /* Remove a borda padrão */
+            /* Padding e Fonte */
+            padding: 0.8em 1.8em;
+            /* Padding generoso */
+            font-family: 'Roboto', sans-serif;
+            font-size: 1.05em;
+            /* Tamanho da fonte ligeiramente maior */
+            font-weight: 500;
+            text-align: center;
+            text-decoration: none;
+            /* Borda e Sombra */
+            border-radius: 8px;
+            /* Cantos arredondados */
+            box-shadow: 0 4px 8px var(--shadow-light);
+            /* Sombra suave */
+            /* Cursor e Transição */
+            cursor: pointer;
+            /* Indica que é clicável */
+            transition: all 0.3s ease;
+            /* Transição suave para hover e focus */
+            /* Display */
+            display: inline-block;
+            /* Permite espaçamento entre botões e controle de largura */
+            white-space: nowrap;
+            /* Evita que o texto quebre linha */
+        }
+
+        /* Efeito ao passar o mouse (hover) */
+        button:hover,
+        input[type="submit"]:hover {
+            background-color: var(--primary-dark-color);
+            /* Escurece a cor primária */
+            box-shadow: 0 6px 12px var(--shadow-medium);
+            /* Aumenta a sombra */
+            transform: translateY(-2px);
+            /* Leve levantamento */
+        }
+
+        /* Efeito ao clicar/pressionar (active) */
+        button:active,
+        input[type="submit"]:active {
+            background-color: var(--primary-dark-color);
+            /* Mantém a cor escura */
+            box-shadow: 0 2px 4px var(--shadow-light);
+            /* Reduz a sombra para simular o "clique" */
+            transform: translateY(0);
+            /* Volta à posição original */
+        }
+
+        /* Efeito de foco (importante para acessibilidade com teclado) */
+        button:focus,
+        input[type="submit"]:focus {
+            outline: 3px solid var(--secondary-color);
+            /* Contorno com a cor secundária */
+            outline-offset: 3px;
+            /* Espaçamento entre o botão e o contorno */
+        }
+
+        /* Estilo para botões secundários (opcional, se precisar de um botão com outra cor) */
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #f57c00;
+            /* Um pouco mais escuro que o secondary-color */
+        }
+
+        .btn-secondary:focus {
+            outline-color: var(--primary-color);
+            /* Troca o foco para a cor primária */
+        }
+
+        /* Estilo para botões de contorno (opcional) */
+        .btn-outline {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 8px var(--shadow-light);
+            transform: translateY(-2px);
+        }
+
+        .btn-outline:focus {
+            outline-color: var(--secondary-color);
+        }
+
+        /* Responsividade para botões em telas menores */
+        @media (max-width: 480px) {
+
+            button,
+            input[type="submit"] {
+                padding: 0.7em 1.2em;
+                font-size: 0.95em;
+                width: auto;
+                /* Ajuste para não quebrar o layout */
+            }
+        }
+
+        /* --- Inputs de Texto, Email, Número, etc. --- */
+        input[type="text"],
+        input[type="email"],
+        input[type="number"],
+        input[type="password"],
+        input[type="search"],
+        input[type="tel"],
+        input[type="url"],
+        textarea,
+        /* Incluindo textareas para consistência */
+        select
+
+        /* E selects para consistência */
+            {
+            width: 100%;
+            /* Ocupa a largura total do contêiner */
+            padding: 0.8em 1em;
+            /* Padding interno */
+            margin-bottom: 1em;
+            /* Espaçamento abaixo do input */
+            border: 1px solid var(--border-color);
+            /* Borda fina e suave */
+            border-radius: 6px;
+            /* Cantos levemente arredondados */
+            background-color: var(--card-background);
+            /* Fundo branco para se destacar */
+            font-family: 'Roboto', sans-serif;
+            font-size: 1em;
+            /* Tamanho da fonte padrão */
+            color: var(--text-dark);
+            /* Cor do texto digitado */
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+            /* Sombra interna sutil para profundidade */
+            transition: all 0.3s ease;
+            /* Transição suave para foco e hover */
+            box-sizing: border-box;
+            /* Garante que padding e borda não aumentem a largura */
+        }
+
+        /* Estado de Foco (quando o usuário clica ou tabula no input) */
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="number"]:focus,
+        input[type="password"]:focus,
+        input[type="search"]:focus,
+        input[type="tel"]:focus,
+        input[type="url"]:focus,
+        textarea:focus,
+        select:focus {
+            border-color: var(--primary-color);
+            /* Borda fica com a cor primária */
+            box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.2);
+            /* Sombra de foco com cor primária e opacidade */
+            outline: none;
+            /* Remove o contorno padrão do navegador */
+            background-color: #fcfdfe;
+            /* Fundo ligeiramente mais claro no foco */
+        }
+
+        /* Estado de Hover (quando o mouse passa sobre o input) */
+        input[type="text"]:hover,
+        input[type="email"]:hover,
+        input[type="number"]:hover,
+        input[type="password"]:hover,
+        input[type="search"]:hover,
+        input[type="tel"]:hover,
+        input[type="url"]:hover,
+        textarea:hover,
+        select:hover {
+            border-color: var(--primary-light-color);
+            /* Borda um pouco mais clara no hover */
+        }
+
+        /* Placeholder */
+        input::placeholder,
+        textarea::placeholder {
+            color: var(--text-light);
+            /* Cor do texto do placeholder */
+            opacity: 1;
+            /* Garante que a opacidade seja 1 (alguns navegadores podem ter opacidade menor) */
+        }
+
+        /* Inputs desabilitados */
+        input:disabled,
+        textarea:disabled,
+        select:disabled {
+            background-color: var(--background-light);
+            /* Fundo mais claro */
+            color: var(--text-light);
+            /* Texto mais claro */
+            cursor: not-allowed;
+            /* Cursor de "proibido" */
+            opacity: 0.8;
+            /* Levemente opaco */
+        }
+
+        /* Validação de erro (exemplo de estilo para inputs inválidos) */
+        input.error,
+        textarea.error,
+        select.error {
+            border-color: #f44336;
+            /* Vermelho para erro */
+            box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.2);
+        }
+
+        /* Estilo para labels (melhora a usabilidade com inputs) */
+        label {
+            display: block;
+            /* Cada label em uma nova linha */
+            margin-bottom: 0.5em;
+            /* Espaçamento abaixo do label */
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        /* Ajustes para responsividade */
+        @media (max-width: 480px) {
+
+            input[type="text"],
+            input[type="email"],
+            input[type="number"],
+            input[type="password"],
+            input[type="search"],
+            input[type="tel"],
+            input[type="url"],
+            textarea,
+            select {
+                padding: 0.7em 0.8em;
+                /* Reduz padding em telas pequenas */
+                font-size: 0.95em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>IFEsCS: Informações Exploratórias</h1>
+    </header>
+    <nav>
+        <ul>
+            <li><a href="/setores">Setores</a></li>
+            <li><a href="/produtos">Produtos</a></li>
+            <li><a href="/fornecedores_clientes">Fornecedores/Clientes</a></li>
+            <li><a href="/qtde_por_mes_ano">Quantidade Por Mês</a></li>
+            <li><a href="/qtde_por_ano">Quantidade Por Ano</a></li>
+            <li><a href="/media_peso_por_mes">Média Peso de Entrada por Mês</a></li>
+            <li><a href="/lista">Lista</a></li>
+            <li><a href="/media_por_setor">Média Por Setor</a></li>
+
+        </ul>
+    </nav>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <p>&copy; 2025 IFEsCS: Painel de Controle</p>
+    </footer>
+</body>
+
+</html>

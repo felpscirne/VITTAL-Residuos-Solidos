@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+{{mes}}/{{ano}} <br>
+
+<table border="1">
+    {% for r in vetRegistro %}
+    <tr>
+        <td>{{r[0]}}</td>
+        <td>{{r[1]}} </td>
+        <td>{{r[2]}} </td>
+    </tr>
+    {% endfor %}
+
+</table>
+{% endblock %}

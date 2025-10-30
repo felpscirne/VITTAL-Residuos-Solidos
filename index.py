@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 
 from app import app, server 
 
-from pages import analise_entidades, overview, qtde_por_ano, media_por_setor, analise_setores
+from pages import analise_entidades, overview, media_por_setor, analise_setores, registros, qtde_por_mes
 
 
 
@@ -13,14 +13,16 @@ from pages import analise_entidades, overview, qtde_por_ano, media_por_setor, an
     [Input('url', 'pathname')]
 )
 def display_page(pathname):
-    if pathname == '/qtde-por-ano':
-        return qtde_por_ano.layout
-    elif pathname == '/media-por-setor':
+    if pathname == '/media-por-setor':
         return media_por_setor.layout
     elif pathname == '/analise-setores':
         return analise_setores.layout
     elif pathname == '/analise-entidades':
         return analise_entidades.layout
+    elif pathname == '/registros':
+        return registros.layout
+    elif pathname == '/qtde-por-mes':
+        return qtde_por_mes.layout
     
     elif pathname == '/':
         return overview.layout 

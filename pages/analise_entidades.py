@@ -61,7 +61,7 @@ def fig_contagem_fornecedores():
 
 layout = html.Div([
     html.H1('Análise de Produtos e Fornecedores'),
-    html.P('Análises estáticas de volume por produto e entidade.'),
+    html.P('Análises estáticas de volume por produto(aquilo que foi sendo coletado) e entidade(quem coletou).'),
     html.Hr(),
     
     dcc.Graph(

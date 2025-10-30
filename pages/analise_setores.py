@@ -67,6 +67,7 @@ layout = html.Div([
             figure=fig_media_por_setor(),
             # style={'display': 'inline-block', 'width': '50%'}
         ),
+        html.Hr(),
         dcc.Graph(
             id='grafico-contagem-setor',
             figure=fig_contagem_por_setor(),

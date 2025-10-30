@@ -3,10 +3,8 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
 
-# Importa a engine do banco e o helper de anos
 from database import engine, get_anos_options
 
-# --- Funções de Filtro Específicas desta Página ---
 
 def get_setores_options():
     """Busca setores únicos para o filtro dropdown."""

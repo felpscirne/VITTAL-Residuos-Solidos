@@ -4,6 +4,8 @@ import pandas as pd
 DATABASE_URI = "postgresql://postgres:postgres@localhost:5432/projeto"
 engine = create_engine(DATABASE_URI)
 
+
+# Função para obter opções de anos
 def get_anos_options():
     try:
         anos_df = pd.read_sql("SELECT DISTINCT EXTRACT(YEAR FROM data_hora) AS ano FROM registro ORDER BY ano DESC", engine)

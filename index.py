@@ -1,31 +1,62 @@
+import dash  
 from dash import html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
+from app import app, server
 
-
-from app import app, server 
-
-from pages import analise_entidades, overview, media_por_setor, analise_setores, registros, qtde_por_mes
-
+from pages import (
+    overview, 
+    qtde_por_mes,
+    analise_setores, 
+    media_por_setor,
+    analise_entidades,
+    registros
+)
 
 
 @app.callback(
-    Output('page-content', 'children'),
+    [Output('sidebar', 'className'),
+     Output('page-content', 'className'),
+     Output('sidebar-state', 'data')],
+    [Input('btn-collapse', 'n_clicks')],
+    [State('sidebar-state', 'data')]
+)
+def toggle_sidebar_collapse(n, current_state):
+    
+    ctx = dash.callback_context 
+    if not ctx.triggered:
+        if current_state == 'collapsed':
+            return 'sidebar navbar-dark bg-dark collapsed', 'content collapsed', 'collapsed'
+        else:
+            return 'sidebar navbar-dark bg-dark', 'content', 'open'
+
+    if current_state == 'open':
+        return 'sidebar navbar-dark bg-dark collapsed', 'content collapsed', 'collapsed'
+    else: 
+        return 'sidebar navbar-dark bg-dark', 'content', 'open'
+        
+        
+@app.callback(
+    Output('page-content-dynamic', 'children'),
     [Input('url', 'pathname')]
 )
 def display_page(pathname):
-    if pathname == '/media-por-setor':
-        return media_por_setor.layout
-    elif pathname == '/analise-setores':
-        return analise_setores.layout
-    elif pathname == '/analise-entidades':
-        return analise_entidades.layout
-    elif pathname == '/registros':
-        return registros.layout
-    elif pathname == '/qtde-por-mes':
+    if pathname == '/analise-por-mes':
         return qtde_por_mes.layout
     
+    elif pathname == '/media-por-setor':
+        return media_por_setor.layout
+        
+    elif pathname == '/analise-setores':
+        return analise_setores.layout
+    
+    elif pathname == '/analise-entidades':
+        return analise_entidades.layout
+        
+    elif pathname == '/registros':
+        return registros.layout
+    
     elif pathname == '/':
-        return overview.layout 
+        return overview.layout
     
     else:
         return html.Div([
@@ -35,10 +66,3 @@ def display_page(pathname):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-    # run
-    #  python3.12 -m venv .venv
-    # . .venv/bin/activate    //  .venv\Scripts\activate
-    # pip3 install -r requirements.txt
-    # python index.py

@@ -1,20 +1,17 @@
-from dash import dcc, html
+from dash import dcc, html, callback
+from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
+import dash_bootstrap_components as dbc
 
-
+# Importa a engine do banco
 from database import engine
 
+template_theme_light = "plotly"
+template_theme_dark = "plotly_dark"
 
 def carregar_kpis():
-    
-    query = """
-    SELECT
-        COUNT(*) AS total_registros,
-        MIN(data_hora) AS data_inicio,
-        MAX(data_hora) AS data_fim
-    FROM registro
-    """
+    query = "SELECT COUNT(*) AS total_registros, MIN(data_hora) AS data_inicio, MAX(data_hora) AS data_fim FROM registro"
     try:
         df = pd.read_sql(query, engine)
         kpis = df.iloc[0]
@@ -23,69 +20,92 @@ def carregar_kpis():
             'inicio': kpis['data_inicio'].strftime('%d/%m/%Y'),
             'fim': kpis['data_fim'].strftime('%d/%m/%Y')
         }
-    except Exception as e:
-        print(f"Erro ao carregar KPIs: {e}")
+    except Exception:
         return {'total': 'N/D', 'inicio': 'N/D', 'fim': 'N/D'}
 
-def fig_qtde_por_ano():
+def get_df_qtde_por_ano():
     query = "SELECT EXTRACT(YEAR FROM data_hora) AS ano, COUNT(*) AS qtde FROM registro GROUP BY ano ORDER BY ano"
     df = pd.read_sql(query, engine)
-    df['ano'] = df['ano'].astype(str) 
-    fig = px.bar(df, x='ano', y='qtde', title="Total de Registros por Ano")
-    return fig
+    df['ano'] = df['ano'].astype(str)
+    return df
 
-def fig_top_produtos():
-    
-    query = """
-    SELECT produto, COUNT(*) AS qtde 
-    FROM registro 
-    GROUP BY produto 
-    ORDER BY qtde DESC 
-    LIMIT 10
-    """
+def get_df_top_produtos():
+    query = "SELECT produto, COUNT(*) AS qtde FROM registro GROUP BY produto ORDER BY qtde DESC LIMIT 10"
     df = pd.read_sql(query, engine)
-    fig = px.pie(df, names='produto', values='qtde', title="Top 10 Produtos (Volume de Registros)")
-    return fig
+    return df
 
+# --- Carregar dados UMA VEZ ---
+# (Isso é rápido, então fazemos fora do callback)
 kpi_data = carregar_kpis()
-fig_ano = fig_qtde_por_ano()
-fig_produtos = fig_top_produtos()
+df_ano = get_df_qtde_por_ano()
+df_produtos = get_df_top_produtos()
 
-# Layout da Página de Overview
-
+# --- Layout da Página (AGORA DINÂMICO) ---
+# As figuras dos gráficos foram removidas do layout
 layout = html.Div([
     html.H1('Visão Geral do Dashboard'),
     html.P('Resumo dos principais indicadores de pesagem.'),
     
-    
-    html.Div(className='kpi-container', children=[
-        html.Div(className='kpi-card', children=[
-            html.H3(kpi_data['total']),
-            html.P('Total de Registros')
-        ]),
-        html.Div(className='kpi-card', children=[
-            html.H3(kpi_data['inicio']),
-            html.P('Data de Início')
-        ]),
-        html.Div(className='kpi-card', children=[
-            html.H3(kpi_data['fim']),
-            html.P('Data de Fim')
-        ]),
-    ]),
-    
+    # KPIs (estáticos, dentro de Cards)
+    dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H3(kpi_data['total'], className='card-title'),
+                html.P('Total de Registros', className='card-text')
+            ]), className="mb-3"), md=4),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H3(kpi_data['inicio'], className='card-title'),
+                html.P('Data de Início', className='card-text')
+            ]), className="mb-3"), md=4),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H3(kpi_data['fim'], className='card-title'),
+                html.P('Data de Fim', className='card-text')
+            ]), className="mb-3"), md=4),
+        ]
+    ),
     html.Hr(),
     
-    # --- Seção de Gráficos ---
-    html.Div(className='row', children=[
-        dcc.Graph(
-            id='overview-grafico-ano',
-            figure=fig_ano,
-            style={'display': 'inline-block', 'width': '50%'}
-        ),
-        dcc.Graph(
-            id='overview-grafico-produtos',
-            figure=fig_produtos,
-            style={'display': 'inline-block', 'width': '50%'}
-        )
-    ])
+    # Gráficos (vazios, 'figure=' removido, mas dentro de Cards)
+    dbc.Row(
+        [
+            dbc.Col(
+                dbc.Card(dbc.CardBody(dcc.Graph(id='overview-grafico-ano'))), # 'figure=' removido
+                md=6, className="mb-3"
+            ),
+            dbc.Col(
+                dbc.Card(dbc.CardBody(dcc.Graph(id='overview-grafico-produtos'))), # 'figure=' removido
+                md=6, className="mb-3"
+            ),
+        ]
+    )
 ])
+
+@callback(
+    [Output('overview-grafico-ano', 'figure'),
+     Output('overview-grafico-produtos', 'figure')],
+    [Input("theme-switch", "value")]
+)
+def update_overview_graphs(switch_is_light):
+    
+    
+    template_name = template_theme_light if switch_is_light else template_theme_dark
+    
+    fig_ano = px.bar(
+        df_ano, 
+        x='ano', y='qtde', 
+        title="Total de Registros por Ano", 
+        template=template_name 
+    )
+    fig_ano.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+    
+    fig_produtos = px.pie(
+        df_produtos, 
+        names='produto', values='qtde', 
+        title="Top 10 Produtos (Volume de Registros)",
+        template=template_name 
+    )
+    fig_produtos.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+    
+    return fig_ano, fig_produtos

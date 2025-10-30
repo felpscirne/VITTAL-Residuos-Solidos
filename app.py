@@ -13,9 +13,11 @@ app.layout = html.Div([
         html.H2("IFEsCS"),
         html.Hr(),
         dcc.Link('Visão Geral', href='/'),
-        dcc.Link('Qtde por Mês/Ano', href='/qtde-por-mes'),
-        dcc.Link('Média por Setor', href='/media-por-setor'),
+        dcc.Link('Qtde por Mês/Ano', href='/qtde-por-ano'),
+        dcc.Link('Visão Geral Setores', href='/analise-setores'),
+        dcc.Link('Média por Setor (Temporal)', href='/media-por-setor'),
         dcc.Link('Análise de Produtos', href='/produtos'),
+
     ]),
     
     html.Div(id='page-content', className='content')

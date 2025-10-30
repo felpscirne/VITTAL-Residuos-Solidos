@@ -7,16 +7,17 @@ from database import engine, get_anos_options
 
 anos_options, ano_inicial = get_anos_options()
 
-query_empresas = "SELECT DISTINCT fornecedor_cliente FROM registro WHERE fornecedor_cliente IS NOT NULL ORDER BY fornecedor_cliente"
-empresas_df = pd.read_sql(query_empresas, engine)
-empresas_options = [{'label': emp, 'value': emp} for emp in empresas_df['fornecedor_cliente']]
+query_produtos = "SELECT produto, count(*) from registro group by produto order by produto;"
+produtos_df = pd.read_sql(query_produtos, engine)
+produtos_options = [{'label': emp, 'value': emp} for emp in produtos_df['produto']]
 
-empresas_options.insert(0, {'label': 'Todas as Empresas', 'value': 'todas'})
+produtos_options.insert(0, {'label': 'Todos os Produtos', 'value': 'todos'})
 
 
 layout = html.Div([
-    html.H1('Quantidade de Registros por Mês/Ano'),
-#
+    html.H1('Quantidade de Registros por Tipo de Produto'),
+    html.H2('Registros de produtos divididos por tipo.'),
+
     
     html.Div(className='filtros-pagina', children=[
         html.Div([
@@ -30,37 +31,32 @@ layout = html.Div([
         ], style={'width': '48%', 'display': 'inline-block'}),
         
         html.Div([
-            html.Label('Selecione a Empresa:'),
+            html.Label('Selecione o Produto:'),
             dcc.Dropdown(
-                id='filtro-empresa-qtde', 
-                options=empresas_options,
-                value='todas' 
+                id='filtro-produto-qtde', 
+                options=produtos_options,
+                value='todos' 
             )
         ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
     ]),
-    
-    dcc.Graph(id='grafico-qtde-por-ano')
+    dcc.Graph(id='grafico-produtos')
 ])
 
 @callback(
-    Output('grafico-qtde-por-ano', 'figure'),
+    Output('grafico-produtos', 'figure'),
     [Input('filtro-ano-qtde', 'value'),
-     Input('filtro-empresa-qtde', 'value')]
+     Input('filtro-produto-qtde', 'value')]
 )
-def update_graph(ano_selecionado, empresa_selecionada):
-    
+def update_graph(ano_selecionado, produto_selecionado):
+
     query = """
-        SELECT EXTRACT(MONTH FROM data_hora) AS mes, 
-               COUNT(*) AS qtde 
-        FROM registro 
-        WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s
     """
     params = {'ano': ano_selecionado}
     
-    if empresa_selecionada != 'todas':
-        query += " AND fornecedor_cliente = %(empresa)s"
-        params['empresa'] = empresa_selecionada
-        
+    if produto_selecionado != 'todos':
+        query += " AND produto = %(produto)s"
+        params['produto'] = produto_selecionado
+
     query += " GROUP BY mes ORDER BY mes"
     
     df = pd.read_sql(query, engine, params=params)
@@ -70,6 +66,6 @@ def update_graph(ano_selecionado, empresa_selecionada):
     df['mes_nome'] = df['mes'].map(meses_map)
     
     fig = px.bar(df, x='mes_nome', y='qtde', 
-                 title=f'Registros em {ano_selecionado} (Empresa: {empresa_selecionada})')
+                 title=f'Registros em {ano_selecionado} (Produto: {produto_selecionado})')
     
     return fig

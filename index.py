@@ -4,8 +4,8 @@ from dash.dependencies import Input, Output
 
 from app import app, server 
 
-from pages import overview, qtde_por_ano, media_por_setor, produtos
-# from pages import media_por_setor, produtos 
+from pages import overview, qtde_por_ano, media_por_setor, produtos, analise_setores
+
 
 
 @app.callback(
@@ -15,11 +15,12 @@ from pages import overview, qtde_por_ano, media_por_setor, produtos
 def display_page(pathname):
     if pathname == '/qtde-por-ano':
         return qtde_por_ano.layout
-    
     elif pathname == '/media-por-setor':
         return media_por_setor.layout
     elif pathname == '/produtos':
         return produtos.layout
+    elif pathname == '/analise-setores':
+        return analise_setores.layout
     
     elif pathname == '/':
         return overview.layout 

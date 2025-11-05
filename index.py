@@ -7,7 +7,6 @@ from pages import (
     overview, 
     qtde_por_mes,
     analise_setores, 
-    media_por_setor,
     analise_entidades,
     registros,
     fluxo_de_caixa
@@ -44,9 +43,6 @@ def display_page(pathname):
     if pathname == '/analise-por-mes':
         return qtde_por_mes.layout
     
-    elif pathname == '/media-por-setor':
-        return media_por_setor.layout
-        
     elif pathname == '/analise-setores':
         return analise_setores.layout
     

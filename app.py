@@ -54,11 +54,10 @@ sidebar = html.Div(
                 [
                     dbc.NavLink('Visão Geral', href='/', active="exact"),
                     dbc.NavLink('Análise por Mês', href='/analise-por-mes', active="exact"),
-                    dbc.NavLink('Média por Setor (Temporal)', href='/media-por-setor', active="exact"), 
-                    dbc.NavLink('Visão Geral Setores', href='/analise-setores', active="exact"),
+                    dbc.NavLink('Análise Geral de Setores', href='/analise-setores', active="exact"),
+                    dbc.NavLink('Análise de Fluxo de Resíduos', href='/fluxo-de-caixa', active="exact"),
                     dbc.NavLink('Produtos e Fornecedores', href='/analise-entidades', active="exact"),
                     dbc.NavLink('Buscar Registros', href='/registros', active="exact"),
-                    dbc.NavLink('Análise de Fluxo de Resíduos', href='/fluxo-de-caixa', active="exact"),
                 ],
                 vertical=True,
                 pills=True,

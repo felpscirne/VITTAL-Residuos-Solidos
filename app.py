@@ -58,6 +58,7 @@ sidebar = html.Div(
                     dbc.NavLink('Visão Geral Setores', href='/analise-setores', active="exact"),
                     dbc.NavLink('Produtos e Fornecedores', href='/analise-entidades', active="exact"),
                     dbc.NavLink('Buscar Registros', href='/registros', active="exact"),
+                    dbc.NavLink('Fluxo de Caixa de Resíduos', href='/fluxo-de-caixa', active="exact"),
                 ],
                 vertical=True,
                 pills=True,

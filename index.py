@@ -9,7 +9,8 @@ from pages import (
     analise_setores, 
     media_por_setor,
     analise_entidades,
-    registros
+    registros,
+    fluxo_de_caixa
 )
 
 
@@ -54,6 +55,8 @@ def display_page(pathname):
         
     elif pathname == '/registros':
         return registros.layout
+    elif pathname == '/fluxo-de-caixa':
+        return fluxo_de_caixa.layout
     
     elif pathname == '/':
         return overview.layout

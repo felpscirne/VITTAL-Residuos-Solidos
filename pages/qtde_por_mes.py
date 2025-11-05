@@ -19,7 +19,15 @@ empresas_options.insert(0, {'label': 'Todas as Empresas', 'value': 'todas'})
 layout = html.Div([
     html.H1('Análise Mensal (Volume e Peso)'),
     
-   
+    dbc.Alert(
+        [
+        html.H5("Quais são os padrões observados?", className="alert-heading"),
+        html.P("Os graficos abaixo respondem os seguintes levantamentos: " \
+                "Como o volume de coleta varia dentro do ano? Existem meses com mais atividade e meses com menos? Queremos encontrar a 'sazonalidade' da coleta. O volume e frequência aumentam no verão (devido ao turismo)? Diminuem em fevereiro (mês mais curto)?"),
+        ], 
+        color="info", className="mb-3"
+    ),
+
     dbc.Row(
         [
             dbc.Col(
@@ -49,12 +57,16 @@ layout = html.Div([
         className="dbc mb-3"
     ),
     
+
     dbc.Card(
         dbc.CardBody([
             dcc.Graph(id='grafico-qtde-por-mes')
         ]),
         className="mb-3"
     ),
+
+    html.Hr(),
+
     dbc.Card(
         dbc.CardBody([
             dcc.Graph(id='grafico-media-peso-por-mes')

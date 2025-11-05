@@ -23,6 +23,14 @@ setores_options, setor_inicial = get_setores_options()
 layout = html.Div([
     html.H1('Análise de Média de Peso Corrigido por Setor'),
     
+    dbc.Alert(
+        [   html.H5("O que esta análise responde?", className="alert-heading"),
+            html.P("Enquanto outras páginas comparam setores entre si, esta página compara um setor consigo mesmo ao longo do tempo. Permitindo-nos ver como a média de peso corrigido varia mês a mês para um setor específico."),
+            html.P("Existem tendências sazonais ou mudanças significativas que devemos observar?")
+        ],
+        color="info", className="mb-3"
+    ),
+
     dbc.Row(
         [
             dbc.Col(

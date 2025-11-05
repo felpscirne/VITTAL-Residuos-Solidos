@@ -60,6 +60,7 @@ layout = html.Div([
     html.H1('Análise de Setores'),
     html.P('Análises focadas nos locais onde houve recolhimento dos resíduos.'),
     
+    
 
     dcc.RadioItems(
         id='filtro-tipo-visualizacao',
@@ -77,6 +78,15 @@ layout = html.Div([
     html.Div(
         id='div-visualizacao-relacao',
         children=[
+            dbc.Alert(
+                [
+                html.H5("O que este gráfico responde?", className="alert-heading"),
+                html.P("Existem setores (bairros/locais) que se comportam de forma estranha ou 'fora da curva'?"),
+                html.P("Este é um gráfico de detetive. Ele cruza duas informações: o número de viagens (horizontal) e o peso médio por viagem (vertical). Isso nos mostra padrões.")
+                ],
+            color="info", className="mb-3"
+            ),
+
             dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-relacao-setor')))
         ],
         className="mb-3"
@@ -84,6 +94,15 @@ layout = html.Div([
     html.Div(
         id='div-visualizacao-individual',
         children=[
+            dbc.Alert(
+                [
+                html.H5("O que este gráfico responde?", className="alert-heading"),
+                html.P("Quais setores têm, em média, as coletas mais 'pesadas' (eficientes) e quais têm as mais 'leves'? Quais setores dão mais 'trabalho', ou seja, exigem o maior número de viagens e registros na balança?"),
+                html.P("Queremos comparar a eficiência média entre os bairros.")
+                ],
+            color="info", className="mb-3"
+            ),
+
             dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-media-setor')), className="mb-3"),
             dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-contagem-setor')), className="mb-3")
         ]

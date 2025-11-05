@@ -46,6 +46,15 @@ layout = html.Div([
     html.H1('Visão Geral do Dashboard'),
     html.P('Resumo dos principais indicadores de pesagem.'),
     
+dbc.Alert(
+        [
+            html.H5("O que são estes números?", className="alert-heading"),
+            html.P("Estes são os números vitais que dão contexto a todo o resto. Eles nos dizem o 'tamanho' da amostra (quantos registros temos) e se os dados estão atualizados."),
+            html.P("Os graficos a seguir possuem algumas missões: Queremos ver a tendência de longo prazo. Isso é crucial para o planejamento futuro. Queremos identificar o 'carro-chefe' da nossa coleta. É lixo domiciliar comum? É entulho de construção? É lixo hospitalar? A proporção entre eles é a que esperamos?")
+        ],
+        color="info", className="mb-3"
+    ),
+
     # KPIs (estáticos, dentro de Cards)
     dbc.Row(
         [

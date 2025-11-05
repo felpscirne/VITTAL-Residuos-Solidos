@@ -89,7 +89,16 @@ layout = html.Div([
            "com o volume de 'Saída' (registrado no setor de destino 'CANDIOTA')."),
     html.Hr(),
     
-    # --- Seção MACRO (Gráfico e Tabela Originais) ---
+    dbc.Alert(
+        [
+            html.H5("O que esta análise responde?", className="alert-heading"),
+            html.P("Qual é a relação entre o que coletamos e o que enviamos para descarte? "
+                   "Estamos coletando mais do que descartamos, ou o contrário? "
+                   "Existem setores específicos que contribuem mais para essa dinâmica?")
+        ],
+        color="info", className="mb-3"
+    ),
+
     dbc.Card(
         dbc.CardBody(dcc.Graph(id='grafico-fluxo-candiota')),
         className="mb-3"
@@ -116,26 +125,23 @@ layout = html.Div([
         className="mb-3"
     ),
     
-    # --- NOVA SEÇÃO: Análise Setorial Detalhada ---
     html.Hr(className="mt-5"),
     html.H2("Análise Setorial Detalhada (vs. Candiota)"),
     
-    # Filtro de Setor
     dbc.Card(
         dbc.CardBody([
             html.Label("Selecione um setor para análise detalhada:"),
             dcc.Dropdown(
                 id='dropdown-setor-fluxo',
                 options=setores_options,
-                value=setores_options[0]['value'] # Seleciona o primeiro setor por padrão
+                value=setores_options[0]['value'] 
             )
         ]),
-        className="mb-3 dbc" # 'dbc' para o tema do dropdown
+        className="mb-3 dbc" 
     ),
     
-    # Cards de Análise
+   
     dbc.Row([
-        # Gráfico (Goal 1)
         dbc.Col(
             dbc.Card(
                 dbc.CardBody(
@@ -144,7 +150,6 @@ layout = html.Div([
             ),
             md=8, className="mb-3"
         ),
-        # KPI de Participação (Goal 2)
         dbc.Col(
             dbc.Card(
                 dbc.CardBody(
@@ -156,9 +161,7 @@ layout = html.Div([
     ])
 ])
 
-# --- 4. CALLBACKS (ATUALIZADOS) ---
 
-# Callback 1: Atualiza o gráfico MACRO com a troca de tema
 @callback(
     Output('grafico-fluxo-candiota', 'figure'),
     [Input("theme-switch", "value")]
@@ -168,7 +171,6 @@ def update_macro_graph_theme(switch_is_light):
     fig = create_macro_fluxo_graph(df_fluxo_macro, template)
     return fig
 
-# Callback 2 (NOVO): Atualiza o gráfico MICRO e o KPI com a troca de dropdown E tema
 @callback(
     [Output('grafico-setor-vs-candiota', 'figure'),
      Output('kpi-setor-participacao', 'children')],
@@ -177,15 +179,11 @@ def update_macro_graph_theme(switch_is_light):
 )
 def update_micro_analysis(setor_selecionado, switch_is_light):
     
-    # Define o template do gráfico
     template = template_theme_light if switch_is_light else template_theme_dark
     
-    # --- Lógica para o Gráfico (Goal 1) ---
     fig = create_micro_fluxo_graph(df_fluxo_micro, setor_selecionado, template)
     
-    # --- Lógica para o KPI de Participação (Goal 2) ---
     
-    # Calcula totais
     total_saida_candiota = df_fluxo_micro[
         df_fluxo_micro['setor'] == 'CANDIOTA'
     ]['peso_kg'].sum()
@@ -194,13 +192,11 @@ def update_micro_analysis(setor_selecionado, switch_is_light):
         df_fluxo_micro['setor'] == setor_selecionado
     ]['peso_kg'].sum()
     
-    # Calcula a porcentagem
     if total_saida_candiota > 0:
         percentual = (total_setor_selecionado / total_saida_candiota) * 100
     else:
         percentual = 0
         
-    # Cria o componente de KPI/Progresso
     kpi_component = html.Div([
         html.H4("Participação vs. Saída Total"),
         html.P(f"Análise do setor: {setor_selecionado}"),

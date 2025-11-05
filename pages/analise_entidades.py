@@ -1,6 +1,7 @@
 from dash import dcc, html
 import plotly.express as px
 import pandas as pd
+import dash_bootstrap_components as dbc
 
 from database import engine
 
@@ -64,6 +65,14 @@ layout = html.Div([
     html.P('Análises estáticas de volume por produto(aquilo que foi sendo coletado) e entidade(quem coletou).'),
     html.Hr(),
     
+     dbc.Alert(
+                [
+                html.H5("O que estes gráficos respondem?", className="alert-heading"),
+                html.P("Quais são nossos resíduos mais comuns e quais são os mais raros, em ordem? Quais empresas, entidades ou secretarias mais usam o nosso sistema de pesagem?")
+                ],
+            color="info", className="mb-3"
+            ),
+
     dcc.Graph(
         id='grafico-contagem-produtos',
         figure=fig_contagem_produtos()

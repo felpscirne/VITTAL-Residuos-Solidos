@@ -4,10 +4,10 @@ from dash.dependencies import Input, Output, State
 from app import app, server
 
 from pages import (
+    analise_empresas,
+    analise_produtos,
     overview, 
-    qtde_por_mes,
     analise_setores, 
-    analise_entidades,
     registros,
     fluxo_de_caixa
 )
@@ -40,14 +40,14 @@ def toggle_sidebar_collapse(n, current_state):
     [Input('url', 'pathname')]
 )
 def display_page(pathname):
-    if pathname == '/analise-por-mes':
-        return qtde_por_mes.layout
+    if pathname == '/analise-empresas':
+        return analise_empresas.layout
     
     elif pathname == '/analise-setores':
         return analise_setores.layout
     
-    elif pathname == '/analise-entidades':
-        return analise_entidades.layout
+    elif pathname == '/analise-produtos':
+        return analise_produtos.layout
         
     elif pathname == '/registros':
         return registros.layout

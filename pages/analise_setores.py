@@ -85,8 +85,6 @@ layout = html.Div([
     ),
     
    
-    dbc.Button("🤖 Explicar esta visão geral", id="btn-ia-setores-overview", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
-    dcc.Loading(html.Div(id='ia-output-setores-overview')), 
     
     html.Div(
         id='div-visualizacao-relacao-setores', 
@@ -118,7 +116,8 @@ layout = html.Div([
             dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-contagem-setor')), className="mb-3") 
         ]
     ),
-    
+    dbc.Button("🤖 Explicar esta visão geral", id="btn-ia-setores-overview", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
+    dcc.Loading(html.Div(id='ia-output-setores-overview')),  
    
     html.Hr(className="mt-5"),
     html.H2("Drill-Down: Análise Temporal por Setor"),
@@ -161,14 +160,15 @@ layout = html.Div([
         className="dbc mb-3" 
     ),
     
-    dbc.Button("🤖 Explicar este setor", id="btn-ia-setores-temporal", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
-    dcc.Loading(html.Div(id='ia-output-setores-temporal')), 
+
 
     dbc.Card(
         dbc.CardBody([
             dcc.Graph(id='grafico-media-setor-temporal') 
         ])
-    )
+    ),
+    dbc.Button("🤖 Explicar este setor", id="btn-ia-setores-temporal", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
+    dcc.Loading(html.Div(id='ia-output-setores-temporal')), 
 ])
 
 
@@ -275,7 +275,7 @@ def get_ia_setores_overview(n_clicks):
     {df_volume.head(5).to_markdown(index=False)}
     """
 
-    # 1. Prompt Visão Geral
+    # Prompt Visão Geral
     prompt = f"""
     Você é um analista de dados da prefeitura de Rio Grande - RS.
     Sua tarefa é analisar os dados de Visão Geral dos setores de coleta de resíduos.
@@ -311,18 +311,23 @@ def get_ia_setores_temporal(n_clicks, setor_selecionado, ano_selecionado):
         return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
             
     query = """
-    SELECT EXTRACT(MONTH FROM data_hora) as mes, AVG(peso_embalagem_liquido_corrigido) as media_peso
+    SELECT EXTRACT(MONTH FROM data_hora) as mes, AVG(peso_embalagem_liquido_corrigido) as media_peso_kg
     FROM registro
     WHERE setor = %(setor)s AND EXTRACT(YEAR FROM data_hora) = %(ano)s
     GROUP BY mes ORDER BY mes
     """
     params = {'setor': setor_selecionado, 'ano': ano_selecionado}
     df = pd.read_sql(query, engine, params=params)
+    
+    meses_map = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'}
+    df['mes'] = df['mes'].map(meses_map)
+    df['media_peso_kg'] = df['media_peso_kg'].round(2)
+    
     dados_em_texto = df.to_markdown(index=False)
 
-    # 2. Prompt Drill-Down Temporal
+    # Prompt Temporal
     prompt = f"""
-    Você é um analista de dados senior da prefeitura de Rio Grande - RS.
+    Você é um analista de dados da prefeitura de Rio Grande - RS.
     Sua tarefa é analisar a tendência temporal de um setor específico.
 
     Dados da Análise:

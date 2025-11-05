@@ -9,7 +9,8 @@ from pages import (
     overview, 
     analise_setores, 
     registros,
-    fluxo_de_caixa
+    fluxo_de_caixa,
+    analise_horarios
 )
 
 
@@ -53,6 +54,8 @@ def display_page(pathname):
         return registros.layout
     elif pathname == '/fluxo-de-caixa':
         return fluxo_de_caixa.layout
+    elif pathname == '/analise-horarios':
+        return analise_horarios.layout
     
     elif pathname == '/':
         return overview.layout

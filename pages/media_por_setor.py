@@ -9,7 +9,7 @@ template_theme = "cosmo"
 
 def get_setores_options():
     try:
-        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND setor != 'ACERTO DE PESO' ORDER BY setor"
+        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND setor != 'ACERTO DE PESO' AND setor != 'CANDIOTA' ORDER BY setor"
         df = pd.read_sql(query, engine)
         options = [{'label': setor, 'value': setor} for setor in df['setor']]
         valor_inicial = options[0]['value'] if options else None

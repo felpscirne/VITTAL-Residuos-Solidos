@@ -17,7 +17,8 @@ def load_sector_data():
     FROM registro 
     WHERE 
         setor IS NOT NULL AND
-        setor != 'ACERTO DE PESO'
+        setor != 'ACERTO DE PESO' AND
+        setor != 'CANDIOTA'
     GROUP BY setor
     """
 

@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 import pandas as pd
 
-DATABASE_URI = "postgresql://postgres:postgres@localhost:5432/projeto"
+
 engine = create_engine(DATABASE_URI)
 
 

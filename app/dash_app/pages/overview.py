@@ -5,7 +5,7 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 
 # Importa a engine do banco
-from database import engine
+from app.database import engine
 
 template_theme_light = "plotly"
 template_theme_dark = "plotly_dark"

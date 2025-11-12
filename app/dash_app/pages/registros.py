@@ -3,7 +3,7 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 import dash_bootstrap_components as dbc
 
-from database import engine, get_anos_options
+from app.database import engine, get_anos_options
 
 anos_options, ano_inicial = get_anos_options()
 

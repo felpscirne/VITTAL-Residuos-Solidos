@@ -4,7 +4,7 @@ import plotly.express as px
 import pandas as pd
 import dash_bootstrap_components as dbc
 
-from database import engine, get_anos_options
+from app.database import engine, get_anos_options
 from services.ai_service import client, gemini_configurado, MODEL_NAME
 
 template_theme_light = "cosmo" # Ou seu tema

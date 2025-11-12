@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 
 from app.database import engine
 
-from services.ai_service import client, gemini_configurado, MODEL_NAME
+from app.services.ai_service import client, gemini_configurado, MODEL_NAME
 
 template_theme_light = "cosmo" 
 template_theme_dark = "plotly_dark"

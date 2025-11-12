@@ -27,10 +27,16 @@ def create_app():
     login_manager.init_app(server)
 
     with server.app_context():
+
+        from . import models 
+
+        @login_manager.user_loader
+        def load_user(user_id):
+            return models.User.query.get(int(user_id))
+
+
         from .routes import auth_routes
-        from .routes import main_routes
         server.register_blueprint(auth_routes.auth_bp)
-        server.register_blueprint(main_routes.main_bp)
         
         from .dash_app import create_dash_app
         app = create_dash_app(server)

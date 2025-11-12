@@ -1,8 +1,13 @@
 from sqlalchemy import create_engine
 import pandas as pd
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
-engine = create_engine(DATABASE_URI)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL)
 
 
 # Função para obter opções de anos

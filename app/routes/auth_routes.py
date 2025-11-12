@@ -8,7 +8,7 @@ auth_bp = Blueprint('auth', __name__, template_folder='../templates')
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('main.dash_app_route')) 
+        return redirect(url_for('/')) 
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
@@ -16,7 +16,7 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
-            return redirect(url_for('main.dash_app_route'))
+            return redirect(url_for('/'))
         else:
             flash('Login falhou. Verifique o email e a senha.', 'danger')
             
@@ -25,19 +25,19 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('auth.login'))
+    return redirect(url_for('/'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        
+        name = request.form.get('name')
         role = 'geral'
         if email.endswith(('.edu', '.edu.br')): 
             role = 'estudantil'
             
-        user = User(email=email, role=role)
+        user = User(email=email, name=name, role=role)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()

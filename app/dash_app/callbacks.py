@@ -158,6 +158,7 @@ def register_global_callbacks(app):
 
         return [
             html.H2("IFEsCS", className="text-white"),
+            html.H5("Plataforma Web de Análise", className="text-white"),
             html.Hr(className="text-white"),
             dbc.Nav(links_gerais, vertical=True, pills=True),
             dbc.Nav(links_protegidos, vertical=True, pills=True),

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, current_user
 from app import db, bcrypt
 from app.models import User
+import os
 
 auth_bp = Blueprint('auth', __name__, template_folder='../templates')
 
@@ -33,10 +34,24 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         name = request.form.get('name')
-        role = 'geral'
-        if email.endswith(('.edu', '.edu.br')): 
-            role = 'estudantil'
+
+        management_code = request.form.get('management_code')
+        secret_code = os.getenv('MANAGEMENT_SECRET_CODE')
+
+        role = 'geral' # Padrão
+        
+        if management_code and secret_code and management_code == secret_code:
+            # Se o código bater, dá o acesso de Gestão
+            role = 'gestao'
+            flash('Código de gestão correto! Conta de Gestor criada.', 'success')
             
+        elif email.endswith(('.edu', '.edu.br', '.ifrs.edu.br')):
+            # Se não for gestor, verifica se é estudante
+            role = 'estudantil'
+            flash('Email institucional detectado. Conta de Estudante criada.', 'info')
+        else:
+            # Senão, é usuário geral
+            flash('Conta de Acesso Geral criada.', 'info')
         user = User(email=email, name=name, role=role)
         user.set_password(password)
         db.session.add(user)

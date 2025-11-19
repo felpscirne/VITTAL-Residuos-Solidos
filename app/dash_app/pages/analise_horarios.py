@@ -5,8 +5,7 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 
 from app.database import engine, get_anos_options 
-from app.services.ai_service import client, gemini_configurado, MODEL_NAME
-
+from app.services.ai_service import generate_analysis_component
 template_theme_light = "cosmo" 
 template_theme_dark = "plotly_dark"
 
@@ -188,8 +187,6 @@ def update_heatmap(selected_year, selected_month, switch_is_light):
     prevent_initial_call=True
 )
 def get_ia_heatmap_analysis(n_clicks, selected_year, selected_month):
-    if not gemini_configurado:
-        return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
             
     df_filtered = df_heatmap_raw.copy()
     
@@ -241,8 +238,4 @@ def get_ia_heatmap_analysis(n_clicks, selected_year, selected_month):
     Responda em um texto organizado e de linguagem clara. Não fale as perguntas. Não se apresente.
     """
     
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        return dbc.Card(dbc.CardBody(dcc.Markdown(response.text)), className="mt-3")
-    except Exception as e:
-        return dbc.Alert(f"Erro na API: {str(e)}", color="danger", className="mt-3")
+    return generate_analysis_component(prompt)

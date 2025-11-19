@@ -5,7 +5,7 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 
 from app.database import engine
-from app.services.ai_service import client, gemini_configurado, MODEL_NAME 
+from app.services.ai_service import generate_analysis_component
 
 template_theme_light = "cosmo" 
 template_theme_dark = "plotly_dark"
@@ -205,8 +205,6 @@ def update_setor_prod_graph(selected_setor, switch_is_light):
     prevent_initial_call=True
 )
 def get_ia_produtos(n_clicks):
-    if not gemini_configurado:
-        return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
             
     dados_em_texto = df_produtos.head(10).to_markdown(index=False)
 
@@ -225,11 +223,7 @@ def get_ia_produtos(n_clicks):
     Responda em um texto organizado e de linguagem clara. Não diga as perguntas. Não se apresente.
     """
     
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        return dbc.Card(dbc.CardBody(dcc.Markdown(response.text)), className="mt-3")
-    except Exception as e:
-        return dbc.Alert(f"Erro na API: {str(e)}", color="danger", className="mt-3")
+    return generate_analysis_component(prompt)
 
 @callback(
     Output('ia-output-prod-forn', 'children'),
@@ -238,8 +232,6 @@ def get_ia_produtos(n_clicks):
     prevent_initial_call=True
 )
 def get_ia_prod_forn(n_clicks, selected_product):
-    if not gemini_configurado:
-        return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
             
     query = "SELECT fornecedor_cliente, COUNT(*) as quantidade FROM registro WHERE produto = %(produto)s AND fornecedor_cliente IS NOT NULL GROUP BY fornecedor_cliente ORDER BY quantidade DESC"
     params = {'produto': selected_product}
@@ -264,11 +256,7 @@ def get_ia_prod_forn(n_clicks, selected_product):
     Responda em um texto organizado e de linguagem clara. Não se apresente.
     """
     
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        return dbc.Card(dbc.CardBody(dcc.Markdown(response.text)), className="mt-3")
-    except Exception as e:
-        return dbc.Alert(f"Erro na API: {str(e)}", color="danger", className="mt-3")
+    return generate_analysis_component(prompt)
 
 @callback(
     Output('ia-output-setor-prod', 'children'),
@@ -277,8 +265,6 @@ def get_ia_prod_forn(n_clicks, selected_product):
     prevent_initial_call=True
 )
 def get_ia_setor_prod(n_clicks, selected_setor):
-    if not gemini_configurado:
-        return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
             
     query = "SELECT produto, COUNT(*) as quantidade FROM registro WHERE setor = %(setor)s AND produto IS NOT NULL GROUP BY produto ORDER BY quantidade DESC"
     params = {'setor': selected_setor}
@@ -303,8 +289,4 @@ def get_ia_setor_prod(n_clicks, selected_setor):
     Responda em um texto organizado e de linguagem clara. Não diga as perguntas. Não se apresente.
     """
     
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        return dbc.Card(dbc.CardBody(dcc.Markdown(response.text)), className="mt-3")
-    except Exception as e:
-        return dbc.Alert(f"Erro na API: {str(e)}", color="danger", className="mt-3")
+    return generate_analysis_component(prompt)

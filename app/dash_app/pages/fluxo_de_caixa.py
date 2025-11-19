@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 
 from app.database import engine
 
-from app.services.ai_service import client, gemini_configurado, MODEL_NAME
+from app.services.ai_service import generate_analysis_component
 
 template_theme_light = "cosmo" 
 template_theme_dark = "plotly_dark"
@@ -237,8 +237,7 @@ def update_micro_analysis(setor_selecionado, switch_is_light):
     prevent_initial_call=True
 )
 def get_ia_balanco(n_clicks):
-    if not gemini_configurado:
-        return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
+    
             
     
     df = df_fluxo_macro
@@ -266,11 +265,7 @@ def get_ia_balanco(n_clicks):
     Responda em um texto organizado e de linguagem clara. Sem falar as perguntas. Não se apresente.
     """
     
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        return dbc.Card(dbc.CardBody(dcc.Markdown(response.text)), className="mt-3")
-    except Exception as e:
-        return dbc.Alert(f"Erro na API: {str(e)}", color="danger", className="mt-3")
+    return generate_analysis_component(prompt)
 
 @callback(
     Output('ia-output-setor', 'children'),
@@ -279,8 +274,6 @@ def get_ia_balanco(n_clicks):
     prevent_initial_call=True
 )
 def get_ia_setor(n_clicks, setor_selecionado):
-    if not gemini_configurado:
-        return dbc.Alert("Erro de Configuração: API do Gemini não encontrada.", color="danger", className="mt-3")
             
     total_saida_candiota = df_fluxo_micro[df_fluxo_micro['setor'] == 'CANDIOTA']['peso_kg'].sum()
     total_setor_selecionado = df_fluxo_micro[df_fluxo_micro['setor'] == setor_selecionado]['peso_kg'].sum()
@@ -305,8 +298,4 @@ def get_ia_setor(n_clicks, setor_selecionado):
     Responda em um texto organizado e de linguagem clara. Sem falar as perguntas. Não se apresente. O usuario pode conferir uma analise melhor do setor analisando o grafico acima. Outra opção é a pagina de analise geral de setores.
     """
     
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        return dbc.Card(dbc.CardBody(dcc.Markdown(response.text)), className="mt-3")
-    except Exception as e:
-        return dbc.Alert(f"Erro na API: {str(e)}", color="danger", className="mt-3")
+    return generate_analysis_component(prompt)

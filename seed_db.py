@@ -2,6 +2,7 @@ import os
 from app import create_app, db
 from app.models import Role, Page, User
 from flask_security.utils import hash_password
+from datetime import datetime
 
 PAGES_TO_SEED = {
     '/': 'Visão Geral (Dashboard)',
@@ -87,7 +88,7 @@ def seed_database():
                 password=hash_password("senha123"),
                 roles=['superadmin'],
                 active=True,
-                confirmed_at=None 
+                confirmed_at=datetime.now()
             )
             print(f"    + Superadmin criado: {admin_email} / senha123")
         

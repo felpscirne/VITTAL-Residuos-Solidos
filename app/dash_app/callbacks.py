@@ -3,6 +3,8 @@ from dash import dcc, html, Input, Output, State, ClientsideFunction, callback_c
 import dash_bootstrap_components as dbc
 from flask_login import current_user
 
+from app import db
+from app.models import Role, Page
 
 from .pages import (
     overview, 
@@ -14,44 +16,10 @@ from .pages import (
     auditoria_peso,
     registros,
     fluxo_de_caixa,
-    gerenciar_permissoes,
     gerenciar_arquivos,
+    gerenciar_permissoes
 )
 
-PAGE_PERMISSIONS = {
-    'sem_login': [
-        '/',
-        '/analise-produtos',
-        '/fluxo-de-caixa',
-    ],
-    'geral': [
-        '/',
-        '/analise-produtos',
-        '/fluxo-de-caixa',
-    ],
-    'estudantil': [
-        '/',
-        '/analise-produtos',
-        '/analise-setores',
-        '/analise-empresas',
-        '/fluxo-de-caixa',
-        '/analise-frotas',
-        '/registros',
-    ],
-    'gestao': [
-        '/',
-        '/analise-produtos',
-        '/analise-horarios',
-        '/analise-setores',
-        '/analise-empresas',
-        '/fluxo-de-caixa',
-        '/analise-frotas',
-        '/registros',
-        '/auditoria-peso',
-        '/gerenciar-permissoes',
-        '/gerenciar-arquivos',
-    ],
-}
 
 PAGE_MAP = {
     '/': overview.layout,
@@ -63,8 +31,8 @@ PAGE_MAP = {
     '/auditoria-peso': auditoria_peso.layout,
     '/registros': registros.layout,
     '/fluxo-de-caixa': fluxo_de_caixa.layout,
-    '/gerenciar-permissoes': gerenciar_permissoes.layout,
     '/gerenciar-arquivos': gerenciar_arquivos.layout,
+    '/gerenciar-permissoes': gerenciar_permissoes.layout,
 }
 
 # Layouts de erro
@@ -83,98 +51,117 @@ login_required_layout = dbc.Container([
 
 
 def register_global_callbacks(app):
-   
+
     @app.callback(
         Output('page-content-dynamic', 'children'),
         [Input('url', 'pathname')]
     )
     def display_page(pathname):
         
-
+        # Ignora rotas de autenticação do Flask
         if pathname in ['/login', '/logout', '/register']:
             return dash.no_update
         
-        user_role = 'sem_login'
-        
         if current_user.is_authenticated:
-            if current_user.has_role('superadmin'):
-                user_role = 'superadmin'
-            elif current_user.has_role('gestao'):
-                user_role = 'gestao'
-            elif current_user.has_role('estudantil'):
-                user_role = 'estudantil'
-            else:
-                user_role = 'geral'
-
-        if user_role == 'superadmin':
-            allowed_routes = list(PAGE_MAP.keys())
-        else:
-            allowed_routes = PAGE_PERMISSIONS.get(user_role, [])
         
-        if pathname not in allowed_routes:
-            if user_role == 'sem_login':
+            try:
+                user_role_name = current_user.role 
+            except:
+                user_role_name = 'geral'
+        else:
+            user_role_name = 'sem_login'
+
+        permission_granted = False
+        
+        if user_role_name == 'superadmin':
+            permission_granted = True 
+        else:
+            permission = db.session.query(Page).join(Role.pages).filter(
+                Role.name == user_role_name,
+                Page.route == pathname
+            ).first()
+            
+            if permission:
+                permission_granted = True
+            if pathname == '/' and not permission:
+               
+                 pass
+        
+        if not permission_granted:
+            if user_role_name == 'sem_login':
                 return login_required_layout
             else:
                 return access_denied_layout
         
         return PAGE_MAP.get(pathname, html.H1("404: Página não encontrada", className="text-center mt-5"))
 
- 
+
     @app.callback(
         Output('sidebar-content', 'children'),
-        Input('url', 'pathname') 
+        Input('url', 'pathname')
     )
     def update_sidebar_content(pathname):
-        if current_user.is_authenticated:
-            user_role = current_user.role
-        else:
-            user_role = 'sem_login'
-            
-        if user_role == 'superadmin':
-            allowed_pages_for_role = list(PAGE_MAP.keys())
-        else:
-            allowed_pages_for_role = PAGE_PERMISSIONS.get(user_role, [])
+        if pathname in ['/login', '/logout', '/register']:
+            return dash.no_update
 
-        # Cria os links com base na role
+        if current_user.is_authenticated:
+            user_role_name = current_user.role
+            try:
+                display_name = current_user.name if current_user.name else current_user.email
+            except:
+                display_name = current_user.email
+        else:
+            user_role_name = 'sem_login'
+            display_name = ""
+            
+        allowed_routes = []
+        if user_role_name == 'superadmin':
+            allowed_routes = list(PAGE_MAP.keys())
+        else:
+            role = Role.query.filter_by(name=user_role_name).first()
+            if role:
+                allowed_routes = [p.route for p in role.pages]
+
+        
         links_gerais = []
-        if '/' in allowed_pages_for_role:
+        if '/' in allowed_routes:
             links_gerais.append(dbc.NavLink('Visão Geral', href='/', active="exact"))
-        if '/analise-produtos' in allowed_pages_for_role:
+        if '/analise-produtos' in allowed_routes:
             links_gerais.append(dbc.NavLink('Análise de Produtos', href='/analise-produtos', active="exact"))
-        if '/fluxo-de-caixa' in allowed_pages_for_role:
+        if '/fluxo-de-caixa' in allowed_routes:
             links_gerais.append(dbc.NavLink('Fluxo de Caixa', href='/fluxo-de-caixa', active="exact"))
 
         links_protegidos = []
-        if '/analise-setores' in allowed_pages_for_role:
+        if '/analise-setores' in allowed_routes:
              links_protegidos.append(dbc.NavLink('Análise de Setores', href='/analise-setores', active="exact"))
-        if '/analise-empresas' in allowed_pages_for_role:
+        if '/analise-empresas' in allowed_routes:
             links_protegidos.append(dbc.NavLink('Análise de Empresas', href='/analise-empresas', active="exact"))
-        if '/analise-horarios' in allowed_pages_for_role:
+        if '/analise-horarios' in allowed_routes:
              links_protegidos.append(dbc.NavLink('Análise de Horários', href='/analise-horarios', active="exact"))
-        if '/analise-frotas' in allowed_pages_for_role:
+        if '/analise-frotas' in allowed_routes:
             links_protegidos.append(dbc.NavLink('Análise de Frota', href='/analise-frotas', active="exact"))
-        if '/registros' in allowed_pages_for_role:
+        if '/registros' in allowed_routes:
             links_protegidos.append(dbc.NavLink('Buscar Registros', href='/registros', active="exact"))
 
         links_gestao = []
-        if '/gerenciar-permissoes' in allowed_pages_for_role:
-            links_gestao.append(dbc.NavLink('Gerenciar Permissões', href='/gerenciar-permissoes', active="exact"))
-        if '/gerenciar-arquivos' in allowed_pages_for_role:
-            links_gestao.append(dbc.NavLink('Gerenciar Arquivos', href='/gerenciar-arquivos', active="exact"))
-        
+        if '/auditoria-peso' in allowed_routes:
+            links_gestao.append(dbc.NavLink('Auditoria de Peso', href='/auditoria-peso', active="exact", className="text-warning"))
+        if '/gerenciar-arquivos' in allowed_routes:
+            links_gestao.append(dbc.NavLink('Gerenciar Arquivos', href='/gerenciar-arquivos', active="exact", className="text-info"))
+        if '/gerenciar-permissoes' in allowed_routes:
+            links_gestao.append(dbc.NavLink('Gerenciar Permissões', href='/gerenciar-permissoes', active="exact", className="text-danger"))
+
+        # Links de Login/Logout
         if current_user.is_authenticated:
-             display_name = current_user.name if current_user.name else current_user.email
-             links_login = [dbc.NavLink(f"Logout ({display_name})", href="/logout", active="exact", className="mt-5", external_link=True)]
+            links_login = [dbc.NavLink(f"Logout ({display_name})", href="/logout", active="exact", className="mt-5", external_link=True)]
         else:
-             links_login = [
-                 dbc.NavLink("Login", href="/login", active="exact", className="mt-5", external_link=True),
-                 dbc.NavLink("Registrar", href="/register", active="exact", external_link=True)
-             ]
+            links_login = [
+                dbc.NavLink("Login", href="/login", active="exact", className="mt-5", external_link=True),
+                dbc.NavLink("Registrar", href="/register", active="exact", external_link=True)
+            ]
 
         return [
             html.H2("IFEsCS", className="text-white"),
-            html.H5("Plataforma Web de Análise", className="text-white"),
-            html.Hr(className="text-white"),
             dbc.Nav(links_gerais, vertical=True, pills=True),
             dbc.Nav(links_protegidos, vertical=True, pills=True),
             dbc.Nav(links_gestao, vertical=True, pills=True),
@@ -196,13 +183,12 @@ def register_global_callbacks(app):
 
         if current_state == 'open':
             return 'sidebar navbar-dark bg-dark collapsed', 'content collapsed', 'collapsed'
-        else: # current_state == 'collapsed'
+        else: 
             return 'sidebar navbar-dark bg-dark', 'content', 'open'
 
     app.clientside_callback(
         """
         function(switch_on) {
-            // 'switch_on' é True para claro, False para escuro
             var theme = switch_on ? 'light' : 'dark';
             document.documentElement.setAttribute('data-bs-theme', theme);
             return window.dash_clientside.no_update;

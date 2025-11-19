@@ -262,11 +262,18 @@ def upload_file(contents, filename):
      State('tabela-arquivos', 'data')]
 )
 def toggle_modal(n_init, n_cancel, n_confirm, is_open, selected_rows, rows):
-    ctx = list(callback_context.triggered_prop_ids.keys())[0]
+    triggers = list(callback_context.triggered_prop_ids.keys())
+    
+    if not triggers:
+        return False, no_update, no_update
+
+    ctx = triggers[0]
+    
     if 'btn-delete-file-init' in ctx and selected_rows:
         filename = rows[selected_rows[0]]['filename']
         msg = f"Tem certeza que deseja excluir permanentemente o arquivo '{filename}' do servidor?"
         return True, msg, filename
+    
     return False, no_update, no_update
 
 @callback(

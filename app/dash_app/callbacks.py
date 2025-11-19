@@ -13,7 +13,9 @@ from .pages import (
     analise_frotas,
     auditoria_peso,
     registros,
-    fluxo_de_caixa
+    fluxo_de_caixa,
+    gerenciar_permissoes,
+    gerenciar_arquivos,
 )
 
 PAGE_PERMISSIONS = {
@@ -46,6 +48,8 @@ PAGE_PERMISSIONS = {
         '/analise-frotas',
         '/registros',
         '/auditoria-peso',
+        '/gerenciar-permissoes',
+        '/gerenciar-arquivos',
     ],
 }
 
@@ -59,6 +63,8 @@ PAGE_MAP = {
     '/auditoria-peso': auditoria_peso.layout,
     '/registros': registros.layout,
     '/fluxo-de-caixa': fluxo_de_caixa.layout,
+    '/gerenciar-permissoes': gerenciar_permissoes.layout,
+    '/gerenciar-arquivos': gerenciar_arquivos.layout,
 }
 
 # Layouts de erro
@@ -151,8 +157,10 @@ def register_global_callbacks(app):
             links_protegidos.append(dbc.NavLink('Buscar Registros', href='/registros', active="exact"))
 
         links_gestao = []
-        if '/auditoria-peso' in allowed_pages_for_role:
-            links_gestao.append(dbc.NavLink('Auditoria de Peso', href='/auditoria-peso', active="exact", className="text-warning"))
+        if '/gerenciar-permissoes' in allowed_pages_for_role:
+            links_gestao.append(dbc.NavLink('Gerenciar Permissões', href='/gerenciar-permissoes', active="exact"))
+        if '/gerenciar-arquivos' in allowed_pages_for_role:
+            links_gestao.append(dbc.NavLink('Gerenciar Arquivos', href='/gerenciar-arquivos', active="exact"))
         
         if current_user.is_authenticated:
              display_name = current_user.name if current_user.name else current_user.email

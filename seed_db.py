@@ -3,7 +3,6 @@ from app import create_app, db
 from app.models import Role, Page, User
 from flask_security.utils import hash_password
 
-# (PAGES_TO_SEED e ROLES_TO_SEED continuam iguais...)
 PAGES_TO_SEED = {
     '/': 'Visão Geral (Dashboard)',
     '/analise-produtos': 'Análise de Produtos',
@@ -41,14 +40,12 @@ def seed_database():
     app = create_app()
     with app.app_context():
         
-        # --- IMPORTANTE: Obtemos o Datastore do app ---
-        # O Flask-Security anexa o datastore ao app.extensions['security'].datastore
+       
         user_datastore = app.extensions['security'].datastore
 
         print(">>> Criando tabelas do banco de dados...")
         db.create_all()
 
-        # 1. Criar Roles (Usando Datastore é mais seguro)
         print(">>> Verificando Roles...")
         for role_name in ROLES_TO_SEED:
             if not user_datastore.find_role(role_name):
@@ -56,7 +53,6 @@ def seed_database():
                 print(f"    + Role criada: {role_name}")
         db.session.commit()
 
-        # 2. Criar/Atualizar Páginas (Continua igual, pois Page não é do Security)
         print(">>> Verificando Páginas...")
         for route, desc in PAGES_TO_SEED.items():
             page = Page.query.filter_by(route=route).first()
@@ -68,7 +64,6 @@ def seed_database():
                 page.description = desc
         db.session.commit()
 
-        # 3. Resetar e Re-aplicar Permissões
         print(">>> Sincronizando Permissões...")
         for role_name, routes in DEFAULT_PERMISSIONS.items():
             role = user_datastore.find_role(role_name) # Usa datastore
@@ -81,20 +76,18 @@ def seed_database():
                     role.pages.append(page)
         db.session.commit()
 
-        # 4. Criar Usuário Superadmin (CORRIGIDO)
         print(">>> Verificando Superadmin...")
         admin_email = "admin@sistema.com"
         
         if not user_datastore.find_user(email=admin_email):
-            # --- CORREÇÃO AQUI: Usamos create_user ---
-            # Ele gera o fs_uniquifier e hash da senha automaticamente
+       
             user_datastore.create_user(
                 email=admin_email,
                 name="Super Administrador",
                 password=hash_password("senha123"),
-                roles=['superadmin'], # Passamos a role como lista de strings
+                roles=['superadmin'],
                 active=True,
-                confirmed_at=None # Confirma o email
+                confirmed_at=None 
             )
             print(f"    + Superadmin criado: {admin_email} / senha123")
         

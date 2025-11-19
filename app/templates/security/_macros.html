@@ -1,0 +1,19 @@
+{% macro render_field_with_errors(field) %}
+<div class="form-group">
+    {# Renderiza o campo de input (com a classe form-control passada nos argumentos) #}
+    {{ field(**kwargs)|safe }}
+
+    {# Se houver erros neste campo, mostre-os em vermelho #}
+    {% if field.errors %}
+    <div class="invalid-feedback d-block">
+        {% for error in field.errors %}
+        {{ error }}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_field(field) %}
+{{ field(**kwargs)|safe }}
+{% endmacro %}

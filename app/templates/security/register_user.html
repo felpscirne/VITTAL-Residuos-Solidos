@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "security/_macros.html" import render_field_with_errors, render_field %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-body p-4">
+        <h3 class="card-title text-center mb-4">Registrar</h3>
+        
+        <form action="{{ url_for('security.register') }}" method="POST" name="register_user_form">
+            {{ register_user_form.hidden_tag() }}
+
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                {{ render_field_with_errors(register_user_form.email, class="form-control") }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Nome Completo</label>
+                {{ render_field_with_errors(register_user_form.name, class="form-control") }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Senha</label>
+                {{ render_field_with_errors(register_user_form.password, class="form-control") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Confirmar Senha</label>
+                {{ render_field_with_errors(register_user_form.password_confirm, class="form-control") }}
+            </div>
+            <hr>
+            <div class="mb-3">
+                <label class="form-label">Código de Gestão (Opcional)</label>
+                {{ render_field_with_errors(register_user_form.management_code, class="form-control") }}
+                <div class="form-text">Preencha apenas se for um gestor.</div>
+            </div>
+
+            <div class="d-grid mt-4">
+                {{ render_field(register_user_form.submit, class="btn btn-primary") }}
+            </div>
+        </form>
+        <hr>
+        <div class="text-center">
+            <a href="{{ url_for('security.login') }}">Já tem conta? Faça login</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

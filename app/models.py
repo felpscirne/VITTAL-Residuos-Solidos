@@ -1,6 +1,5 @@
-from app import db, bcrypt
-from flask_login import UserMixin
-from flask_security import RoleMixin 
+from app.extensions import db
+from flask_security import RoleMixin, UserMixin
 
 # Flask Security trabalha com muitos para muitos entre usuários e roles
 roles_users = db.Table('roles_users',

@@ -87,25 +87,31 @@ def register_global_callbacks(app):
 
         if pathname in ['/login', '/logout', '/register']:
             return dash.no_update
-
+        
+        user_role = 'sem_login'
+        
         if current_user.is_authenticated:
-            user_role = current_user.role 
-        else:
-            user_role = 'sem_login'
+            if current_user.has_role('superadmin'):
+                user_role = 'superadmin'
+            elif current_user.has_role('gestao'):
+                user_role = 'gestao'
+            elif current_user.has_role('estudantil'):
+                user_role = 'estudantil'
+            else:
+                user_role = 'geral'
 
         if user_role == 'superadmin':
-            allowed_pages_for_role = list(PAGE_MAP.keys()) # Superadmin vê tudo
+            allowed_routes = list(PAGE_MAP.keys())
         else:
-            allowed_pages_for_role = PAGE_PERMISSIONS.get(user_role, [])
+            allowed_routes = PAGE_PERMISSIONS.get(user_role, [])
         
-        if pathname not in allowed_pages_for_role:
+        if pathname not in allowed_routes:
             if user_role == 'sem_login':
                 return login_required_layout
             else:
                 return access_denied_layout
         
-        page_layout = PAGE_MAP.get(pathname, "404: Página não encontrada")
-        return page_layout
+        return PAGE_MAP.get(pathname, html.H1("404: Página não encontrada", className="text-center mt-5"))
 
  
     @app.callback(
@@ -149,12 +155,13 @@ def register_global_callbacks(app):
             links_gestao.append(dbc.NavLink('Auditoria de Peso', href='/auditoria-peso', active="exact", className="text-warning"))
         
         if current_user.is_authenticated:
-            links_login = [dbc.NavLink(f"Logout ({current_user.name})", href="/logout", active="exact", className="mt-5", external_link=True)]
+             display_name = current_user.name if current_user.name else current_user.email
+             links_login = [dbc.NavLink(f"Logout ({display_name})", href="/logout", active="exact", className="mt-5", external_link=True)]
         else:
-            links_login = [
-                dbc.NavLink("Login", href="/login", active="exact", className="mt-5", external_link=True),
-                dbc.NavLink("Registrar", href="/register", active="exact", external_link=True)
-            ]
+             links_login = [
+                 dbc.NavLink("Login", href="/login", active="exact", className="mt-5", external_link=True),
+                 dbc.NavLink("Registrar", href="/register", active="exact", external_link=True)
+             ]
 
         return [
             html.H2("IFEsCS", className="text-white"),

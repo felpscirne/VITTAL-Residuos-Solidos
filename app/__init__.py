@@ -2,7 +2,7 @@ import os
 from flask import Flask
 from dotenv import load_dotenv
 from flask_security import SQLAlchemyUserDatastore, user_registered
-from app.extensions import db, bcrypt, mail, security
+from app.extensions import db, bcrypt, mail, security, cache
 from app.models import db, User, Role
 
 load_dotenv()
@@ -36,12 +36,14 @@ def create_app():
     server.config['SECURITY_POST_REGISTER_VIEW'] = '/login'
 
     from app.forms import ExtendedRegisterForm
+    server.config['SECURITY_CONFIRM_REGISTER_FORM'] = ExtendedRegisterForm
     server.config['SECURITY_REGISTER_FORM'] = ExtendedRegisterForm
 
     
     db.init_app(server)
     bcrypt.init_app(server)
     mail.init_app(server)
+    cache.init_app(server)
 
     
     user_datastore = SQLAlchemyUserDatastore(db, User, Role)

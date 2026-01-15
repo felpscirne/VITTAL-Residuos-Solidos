@@ -16,23 +16,27 @@ PAGES_TO_SEED = {
     '/auditoria-peso': 'Auditoria de Peso',
     '/gerenciar-arquivos': 'Gerenciar Arquivos (.ods)',
     '/gerenciar-permissoes': 'Gerenciar Permissões de Acesso',
+    'gerenciar-eventos': 'Gerenciar Eventos',
+    '/visualizar-eventos': 'Quadro de Avisos e Eventos'
 }
 
 ROLES_TO_SEED = ['sem_login', 'geral', 'estudantil', 'gestao', 'superadmin']
 
 DEFAULT_PERMISSIONS = {
-    'sem_login': ['/', '/analise-produtos', '/fluxo-de-caixa'],
-    'geral': ['/', '/analise-produtos', '/fluxo-de-caixa'],
+    'sem_login': ['/', '/analise-produtos', '/fluxo-de-caixa', '/visualizar-eventos'],
+    'geral': ['/', '/analise-produtos', '/fluxo-de-caixa', '/visualizar-eventos'],
     'estudantil': [
         '/', '/analise-produtos', '/fluxo-de-caixa', 
         '/analise-setores', '/analise-empresas', 
-        '/analise-horarios', '/analise-frotas', '/registros'
+        '/analise-horarios', '/analise-frotas', '/registros',
+        '/visualizar-eventos'
     ],
     'gestao': [
         '/', '/analise-produtos', '/fluxo-de-caixa', 
         '/analise-setores', '/analise-empresas', 
         '/analise-horarios', '/analise-frotas', '/registros', 
-        '/auditoria-peso', '/gerenciar-arquivos', '/gerenciar-permissoes'
+        '/auditoria-peso', '/gerenciar-arquivos', '/gerenciar-permissoes', '/gerenciar-eventos',
+        '/visualizar-eventos'
     ],
     'superadmin': list(PAGES_TO_SEED.keys())
 }

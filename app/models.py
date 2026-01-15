@@ -47,3 +47,18 @@ class User(db.Model, UserMixin): # <- Flask Login UserMixin
         if self.roles:
             return self.roles[0].name
         return None
+
+class Event(db.Model):
+    __tablename__ = 'event'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False) # Ex: "Manutenção Balança 01"
+    description = db.Column(db.Text)                  # Detalhes
+    event_type = db.Column(db.String(50))             # Ex: "Manutenção", "Feriado", "Greve"
+    
+    start_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=False)
+    
+    # Setores afetados
+    affected_sectors = db.Column(db.String(255)) 
+    
+    created_at = db.Column(db.DateTime, default=db.func.now())

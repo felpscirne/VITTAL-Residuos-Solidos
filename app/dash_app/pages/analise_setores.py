@@ -1,12 +1,14 @@
-from dash import dcc, html, callback
-from dash.dependencies import Input, Output, State
+from dash import dcc, html, callback, Input, Output, State
 import plotly.express as px
 import pandas as pd
 import dash_bootstrap_components as dbc
+from sqlalchemy import or_, extract
+from datetime import datetime
 
 from app.database import engine, get_anos_options 
-
+from app.models import Event
 from app.services.ai_service import generate_analysis_component
+from app import db
 
 template_theme_light = "cosmo" 
 template_theme_dark = "plotly_dark"
@@ -164,7 +166,8 @@ layout = html.Div([
 
     dbc.Card(
         dbc.CardBody([
-            dcc.Graph(id='grafico-media-setor-temporal') 
+            dcc.Graph(id='grafico-media-setor-temporal'),
+            html.Div(id='lista-eventos-setor', className="mt-3") 
         ])
     ),
     dbc.Button("🤖 Explicar este setor", id="btn-ia-setores-temporal", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
@@ -200,19 +203,20 @@ def update_overview_graphs_theme(switch_is_light):
     return fig1, fig2, fig3
 
 @callback(
-    Output('grafico-media-setor-temporal', 'figure'),
+    [Output('grafico-media-setor-temporal', 'figure'),
+     Output('lista-eventos-setor', 'children')],
     [Input('filtro-setor-temporal', 'value'),
      Input('filtro-ano-temporal', 'value'),
      Input("theme-switch", "value")]
 )
-def update_temporal_graph(setor_selecionado, ano_selecionado, switch_is_light):
+def update_temporal_graph_logic(setor_selecionado, ano_selecionado, switch_is_light):
     
     template = template_theme_light if switch_is_light else template_theme_dark
     
     if not setor_selecionado or not ano_selecionado:
         fig_vazia = px.line(title="Por favor, selecione um setor e um ano.", template=template)
         fig_vazia.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        return fig_vazia
+        return fig_vazia, ""
 
     query = """
     SELECT 
@@ -249,7 +253,105 @@ def update_temporal_graph(setor_selecionado, ano_selecionado, switch_is_light):
         plot_bgcolor="rgba(0,0,0,0)"
     )
     
-    return fig
+    events_html = []
+
+    
+    # --- Check for Events ---
+    try:
+        # Events that start or end in the selected year, or span across the selected year
+        # Condition: start_year <= selected_year AND end_year >= selected_year
+        events = Event.query.filter(
+            extract('year', Event.start_date) <= ano_selecionado,
+            extract('year', Event.end_date) >= ano_selecionado
+        ).all()
+        
+        meses_ordem = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        fig.update_xaxes(categoryorder='array', categoryarray=meses_ordem)
+
+        found_events = []
+
+        for e in events:
+            # Check if sector is affected
+            # Note: affected_sectors is a string "Setor A, Setor B" or "Geral (Todos)"
+            if not e.affected_sectors: continue 
+            
+            affected_list = [s.strip() for s in e.affected_sectors.split(',')]
+            is_generic = "Geral (Todos)" in affected_list or "Geral" in affected_list
+            is_specific = setor_selecionado in affected_list
+            
+            if is_generic or is_specific:
+                found_events.append(e)
+
+                # Calculate month range for the selected year
+                start_dt = e.start_date
+                end_dt = e.end_date
+                
+                # If event started in previous year, clip to Jan
+                start_month_idx = start_dt.month if start_dt.year == ano_selecionado else 1
+                # If event ends in next year, clip to Dez
+                end_month_idx = end_dt.month if end_dt.year == ano_selecionado else 12
+                
+                # Validation
+                if start_month_idx > end_month_idx: continue
+
+                # Use numeric indices for width calculated on categorical axis
+                # 0-based index: Jan=0, Fev=1...
+                # We subtract 0.5 and add 0.5 to center the box on the month category tick
+                x0_val = (start_month_idx - 1) - 0.5
+                x1_val = (end_month_idx - 1) + 0.5
+
+                # Determine Color based on Type
+                color_map = {
+                    'Manutenção': 'rgba(255, 165, 0, 0.2)', # Orange
+                    'Escala': 'rgba(0, 0, 255, 0.1)',      # Blue
+                    'Parada': 'rgba(255, 0, 0, 0.2)',      # Red
+                    'Outro': 'rgba(128, 128, 128, 0.2)'    # Grey
+                }
+                fill_color = color_map.get(e.event_type, 'rgba(128, 128, 128, 0.2)')
+
+                # Add Rectangle
+                fig.add_vrect(
+                    x0=x0_val, x1=x1_val,
+                    fillcolor=fill_color, opacity=1,
+                    layer="below", line_width=0,
+                    annotation_text=f"{e.title}",
+                    annotation_position="top left",
+                    annotation_font_size=10
+                )
+        
+        # Build HTML list
+        if found_events:
+            list_items = []
+            for e in found_events:
+                dt_str = f"{e.start_date.strftime('%d/%m/%Y')} a {e.end_date.strftime('%d/%m/%Y')}"
+                badge_colors = {
+                    'Manutenção': 'warning',
+                    'Escala': 'primary',
+                    'Parada': 'danger',
+                    'Outro': 'secondary'
+                }
+                color = badge_colors.get(e.event_type, 'secondary')
+                
+                list_items.append(
+                    dbc.ListGroupItem([
+                        html.Div([
+                            html.H5(e.title, className="mb-1"),
+                            dbc.Badge(e.event_type, color=color, className="ms-2")
+                        ], className="d-flex w-100 justify-content-between"),
+                        html.P(f"Período: {dt_str}", className="mb-1 text-muted", style={'fontSize': '0.9rem'}),
+                        html.Small(e.description or "Sem descrição adicional.")
+                    ])
+                )
+            
+            events_html = [
+                html.H5("Eventos neste período:", className="mt-2"),
+                dbc.ListGroup(list_items)
+            ]
+
+    except Exception as ex:
+        print(f"Erro ao carregar eventos no gráfico: {ex}") 
+    
+    return fig, events_html
 
 
 @callback(

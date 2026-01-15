@@ -17,7 +17,9 @@ from .pages import (
     registros,
     fluxo_de_caixa,
     gerenciar_arquivos,
-    gerenciar_permissoes
+    gerenciar_permissoes,
+    gerenciar_eventos,
+    visualizar_eventos
 )
 
 
@@ -33,6 +35,8 @@ PAGE_MAP = {
     '/fluxo-de-caixa': fluxo_de_caixa.layout,
     '/gerenciar-arquivos': gerenciar_arquivos.layout,
     '/gerenciar-permissoes': gerenciar_permissoes.layout,
+    '/gerenciar-eventos': gerenciar_eventos.layout,
+    '/visualizar-eventos': visualizar_eventos.layout
 }
 
 # Layouts de erro
@@ -125,27 +129,31 @@ def register_global_callbacks(app):
         
         links_gerais = []
         if '/' in allowed_routes:
-            links_gerais.append(dbc.NavLink('Visão Geral', href='/', active="exact"))
+            links_gerais.append(dbc.NavLink('Visao Geral', href='/', active="exact"))
         if '/analise-produtos' in allowed_routes:
-            links_gerais.append(dbc.NavLink('Análise de Produtos', href='/analise-produtos', active="exact"))
+            links_gerais.append(dbc.NavLink('Analise de Produtos', href='/analise-produtos', active="exact"))
         if '/fluxo-de-caixa' in allowed_routes:
             links_gerais.append(dbc.NavLink('Fluxo de Caixa', href='/fluxo-de-caixa', active="exact"))
+        if '/visualizar-eventos' in allowed_routes:
+            links_gerais.append(dbc.NavLink('Quadro de Avisos', href='/visualizar-eventos', active="exact"))
 
         links_protegidos = []
         if '/analise-setores' in allowed_routes:
-             links_protegidos.append(dbc.NavLink('Análise de Setores', href='/analise-setores', active="exact"))
+             links_protegidos.append(dbc.NavLink('Analise de Setores', href='/analise-setores', active="exact"))
         if '/analise-empresas' in allowed_routes:
-            links_protegidos.append(dbc.NavLink('Análise de Empresas', href='/analise-empresas', active="exact"))
+            links_protegidos.append(dbc.NavLink('Analise de Empresas', href='/analise-empresas', active="exact"))
         if '/analise-horarios' in allowed_routes:
-             links_protegidos.append(dbc.NavLink('Análise de Horários', href='/analise-horarios', active="exact"))
+             links_protegidos.append(dbc.NavLink('Analise de Horários', href='/analise-horarios', active="exact"))
         if '/analise-frotas' in allowed_routes:
-            links_protegidos.append(dbc.NavLink('Análise de Frota', href='/analise-frotas', active="exact"))
+            links_protegidos.append(dbc.NavLink('Analise de Frota', href='/analise-frotas', active="exact"))
         if '/registros' in allowed_routes:
             links_protegidos.append(dbc.NavLink('Buscar Registros', href='/registros', active="exact"))
 
         links_gestao = []
         if '/auditoria-peso' in allowed_routes:
             links_gestao.append(dbc.NavLink('Auditoria de Peso', href='/auditoria-peso', active="exact", className="text-warning"))
+        if '/gerenciar-eventos' in allowed_routes:
+            links_gestao.append(dbc.NavLink('Gerenciar Eventos', href='/gerenciar-eventos', active="exact", className="text-danger"))
         if '/gerenciar-arquivos' in allowed_routes:
             links_gestao.append(dbc.NavLink('Gerenciar Arquivos', href='/gerenciar-arquivos', active="exact", className="text-info"))
         if '/gerenciar-permissoes' in allowed_routes:

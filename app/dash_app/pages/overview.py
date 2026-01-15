@@ -2,102 +2,103 @@ from dash import dcc, html, callback
 from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
-
-# Importa a engine do banco
-from app.database import engine
-
-template_theme_light = "plotly"
-template_theme_dark = "plotly_dark"
-
-def carregar_kpis():
-    query = "SELECT COUNT(*) AS total_registros, MIN(data_hora) AS data_inicio, MAX(data_hora) AS data_fim FROM registro"
-    try:
-        df = pd.read_sql(query, engine)
-        kpis = df.iloc[0]
-        return {
-            'total': kpis['total_registros'],
-            'inicio': kpis['data_inicio'].strftime('%d/%m/%Y'),
-            'fim': kpis['data_fim'].strftime('%d/%m/%Y')
-        }
-    except Exception:
-        return {'total': 'N/D', 'inicio': 'N/D', 'fim': 'N/D'}
-
-def get_df_qtde_por_ano():
-    query = "SELECT EXTRACT(YEAR FROM data_hora) AS ano, COUNT(*) AS qtde FROM registro GROUP BY ano ORDER BY ano"
-    df = pd.read_sql(query, engine)
-    df['ano'] = df['ano'].astype(str)
-    return df
-
-def get_df_top_produtos():
-    query = "SELECT produto, COUNT(*) AS qtde FROM registro GROUP BY produto ORDER BY qtde DESC LIMIT 10"
-    df = pd.read_sql(query, engine)
-    return df
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
+from app.services.data_repository import get_kpis_gerais, get_qtde_por_ano, get_top_produtos_geral
 
 # --- Carregar dados UMA VEZ ---
-# (Isso é rápido, então fazemos fora do callback)
-kpi_data = carregar_kpis()
-df_ano = get_df_qtde_por_ano()
-df_produtos = get_df_top_produtos()
+kpi_data = get_kpis_gerais()
+df_ano = get_qtde_por_ano()
+df_produtos = get_top_produtos_geral()
 
-# --- Layout da Página (AGORA DINÂMICO) ---
-# As figuras dos gráficos foram removidas do layout
-layout = html.Div([
-    html.H1('Visão Geral do Dashboard'),
-    html.P('Resumo dos principais indicadores de pesagem.'),
-    
-dbc.Alert(
-        [
-            html.H5("O que são estes números?", className="alert-heading"),
-            html.P("Estes são os números vitais que dão contexto a todo o resto. Eles nos dizem o 'tamanho' da amostra (quantos registros temos) e se os dados estão atualizados."),
-            html.P("Os graficos a seguir possuem algumas missões: Queremos ver a tendência de longo prazo. Isso é crucial para o planejamento futuro. Queremos identificar o 'carro-chefe' da nossa coleta. É lixo domiciliar comum? É entulho de construção? É lixo hospitalar? A proporção entre eles é a que esperamos?")
+def create_kpi_card(title, value, icon, color):
+    return dmc.Card(
+        children=[
+            dmc.Group(
+                [
+                    dmc.Text(title, size="xs", c="dimmed", fw=500, style={"textTransform": "uppercase"}),
+                    dmc.ThemeIcon(
+                        DashIconify(icon=icon, width=20),
+                        color=color,
+                        variant="light",
+                        size="lg",
+                        radius="md"
+                    )
+                ],
+                justify="space-between",
+                mb="xs"
+            ),
+            dmc.Text(value, fw=700, size="xl")
         ],
-        color="info", className="mb-3"
-    ),
-
-    # KPIs (estáticos, dentro de Cards)
-    dbc.Row(
-        [
-            dbc.Col(dbc.Card(dbc.CardBody([
-                html.H3(kpi_data['total'], className='card-title'),
-                html.P('Total de Registros', className='card-text')
-            ]), className="mb-3"), md=4),
-            dbc.Col(dbc.Card(dbc.CardBody([
-                html.H3(kpi_data['inicio'], className='card-title'),
-                html.P('Data de Início', className='card-text')
-            ]), className="mb-3"), md=4),
-            dbc.Col(dbc.Card(dbc.CardBody([
-                html.H3(kpi_data['fim'], className='card-title'),
-                html.P('Data de Fim', className='card-text')
-            ]), className="mb-3"), md=4),
-        ]
-    ),
-    html.Hr(),
-    
-    # Gráficos (vazios, 'figure=' removido, mas dentro de Cards)
-    dbc.Row(
-        [
-            dbc.Col(
-                dbc.Card(dbc.CardBody(dcc.Graph(id='overview-grafico-ano'))), # 'figure=' removido
-                md=6, className="mb-3"
-            ),
-            dbc.Col(
-                dbc.Card(dbc.CardBody(dcc.Graph(id='overview-grafico-produtos'))), # 'figure=' removido
-                md=6, className="mb-3"
-            ),
-        ]
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        p="md"
     )
-])
+
+# --- Layout da Página ---
+layout = dmc.Container(
+    [
+        dmc.Title('Visão Geral do Dashboard', order=2, mb="xs"),
+        dmc.Text('Resumo dos principais indicadores de pesagem.', c="dimmed", mb="lg"),
+        
+        dmc.Alert(
+            children=[
+                dmc.Title("Contexto dos Dados", order=5, mb="xs"),
+                dmc.Text(
+                    "Estes números dão contexto sobre o 'tamanho' da amostra (registros). "
+                    "Os gráficos abaixo mostram a tendência de longo prazo e o principal tipo de resíduo coletado."
+                )
+            ],
+            title="Informação",
+            color="blue",
+            icon=DashIconify(icon="radix-icons:info-circled"),
+            mb="xl",
+            variant="light"
+        ),
+
+        # KPIs
+        dmc.SimpleGrid(
+            cols={"base": 1, "sm": 3},
+            spacing="md",
+            mb="xl",
+            children=[
+                create_kpi_card("Total de Registros", kpi_data['total'], "radix-icons:stack", "blue"),
+                create_kpi_card("Data de Início", kpi_data['inicio'], "radix-icons:calendar", "teal"),
+                create_kpi_card("Data de Fim", kpi_data['fim'], "radix-icons:calendar", "teal"),
+            ]
+        ),
+        
+        dmc.Divider(mb="xl"),
+        
+        # Gráficos
+        dmc.SimpleGrid(
+            cols={"base": 1, "md": 2},
+            spacing="md",
+            children=[
+                dmc.Card(
+                    dcc.Graph(id='overview-grafico-ano'),
+                    withBorder=True, shadow="sm", radius="md", p="md"
+                ),
+                dmc.Card(
+                    dcc.Graph(id='overview-grafico-produtos'),
+                    withBorder=True, shadow="sm", radius="md", p="md"
+                ),
+            ]
+        )
+    ],
+    fluid=True,
+    p=0
+)
 
 @callback(
     [Output('overview-grafico-ano', 'figure'),
      Output('overview-grafico-produtos', 'figure')],
-    [Input("theme-switch", "value")]
+    [Input("mantine-provider", "forceColorScheme")]
 )
-def update_overview_graphs(switch_is_light):
-    
-    
-    template_name = template_theme_light if switch_is_light else template_theme_dark
+def update_overview_graphs(color_scheme):
+    is_dark = color_scheme == 'dark'
+    template_name = "plotly_dark" if is_dark else "plotly_white"
     
     fig_ano = px.bar(
         df_ano, 
@@ -105,16 +106,22 @@ def update_overview_graphs(switch_is_light):
         title="Total de Registros por Ano", 
         template=template_name 
     )
-    fig_ano.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    fig_ano.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 40, "r": 20, "t": 40, "b": 30}
+    )
 
-    
     fig_produtos = px.pie(
         df_produtos, 
         names='produto', values='qtde', 
-        title="Top 10 Produtos (Volume de Registros)",
+        title="Top 10 Produtos (Volume)",
         template=template_name 
     )
-    fig_produtos.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    fig_produtos.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 20, "r": 20, "t": 40, "b": 20}
+    )
 
-    
     return fig_ano, fig_produtos

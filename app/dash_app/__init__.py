@@ -4,8 +4,9 @@ from dash_bootstrap_templates import load_figure_template
 
 def create_dash_app(server):
     
-    url_theme = dbc.themes.COSMO
-    template_theme = "cosmo"
+    # Modernizando o tema: MINTY é fresco e moderno.
+    url_theme = dbc.themes.MINTY
+    template_theme = "minty"
     load_figure_template([template_theme])
     dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 

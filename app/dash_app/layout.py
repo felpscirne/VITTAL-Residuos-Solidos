@@ -1,63 +1,100 @@
-from dash import dcc, html
-import dash_bootstrap_components as dbc
-from flask_login import current_user
+from dash import dcc, html, clientside_callback, Input, Output, State
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
-
-theme_switch = html.Div(
-    [
-        html.I(className="bi bi-moon-fill text-white me-2"), 
-        dbc.Switch(
-            id="theme-switch",
-            value=True, 
-            persistence=True,
-            persistence_type="session",
-            className="dbc_no_label"
-        ),
-        html.I(className="bi bi-sun-fill text-white ms-1"),
-    ],
-    className="d-flex align-items-center"
-)
-
-sidebar_toggle_button = dbc.Button(
-    html.I(className="bi bi-list", style={'fontSize': '1.5rem'}),
-    id='btn-collapse',
-    n_clicks=0,
-    outline=True,
-    color="secondary",
-)
-
-sidebar = html.Div(
-    id='sidebar',
-    className='sidebar navbar-dark bg-dark', 
-    
+# --- Header ---
+header = dmc.AppShellHeader(
+    px=25,
     children=[
-        html.Div(id='sidebar-content'), 
-        
-        html.Div(
-            theme_switch,
-            className="w-100 d-flex justify-content-center"
+        dmc.Group(
+            justify="space-between",
+            align="center",
+            h="100%",
+            children=[
+                dmc.Group(
+                    h="100%",
+                    children=[
+                        dmc.Burger(id="burger-button", hiddenFrom="sm"),
+                        dmc.Text("IFEsCS Dashboard", size="xl", fw=700, c="blue"),
+                    ],
+                ),
+                dmc.Group(
+                    children=[
+                       dmc.ActionIcon(
+                            DashIconify(icon="radix-icons:moon", width=20),
+                            size="lg",
+                            variant="subtle",
+                            id="color-scheme-toggle",
+                            n_clicks=0,
+                        ), 
+                    ]
+                )
+            ],
         )
-    ]
+    ],
 )
 
-
-content = html.Div(
-    id='page-content',
-    className='content',
+# --- Navbar (Sidebar) ---
+navbar = dmc.AppShellNavbar(
+    p="md",
     children=[
-        html.Div(id='page-content-dynamic') 
+        html.Div(id="sidebar-content")
+    ],
+)
+
+# --- Main Layout ---
+main_layout = dmc.MantineProvider(
+    id="mantine-provider",
+    forceColorScheme="light",
+    theme={
+        "primaryColor": "blue",
+        "fontFamily": "'Inter', sans-serif",
+        "components": {
+            "Button": {"defaultProps": {"fw": 400}},
+            "Container": {"defaultProps": {"size": "xl"}},
+        },
+    },
+    children=[
+        dcc.Location(id='url', refresh='callback'),
+        dcc.Store(id='sidebar-state', data='open', storage_type='session'),
+        
+        dmc.AppShell(
+            [
+                header,
+                navbar,
+                dmc.AppShellMain(children=[html.Div(id='page-content-dynamic')]),
+            ],
+            header={"height": 60},
+            navbar={
+                "width": 300,
+                "breakpoint": "sm",
+                "collapsed": {"mobile": True},
+            },
+            padding="md",
+            id="app-shell",
+        ),
+        
+        html.Div(id='dummy-theme-output', style={'display': 'none'}) 
     ]
 )
 
+clientside_callback(
+    """
+    function(n_clicks) {
+        return (n_clicks % 2 === 0) ? "light" : "dark";
+    }
+    """,
+    Output("mantine-provider", "forceColorScheme"),
+    Input("color-scheme-toggle", "n_clicks"),
+)
 
-main_layout = html.Div([
-    dcc.Location(id='url', refresh='callback'), 
-    dcc.Store(id='sidebar-state', data='open', storage_type='session'), 
-    
-    sidebar_toggle_button,
-    sidebar,
-    content,
-    
-    
-    html.Div(id='dummy-theme-output', style={'display': 'none'}) 
-])
+clientside_callback(
+    """
+    function(n_clicks, collapsed) {
+        return !collapsed;
+    }
+    """,
+    Output("app-shell", "navbar"),
+    Input("burger-button", "n_clicks"),
+    State("app-shell", "navbar"),
+)

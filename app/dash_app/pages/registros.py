@@ -3,7 +3,8 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 import dash_bootstrap_components as dbc
 
-from app.database import engine, get_anos_options
+# Service imports
+from app.services.data_repository import get_anos_options, get_registros_filtrados
 
 anos_options, ano_inicial = get_anos_options()
 
@@ -89,25 +90,9 @@ layout = html.Div([
 def update_table(n_clicks, ano, mes, ticket):
     if n_clicks == 0:
         return [], []
-    query = "SELECT * FROM registro WHERE 1=1"
-    params = {}
-    if ano:
-        query += " AND EXTRACT(YEAR FROM data_hora) = %(ano)s"
-        params['ano'] = ano
-    if mes:
-        query += " AND EXTRACT(MONTH FROM data_hora) = %(mes)s"
-        params['mes'] = mes
-    if ticket:
-        try:
-            params['ticket'] = int(ticket)
-            query += " AND ticket = %(ticket)s"
-        except ValueError:
-            pass 
-    query += " ORDER BY data_hora DESC LIMIT 1000"
+    
     try:
-        df = pd.read_sql(query, engine, params=params)
-        if 'data_hora' in df.columns:
-            df['data_hora'] = df['data_hora'].astype(str)
+        df = get_registros_filtrados(ano, mes, ticket)
         data_tabela = df.to_dict('records')
         cols_tabela = [{"name": i, "id": i} for i in df.columns]
         return data_tabela, cols_tabela

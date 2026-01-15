@@ -122,23 +122,43 @@ def get_ranking_produtos():
     return pd.read_sql(query, engine)
 
 @cache.memoize()
-def get_fornecedores_por_produto(produto):
+def get_produtos_resumo():
+    query = """
+    SELECT 
+        produto, 
+        COUNT(*) as quantidade,
+        SUM(peso_embalagem_liquido_corrigido) as peso_total
+    FROM registro 
+    WHERE produto IS NOT NULL
+    GROUP BY produto 
+    ORDER BY quantidade DESC
+    """
+    return pd.read_sql(query, engine)
+
+@cache.memoize()
+def get_fornecedores_por_produto(produto, limit=20):
     query = """
     SELECT fornecedor_cliente, COUNT(*) as quantidade
     FROM registro
     WHERE produto = %(produto)s AND fornecedor_cliente IS NOT NULL
-    GROUP BY fornecedor_cliente ORDER BY quantidade DESC LIMIT 20
+    GROUP BY fornecedor_cliente ORDER BY quantidade DESC
     """
+    if limit:
+        query += f" LIMIT {limit}"
+        
     return pd.read_sql(query, engine, params={'produto': produto})
 
 @cache.memoize()
-def get_produtos_por_setor(setor):
+def get_produtos_por_setor(setor, limit=20):
     query = """
     SELECT produto, COUNT(*) as quantidade
     FROM registro
     WHERE setor = %(setor)s AND produto IS NOT NULL
-    GROUP BY produto ORDER BY quantidade DESC LIMIT 20
+    GROUP BY produto ORDER BY quantidade DESC
     """
+    if limit:
+        query += f" LIMIT {limit}"
+
     return pd.read_sql(query, engine, params={'setor': setor})
 
 # --- 6. FLUXO DE CAIXA (CANDIOTA) ---
@@ -225,7 +245,37 @@ def get_frota_data():
         df['peso_medio_por_viagem'] = df['peso_medio_por_viagem'].round(2)
     return df
 
-# --- 9. TABELA REGISTROS (Sem Cache longo, pois tem muitos filtros) ---
+# --- 9. OPÇÕES E LISTAS (Para Dropdowns) ---
+
+@cache.memoize()
+def get_produtos_options():
+    try:
+        df = pd.read_sql("SELECT DISTINCT produto FROM registro WHERE produto IS NOT NULL ORDER BY produto", engine)
+        return [{'label': p, 'value': p} for p in df['produto']]
+    except Exception:
+        return []
+
+@cache.memoize()
+def get_setores_options():
+    try:
+        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND setor != 'ACERTO DE PESO' AND setor != 'CANDIOTA' ORDER BY setor"
+        df = pd.read_sql(query, engine)
+        return [{'label': s, 'value': s} for s in df['setor']]
+    except Exception:
+        return []
+
+@cache.memoize()
+def get_anos_options():
+    try:
+        anos_df = pd.read_sql("SELECT DISTINCT EXTRACT(YEAR FROM data_hora) AS ano FROM registro ORDER BY ano DESC", engine)
+        options = [{'label': str(int(ano)), 'value': int(ano)} for ano in anos_df['ano']]
+        valor_inicial = options[0]['value'] if options else None
+        return options, valor_inicial
+    except Exception as e:
+        print(f"Erro ao buscar anos: {e}")
+        return [{'label': '2024', 'value': 2024}], 2024 
+
+# --- 10. TABELA REGISTROS (Sem Cache longo, pois tem muitos filtros) ---
 
 def get_registros_filtrados(ano, mes, ticket):
     query = "SELECT * FROM registro WHERE 1=1"

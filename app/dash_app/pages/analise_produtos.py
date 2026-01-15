@@ -2,29 +2,21 @@ from dash import dcc, html, callback
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
-from app.database import engine
+# Service imports
+from app.services.data_repository import (
+    get_produtos_resumo, 
+    get_produtos_options, 
+    get_setores_options, 
+    get_fornecedores_por_produto,
+    get_produtos_por_setor
+)
 from app.services.ai_service import generate_analysis_component
 
-template_theme_light = "cosmo" 
-template_theme_dark = "plotly_dark"
-
-def load_product_data():
-    query = """
-    SELECT 
-        produto, 
-        COUNT(*) as quantidade,
-        SUM(peso_embalagem_liquido_corrigido) as peso_total
-    FROM registro 
-    WHERE produto IS NOT NULL
-    GROUP BY produto 
-    ORDER BY quantidade DESC
-    """
-    df = pd.read_sql(query, engine)
-    return df
-
-df_produtos = load_product_data() 
+# Load initial data
+df_produtos = get_produtos_resumo() 
 
 def fig_contagem_produtos(df, template):
     num_itens = len(df.index)
@@ -36,131 +28,141 @@ def fig_contagem_produtos(df, template):
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
 
-def get_produtos_options():
-    try:
-        df = pd.read_sql("SELECT DISTINCT produto FROM registro WHERE produto IS NOT NULL ORDER BY produto", engine)
-        return [{'label': p, 'value': p} for p in df['produto']]
-    except:
-        return []
-
-def get_setores_options():
-    try:
-        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND setor != 'ACERTO DE PESO' AND setor != 'CANDIOTA' ORDER BY setor"
-        df = pd.read_sql(query, engine)
-        return [{'label': s, 'value': s} for s in df['setor']]
-    except:
-        return []
-
+# Load options
 produtos_options = get_produtos_options()
 setores_options = get_setores_options()
 
-layout = html.Div([
-    html.H1('Análise de Produtos'),
-    html.P('Ranking geral dos tipos de resíduos e análises cruzadas (drill-down) por fornecedor e setor.'),
-    html.Hr(),
+layout = dmc.Container([
+    dmc.Title('Análise de Produtos', order=2),
+    dmc.Text('Ranking geral dos tipos de resíduos e análises cruzadas (drill-down) por fornecedor e setor.', c="dimmed", mb="lg"),
+    
+    dmc.Divider(mb="lg"),
 
-    html.H2("Visão Geral: Ranking de Produtos"),
-    dbc.Alert(
-        [
-            html.H5("O que este gráfico responde?", className="alert-heading"),
-            html.P("Quais são nossos resíduos mais comuns e quais são os mais raros, em ordem? "
-                   "Isso ajuda a identificar o que realmente domina nossas coletas.")
-        ], color="info", className="mb-3"
+    dmc.Title("Visão Geral: Ranking de Produtos", order=3, mb="md"),
+    
+    dmc.Alert(
+        children=[
+            dmc.Title("Contexto", order=5),
+            dmc.Text("Identifique os resíduos mais comuns e os mais raros para priorizar a gestão.")
+        ],
+        title="O que este gráfico responde?",
+        color="blue",
+        variant="light",
+        mb="md",
+        icon=DashIconify(icon="radix-icons:question-mark-circled")
     ),
 
-
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-contagem-produtos') 
-        ]),
-        className="mb-3"
+    dmc.Card(
+        dcc.Graph(id='grafico-contagem-produtos'),
+        withBorder=True, shadow="sm", radius="md", p="md", mb="md"
     ),
 
-    dbc.Button("🤖 Explicar este ranking", id="btn-ia-produtos", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
-    dcc.Loading(html.Div(id='ia-output-produtos')),
+    dmc.Button(
+        "Explicar este ranking com IA", 
+        id="btn-ia-produtos", 
+        n_clicks=0, 
+        variant="light", 
+        color="violet", 
+        leftSection=DashIconify(icon="radix-icons:magic-wand"),
+        mb="md"
+    ),
+    dcc.Loading(html.Div(id='ia-output-produtos', style={"marginTop": "10px"})),
 
-    html.Hr(className="mt-5"),
-    html.H2("Drill-Down: Fornecedores por Produto"),
-    dbc.Alert("O que mostra? Ao selecionar um produto (ex: 'RESÍDUO DOMICILIAR'), este gráfico mostra quais fornecedores/empresas mais movimentaram esse item.", color="info"),
+    dmc.Divider(my="xl"),
     
-    dbc.Row([
-        dbc.Col(
-            [
-                html.Label("Selecione um Produto:"),
-                dcc.Dropdown(id='filtro-produto-para-fornecedor', options=produtos_options, value=produtos_options[0]['value'])
-            ], md=6
-        )
-    ], className="dbc mb-3"),
+    dmc.Title("Drill-Down: Fornecedores por Produto", order=3, mb="md"),
+    dmc.Alert("Ao selecionar um produto, veja quem movimenta ele.", color="gray", variant="light", mb="md"),
     
+    dmc.Grid(
+        children=[
+            dmc.GridCol(
+                dmc.Select(
+                    label="Selecione um Produto",
+                    placeholder="Escolha um produto...",
+                    id='filtro-produto-para-fornecedor',
+                    data=produtos_options,
+                    value=produtos_options[0]['value'] if produtos_options else None
+                ), span=6
+            )
+        ],
+        mb="md"
+    ),
     
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-produto-fornecedores') 
-        ]),
-        className="mb-3"
+    dmc.Card(
+        dcc.Graph(id='grafico-produto-fornecedores'),
+        withBorder=True, shadow="sm", radius="md", p="md", mb="md"
     ),
 
-    dbc.Button("🤖 Explicar Fornecedores deste Produto", id="btn-ia-prod-forn", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
-    dcc.Loading(html.Div(id='ia-output-prod-forn')),
+    dmc.Button(
+        "Explicar Fornecedores com IA", 
+        id="btn-ia-prod-forn", 
+        n_clicks=0, 
+        variant="light", 
+        color="violet", 
+        leftSection=DashIconify(icon="radix-icons:magic-wand"),
+        mb="md"
+    ),
+    dcc.Loading(html.Div(id='ia-output-prod-forn', style={"marginTop": "10px"})),
 
-    html.Hr(className="mt-5"),
-    html.H2("Drill-Down: Produtos por Setor"),
-    dbc.Alert("O que mostra? Ao selecionar um setor (ex: 'CENTRO'), este gráfico mostra quais produtos são mais comuns *naquele* local.", color="info"),
+    dmc.Divider(my="xl"),
     
-    dbc.Row([
-        dbc.Col(
-            [
-                html.Label("Selecione um Setor:"),
-                dcc.Dropdown(id='filtro-setor-para-produto', options=setores_options, value=setores_options[0]['value'])
-            ], md=6
-        )
-    ], className="dbc mb-3"),
+    dmc.Title("Drill-Down: Produtos por Setor", order=3, mb="md"),
+    dmc.Alert("Selecione um setor para ver o que é gerado lá.", color="gray", variant="light", mb="md"),
     
+    dmc.Grid(
+        children=[
+            dmc.GridCol(
+                dmc.Select(
+                    label="Selecione um Setor",
+                    placeholder="Escolha um setor...",
+                    id='filtro-setor-para-produto',
+                    data=setores_options,
+                    value=setores_options[0]['value'] if setores_options else None
+                ), span=6
+            )
+        ],
+        mb="md"
+    ),
     
-    
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-setor-produtos') 
-        ]),
-        className="mb-3"
+    dmc.Card(
+        dcc.Graph(id='grafico-setor-produtos'),
+        withBorder=True, shadow="sm", radius="md", p="md", mb="md"
     ),
 
-    dbc.Button("🤖 Explicar Produtos deste Setor", id="btn-ia-setor-prod", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
-    dcc.Loading(html.Div(id='ia-output-setor-prod'))
+    dmc.Button(
+        "Explicar Produtos deste Setor com IA", 
+        id="btn-ia-setor-prod", 
+        n_clicks=0, 
+        variant="light", 
+        color="violet", 
+        leftSection=DashIconify(icon="radix-icons:magic-wand"),
+        mb="md"
+    ),
+    dcc.Loading(html.Div(id='ia-output-setor-prod', style={"marginTop": "10px"}))
 
-])
+], fluid=True, p=0)
 
 
 @callback(
     Output('grafico-contagem-produtos', 'figure'),
-    [Input("theme-switch", "value")]
+    [Input("mantine-provider", "forceColorScheme")]
 )
-def update_product_graph_theme(switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
+def update_product_graph_theme(color_scheme):
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
     fig = fig_contagem_produtos(df_produtos, template)
     return fig
 
 @callback(
     Output('grafico-produto-fornecedores', 'figure'),
     [Input('filtro-produto-para-fornecedor', 'value'),
-     Input("theme-switch", "value")]
+     Input("mantine-provider", "forceColorScheme")]
 )
-def update_prod_forn_graph(selected_product, switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
+def update_prod_forn_graph(selected_product, color_scheme):
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
     
-    query = """
-    SELECT 
-        fornecedor_cliente, 
-        COUNT(*) as quantidade
-    FROM registro
-    WHERE 
-        produto = %(produto)s AND 
-        fornecedor_cliente IS NOT NULL
-    GROUP BY fornecedor_cliente
-    ORDER BY quantidade DESC
-    """
-    params = {'produto': selected_product}
-    df_drilldown = pd.read_sql(query, engine, params=params)
+    df_drilldown = get_fornecedores_por_produto(selected_product, limit=None)
     
     fig = px.bar(df_drilldown, x='quantidade', y='fornecedor_cliente', orientation='h',
                  title=f"Fornecedores que movimentaram: {selected_product}",
@@ -172,24 +174,13 @@ def update_prod_forn_graph(selected_product, switch_is_light):
 @callback(
     Output('grafico-setor-produtos', 'figure'),
     [Input('filtro-setor-para-produto', 'value'),
-     Input("theme-switch", "value")]
+     Input("mantine-provider", "forceColorScheme")]
 )
-def update_setor_prod_graph(selected_setor, switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
+def update_setor_prod_graph(selected_setor, color_scheme):
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
     
-    query = """
-    SELECT 
-        produto, 
-        COUNT(*) as quantidade
-    FROM registro
-    WHERE 
-        setor = %(setor)s AND 
-        produto IS NOT NULL
-    GROUP BY produto
-    ORDER BY quantidade DESC
-    """
-    params = {'setor': selected_setor}
-    df_drilldown = pd.read_sql(query, engine, params=params)
+    df_drilldown = get_produtos_por_setor(selected_setor, limit=None)
     
     fig = px.bar(df_drilldown, x='quantidade', y='produto', orientation='h',
                  title=f"Produtos encontrados no Setor: {selected_setor}",
@@ -233,9 +224,7 @@ def get_ia_produtos(n_clicks):
 )
 def get_ia_prod_forn(n_clicks, selected_product):
             
-    query = "SELECT fornecedor_cliente, COUNT(*) as quantidade FROM registro WHERE produto = %(produto)s AND fornecedor_cliente IS NOT NULL GROUP BY fornecedor_cliente ORDER BY quantidade DESC"
-    params = {'produto': selected_product}
-    df_drilldown = pd.read_sql(query, engine, params=params)
+    df_drilldown = get_fornecedores_por_produto(selected_product, limit=None)
     dados_em_texto = df_drilldown.to_markdown(index=False)
 
     # Prompt
@@ -266,9 +255,7 @@ def get_ia_prod_forn(n_clicks, selected_product):
 )
 def get_ia_setor_prod(n_clicks, selected_setor):
             
-    query = "SELECT produto, COUNT(*) as quantidade FROM registro WHERE setor = %(setor)s AND produto IS NOT NULL GROUP BY produto ORDER BY quantidade DESC"
-    params = {'setor': selected_setor}
-    df_drilldown = pd.read_sql(query, engine, params=params)
+    df_drilldown = get_produtos_por_setor(selected_setor, limit=None)
     dados_em_texto = df_drilldown.to_markdown(index=False)
 
     # Prompt 

@@ -1,9 +1,8 @@
 body {
-    font-family: Arial, sans-serif;
+    /* Use theme font */
     margin: 0;
     padding: 0;
     transition: background-color 0.3s ease;
-
     background-color: var(--bs-body-bg) !important;
 }
 
@@ -12,6 +11,8 @@ body {
     top: 1rem;
     left: 1rem;
     z-index: 1051;
+    background-color: var(--bs-body-bg); /* Ensure visibility */
+    border: 1px solid var(--bs-border-color);
 }
 
 .sidebar {
@@ -29,9 +30,11 @@ body {
     flex-direction: column;
     justify-content: space-between;
     z-index: 1050;
-    background-color: var(--bs-primary) !important;
-
-   
+    
+    /* Modern Gradient Sidebar */
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-teal) 100%) !important;
+    box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+    
     border-right: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, 0.1));
 }
 
@@ -39,34 +42,37 @@ body {
     margin-left: -20rem;
 }
 
-
+/* Sidebar Text & Links */
 .sidebar h2,
-.sidebar .text-white {
+.sidebar .text-white, 
+.sidebar .nav-link {
     color: #FFFFFF !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .sidebar hr.text-white {
-    border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
 .sidebar .nav-link {
-    color: #FFFFFF !important;
-    opacity: 0.75;
+    opacity: 0.85;
+    border-radius: 8px; /* Rounded links */
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
 }
 
 .sidebar .nav-link.active,
 .sidebar .nav-link:hover {
     opacity: 1.0;
-    background-color: rgba(255, 255, 255, 0.1) !important;
-    
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    transform: translateX(5px);
 }
 
 .sidebar .bi-moon-fill,
 .sidebar .bi-sun-fill {
     color: #FFFFFF !important;
-    opacity: 0.8;
+    opacity: 0.9;
 }
-
 
 .content {
     padding-top: 5rem;
@@ -79,5 +85,15 @@ body {
 
 .content.collapsed {
     margin-left: 2rem;
+}
+
+/* Card Improvements */
+.card {
+    border: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Soft shadow */
+    transition: transform 0.2s ease;
+}
+.card:hover {
+    box-shadow: 0 8px 12px rgba(0,0,0,0.1);
 }
 

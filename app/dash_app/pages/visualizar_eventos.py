@@ -1,75 +1,81 @@
 import dash
 from dash import dcc, html, callback, dash_table
 from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 from app.models import Event
 
 # --- Layout ---
 layout = html.Div([
-    html.H1('Visualizar Eventos'),
-    html.P('Quadro geral de avisos, manutenções e paradas.'),
-    html.Hr(),
+    dmc.Title('Mural de Eventos Operacionais', order=2),
+    dmc.Text('Quadro geral de avisos, manutenções e paradas.', c="dimmed", size="sm"),
+    dmc.Divider(variant="solid", my="md"),
 
-    dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("Histórico de Eventos"),
-                dbc.CardBody([
-                    dash_table.DataTable(
-                        id='view-table-events',
-                        columns=[
-                            {'name': 'Data Início', 'id': 'start'},
-                            {'name': 'Data Fim', 'id': 'end'},
-                            {'name': 'Título', 'id': 'title'},
-                            {'name': 'Tipo', 'id': 'type'},
-                            {'name': 'Setores Afetados', 'id': 'sectors'},
-                        ],
-                        data=[],
-                        row_selectable=False, # Não selecionável, apenas leitura
-                        style_table={'overflowX': 'auto'},
-                        style_header={
-                            "backgroundColor": "var(--bs-tertiary-bg)",
-                            "color": "var(--bs-body-color)",
-                            "fontWeight": "bold"
-                        },
-                        style_data={
-                            "backgroundColor": "var(--bs-body-bg)",
-                            "color": "var(--bs-body-color)",
-                            "whiteSpace": "normal",
-                            "height": "auto",
-                        },
-                        page_size=15 # Um pouco maior que a gestão
-                    )
-                ])
-            ], className="dbc h-100")
-        ], md=12)
-    ])
+    dmc.Card(
+        children=[
+            dmc.Text("Histórico de Eventos", size="lg", fw=500, mb="sm"),
+            dmc.ScrollArea(
+                dash_table.DataTable(
+                    id='view-table-events',
+                    columns=[
+                        {'name': 'Data Início', 'id': 'start'},
+                        {'name': 'Data Fim', 'id': 'end'},
+                        {'name': 'Título', 'id': 'title'},
+                        {'name': 'Tipo', 'id': 'type'},
+                        {'name': 'Setores Afetados', 'id': 'sectors'},
+                    ],
+                    data=[],
+                    row_selectable=False, # Não selecionável, apenas leitura
+                    style_table={'minWidth': '100%'},
+                    style_header={
+                        "backgroundColor": "#f8f9fa", 
+                        "color": "#000", 
+                        "fontWeight": "bold", 
+                        "fontFamily": "sans-serif"
+                    },
+                    style_data={
+                        "backgroundColor": "#fff", 
+                        "color": "#000",
+                        "fontFamily": "sans-serif"
+                    },
+                    style_cell={'textAlign': 'left', 'padding': '10px', 'border': '1px solid #dee2e6'},
+                ),
+                offsetScrollbars=True,
+                type="auto"
+            )
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
+    ),
+    
+    # Auto-refresh interval (opcional, para ser um mural vivo)
+    dcc.Interval(id='view-interval-events', interval=30000, n_intervals=0) # 30s
 ])
-
-# --- Callbacks ---
 
 @callback(
     Output('view-table-events', 'data'),
-    Input('url', 'pathname')
+    [Input('url', 'pathname'),
+     Input('view-interval-events', 'n_intervals')]
 )
-def list_view_events(pathname):
-    if pathname == '/visualizar-eventos':
-        events_data = []
-        try:
-            # Busca todos os eventos, ordenados por data de início (decrescente)
-            events = Event.query.order_by(Event.start_date.desc()).all()
-            for e in events:
-                events_data.append({
-                    'id': e.id,
-                    'title': e.title,
-                    'type': e.event_type,
-                    'start': e.start_date.strftime('%d/%m/%Y'),
-                    'end': e.end_date.strftime('%d/%m/%Y'),
-                    'sectors': e.affected_sectors or "Geral"
-                })
-        except Exception as e:
-            print(f"Erro ao buscar eventos: {e}")
-            pass
-        return events_data
-    
-    return dash.no_update
+def update_view_events(pathname, n):
+    try:
+        events = Event.query.order_by(Event.start_time.desc()).all()
+        data = []
+        for e in events:
+            # Formata setores
+            s_list = [s.name for s in e.sectors]
+            sectors_str = ", ".join(s_list) if s_list else "Geral"
+            
+            data.append({
+                'start': e.start_time.strftime('%d/%m/%Y %H:%M'),
+                'end': e.end_time.strftime('%d/%m/%Y %H:%M') if e.end_time else 'Em andamento',
+                'title': e.title,
+                'type': e.event_type.value, # Enum value (ex: manutenção)
+                'sectors': sectors_str
+            })
+        return data
+    except Exception as e:
+        print(f"Error loading events: {e}")
+        return []

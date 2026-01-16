@@ -1,13 +1,14 @@
 from dash import dcc, html, callback, no_update
 from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 from app import db
 from app.models import Role, Page
 
 def get_roles_options():
     try:
         roles = Role.query.filter(Role.name != 'superadmin').all() # NÀO MEXER AQUI SOB NENHUMA CIRCUNSTÂNCIA, REPITO, NENHUMA!
-        return [{'label': r.name.capitalize(), 'value': r.id} for r in roles]
+        return [{'label': r.name.capitalize(), 'value': str(r.id)} for r in roles] # dmc.Select requires string values
     except Exception:
         return []
 
@@ -19,106 +20,126 @@ def get_pages_options():
             ~Page.route.in_(hidden_routes) 
         ).order_by(Page.route).all()
         
-        return [{'label': f"{p.description} ({p.route})", 'value': p.id} for p in pages]
+        return [{'label': f"{p.description} ({p.route})", 'value': str(p.id)} for p in pages] # dmc.CheckboxGroup values should be strings ideally
     except Exception:
         return []
 
 layout = html.Div([
-    html.H1('Gerenciamento de Permissões'),
-    html.P('Controle dinâmico de acesso. Selecione uma função e defina o que ela pode ver.'),
-    html.Hr(),
-    
-    dbc.Alert(
-        [
-            html.I(className="bi bi-exclamation-triangle-fill me-2"),
-            "Atenção: Alterações aqui afetam imediatamente o acesso dos usuários daquela função."
-        ],
-        color="warning", className="mb-4"
+    dmc.Title('Gerenciamento de Permissões (RBAC)', order=2),
+    dmc.Text('Controle dinâmico de acesso. Selecione uma função e defina o que ela pode ver.', c="dimmed", size="sm"),
+    dmc.Divider(variant="solid", my="md"),
+
+    dmc.Alert(
+        "Atenção: Alterações aqui afetam imediatamente o acesso dos usuários daquela função.",
+        title="Cuidado",
+        color="yellow", 
+        variant="filled",
+        icon=DashIconify(icon="akar-icons:triangle-alert"),
+        mb="md"
     ),
 
-    dbc.Card([
-        dbc.CardHeader("Configuração de Acesso"),
-        dbc.CardBody([
-            
-            html.Label("1. Selecione a Função (Role) para editar:", className="fw-bold mb-2"),
-            dcc.Dropdown(
-                id='perm-role-select',
-                options=get_roles_options(),
-                placeholder="Selecione uma função...",
-                className="mb-4",
-                style={'color': 'black'} 
-            ),
-            
-            html.Label("2. Marque as páginas permitidas:", className="fw-bold mb-2"),
-            
-            dbc.Card(
-                dbc.CardBody(
-                    dcc.Loading(
-                        dbc.Checklist(
-                            id='perm-page-checklist',
-                            options=get_pages_options(),
-                            value=[],
-                            switch=True, 
-                            inline=False,
-                            label_style={"color": "var(--bs-body-color)"},
+    dmc.Card([
+        dmc.Text("Configuração de Acesso", size="lg", fw=500, mb="sm"),
+        
+        dmc.Select(
+            label="1. Selecione a Função (Role) para editar:",
+            placeholder="Selecione uma função...",
+            id='perm-role-select',
+            data=get_roles_options(), # Will be loaded dynamically if needed, but nice to have initial
+            mb="md"
+        ),
+        
+        dmc.Text("2. Marque as páginas permitidas:", size="sm", fw=500, mb="xs"),
+        
+        dmc.Card(
+            children=[
+                 dcc.Loading(
+                    dmc.CheckboxGroup(
+                        id='perm-page-checklist',
+                        value=[],
+                        children=dmc.Stack(
+                            [dmc.Checkbox(label=opt['label'], value=opt['value']) for opt in get_pages_options()],
+                            gap="sm"
                         )
                     )
-                ),
-                className="mb-3 border" 
-            ),
-            
-            dbc.Button(
-                [html.I(className="bi bi-save me-2"), "Salvar Permissões"],
-                id="btn-save-perms", 
-                color="success", 
-                className="mt-2",
-                disabled=True
-            ),
-            
-            html.Div(id='output-save-perms', className="mt-3")
-        ])
-    ], className="dbc") 
+                )
+            ],
+            withBorder=True,
+            mb="md",
+            p="md"
+        ),
+        
+        dmc.Button(
+            "Salvar Permissões",
+            id="btn-save-perms",
+            color="green",
+            leftSection=DashIconify(icon="akar-icons:check"),
+            fullWidth=True
+        ),
+        
+        html.Div(id='dummy-save-perm-output')
+        
+    ], withBorder=True, shadow="sm", radius="md")
 ])
 
-
-
 @callback(
-    [Output('perm-page-checklist', 'value'),
-     Output('btn-save-perms', 'disabled')],
+    Output('perm-page-checklist', 'value'),
     Input('perm-role-select', 'value')
 )
-def load_role_permissions(role_id):
-    if not role_id:
-        return [], True
+def load_role_permissions(role_id_str):
+    if not role_id_str:
+        return []
+    
     try:
+        role_id = int(role_id_str)
         role = Role.query.get(role_id)
         if not role:
-            return [], True
-        page_ids = [page.id for page in role.pages]
-        return page_ids, False
-    except Exception as e:
-        return [], True
+            return []
+        
+        # Returns list of strings IDs
+        return [str(page.id) for page in role.pages]
+    except Exception:
+        return []
 
 @callback(
-    Output('output-save-perms', 'children'),
+    Output('dummy-save-perm-output', 'children'),
     Input('btn-save-perms', 'n_clicks'),
     [State('perm-role-select', 'value'),
      State('perm-page-checklist', 'value')],
     prevent_initial_call=True
 )
-def save_permissions(n_clicks, role_id, selected_page_ids):
-    if not role_id or selected_page_ids is None:
-        return dbc.Alert("Erro: Seleção inválida.", color="danger")
-    try:
-        role = Role.query.get(role_id)
-        role.pages.clear()
+def save_permissions(n_clicks, role_id_str, selected_page_ids_str):
+    if not role_id_str:
+        return dmc.Notification(
+            "Selecione uma função primeiro!",
+            title="Erro",
+            color="red",
+        )
         
-        if selected_page_ids:
-            new_pages = Page.query.filter(Page.id.in_(selected_page_ids)).all()
-            role.pages.extend(new_pages)
+    try:
+        role_id = int(role_id_str)
+        role = Role.query.get(role_id)
+        if not role:
+            return dmc.Notification("Função não encontrada", title="Erro", color="red")
+
+        # Clear existing
+        role.pages = []
+        
+        # Add new
+        if selected_page_ids_str:
+            for pid_str in selected_page_ids_str:
+                page = Page.query.get(int(pid_str))
+                if page:
+                    role.pages.append(page)
         
         db.session.commit()
-        return dbc.Alert(f"Sucesso! Permissões atualizadas para '{role.name}'.", color="success", dismissable=True)
+        
+        return dmc.Notification(
+            f"Permissões atualizadas para {role.name}!",
+            title="Sucesso",
+            color="green",
+        )
+        
     except Exception as e:
         db.session.rollback()
-        return dbc.Alert(f"Erro ao salvar: {e}", color="danger")
+        return dmc.Notification(f"Falha ao salvar: {str(e)}", title="Erro", color="red")

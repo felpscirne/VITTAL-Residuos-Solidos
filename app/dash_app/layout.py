@@ -40,6 +40,7 @@ navbar = dmc.AppShellNavbar(
     children=[
         html.Div(id="sidebar-content")
     ],
+    withBorder=True
 )
 
 # --- Main Layout ---
@@ -90,11 +91,25 @@ clientside_callback(
 
 clientside_callback(
     """
-    function(n_clicks, collapsed) {
-        return !collapsed;
+    function(n_clicks, navbar) {
+        if (n_clicks) {
+            const collapsed = !navbar.collapsed.mobile;
+            return [
+                {
+                    ...navbar,
+                    collapsed: {
+                        ...navbar.collapsed,
+                        mobile: collapsed
+                    }
+                },
+                !collapsed
+            ];
+        }
+        return [window.dash_clientside.no_update, window.dash_clientside.no_update];
     }
     """,
-    Output("app-shell", "navbar"),
+    [Output("app-shell", "navbar"), Output("burger-button", "opened")],
     Input("burger-button", "n_clicks"),
     State("app-shell", "navbar"),
+    prevent_initial_call=True,
 )

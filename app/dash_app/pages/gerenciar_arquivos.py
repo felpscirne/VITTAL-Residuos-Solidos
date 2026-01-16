@@ -5,7 +5,8 @@ import subprocess
 import sys
 from dash import dcc, html, callback, dash_table, no_update, callback_context
 from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
 SHEETS_FOLDER = 'sheets'
 SCRIPT_NAME = 'import_sheet.py'
@@ -13,17 +14,23 @@ SCRIPT_NAME = 'import_sheet.py'
 ETL_STATUS = {
     'is_running': False,
     'message': '',
-    'color': 'light'
+    'color': 'gray'
 }
 
 def run_import_script_thread():
     global ETL_STATUS
     ETL_STATUS['is_running'] = True
     ETL_STATUS['message'] = "O script de importação está rodando... Isso pode levar alguns minutos."
-    ETL_STATUS['color'] = "info"
+    ETL_STATUS['color'] = "blue"
     
     try:
-        
+        if not os.path.exists(SCRIPT_NAME):
+             # Try to find it in root if we are in app folder? 
+             # workspace: /home/darkfox/.../IFEsCS
+             # script is in root.
+             # cwd might be root.
+             pass
+
         result = subprocess.run(
             [sys.executable, SCRIPT_NAME], 
             capture_output=True, 
@@ -33,14 +40,14 @@ def run_import_script_thread():
         
         if result.returncode == 0:
             ETL_STATUS['message'] = f"Sucesso! Importação concluída..." 
-            ETL_STATUS['color'] = "success"
+            ETL_STATUS['color'] = "green"
         else:
             ETL_STATUS['message'] = f"Erro na execução:\n{result.stderr}"
-            ETL_STATUS['color'] = "danger"
+            ETL_STATUS['color'] = "red"
             
     except Exception as e:
         ETL_STATUS['message'] = f"Erro crítico ao tentar rodar o script: {str(e)}"
-        ETL_STATUS['color'] = "danger"
+        ETL_STATUS['color'] = "red"
     
     finally:
         ETL_STATUS['is_running'] = False
@@ -70,70 +77,70 @@ def listar_arquivos():
     return sorted(arquivos, key=lambda x: x['filename'])
 
 layout = html.Div([
-    html.H1('Gerenciamento de Arquivos e Dados'),
-    html.P('Faça upload de planilhas e processe os dados para atualizar o dashboard.'),
-    html.Hr(),
+    dmc.Title('Gerenciamento de Arquivos e Dados', order=2),
+    dmc.Text('Faça upload de planilhas e processe os dados para atualizar o dashboard.', c="dimmed", size="sm"),
+    dmc.Divider(variant="solid", my="md"),
     
-    dbc.Card([
-        dbc.CardHeader("Processamento de Dados (ETL)"),
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.P("Após adicionar ou remover arquivos na lista abaixo, clique no botão para processar os dados e atualizar o banco de dados."),
-                    dbc.Button(
-                        [
-                            html.I(className="bi bi-database-gear me-2"), 
-                            "Rodar Script de Importação"
-                        ], 
+    dmc.Card([
+        dmc.Text("Processamento de Dados (ETL)", size="lg", fw=500, mb="sm"),
+        
+        dmc.Grid(
+            gutter="md",
+            children=[
+                dmc.GridCol([
+                    dmc.Text("Após adicionar ou remover arquivos na lista abaixo, clique no botão para processar os dados e atualizar o banco de dados.", size="sm", mb="md"),
+                    dmc.Button(
+                        "Rodar Script de Importação",
                         id="btn-run-etl", 
-                        color="primary", 
-                        className="mb-3",
+                        color="indigo", 
+                        leftSection=DashIconify(icon="akar-icons:database"),
                         disabled=False
                     ),
-                ], md=8),
-                dbc.Col([
+                ], span={"base": 12, "md": 8}),
+                dmc.GridCol([
                     # Spinner e Status
                     dcc.Loading(
                         id="loading-etl",
                         type="default",
                         children=html.Div(id="dummy-loading-output")
                     )
-                ], md=4, className="d-flex align-items-center justify-content-center")
-            ]),
-            
-            # Alerta de Status
-            dbc.Alert(
-                id="alert-etl-status",
-                children="Aguardando comando...",
-                color="light",
-                is_open=True,
-                style={'whiteSpace': 'pre-wrap'}
-            ),
-            
-            # Intervalo para verificar o status a cada 2 segundos
-            dcc.Interval(id='interval-etl-status', interval=2000, n_intervals=0, disabled=True)
-        ])
-    ], className="mb-4 dbc"),
+                ], span={"base": 12, "md": 4}, style={"display": "flex", "alignItems": "center", "justifyContent": "center"})
+            ]
+        ),
+        
+        # Alerta de Status
+        dmc.Alert(
+            id="alert-etl-status",
+            children="Aguardando comando...",
+            color="gray",
+            variant="filled", 
+            mt="md",
+            style={'whiteSpace': 'pre-wrap'}
+        ),
+        
+        # Intervalo para verificar o status a cada 2 segundos
+        dcc.Interval(id='interval-etl-status', interval=2000, n_intervals=0, disabled=True)
+    ], withBorder=True, shadow="sm", radius="md", mb="md"),
 
-    dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("Upload de Novo Arquivo"),
-                dbc.CardBody([
+    dmc.Grid(
+        gutter="md",
+        children=[
+            dmc.GridCol([
+                dmc.Card([
+                    dmc.Text("Upload de Novo Arquivo", size="lg", fw=500, mb="sm"),
                     dcc.Upload(
                         id='upload-data',
                         children=html.Div([
-                            html.I(className="bi bi-cloud-upload fs-1 text-primary"),
+                            DashIconify(icon="bi:cloud-upload", width=40, height=40),
                             html.Br(),
-                            html.Span('Arraste ou Clique para Selecionar', className="fw-bold"),
-                            html.Br(),
-                            html.Small('Apenas arquivos .ods', className="text-muted")
+                            dmc.Text('Arraste ou Clique para Selecionar', fw=700),
+                            dmc.Text('Apenas arquivos .ods', c="dimmed", size="xs")
                         ]),
                         style={
                             'width': '100%', 'height': '150px', 'lineHeight': '30px',
                             'borderWidth': '2px', 'borderStyle': 'dashed',
                             'borderRadius': '10px', 'textAlign': 'center',
-                            'borderColor': 'var(--bs-border-color)',
+                            'borderColor': '#e9ecef',
                             'cursor': 'pointer',
                             'display': 'flex', 'flexDirection': 'column', 
                             'justifyContent': 'center', 'alignItems': 'center'
@@ -141,65 +148,79 @@ layout = html.Div([
                         multiple=False 
                     ),
                     html.Div(id='output-upload-status', className="mt-3")
-                ])
-            ], className="h-100 dbc") 
-        ], md=5),
+                ], withBorder=True, shadow="sm", radius="md", style={"height": "100%"}) 
+            ], span={"base": 12, "md": 5}),
 
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader([
-                    "Arquivos no Servidor",
-                    dbc.Button(html.I(className="bi bi-arrow-clockwise"), id="btn-refresh-files", color="light", size="sm", className="float-end")
-                ]),
-                dbc.CardBody([
-                    dash_table.DataTable(
-                        id='tabela-arquivos',
-                        columns=[
-                            {'name': 'Nome do Arquivo', 'id': 'filename'},
-                            {'name': 'Tamanho', 'id': 'size'},
-                        ],
-                        data=[],
-                        row_selectable='single', 
-                        style_table={'overflowX': 'auto'},
-                        style_header={
-                            "backgroundColor": "var(--bs-tertiary-bg)",
-                            "color": "var(--bs-body-color)",
-                            "fontWeight": "bold",
-                            "border": "1px solid var(--bs-border-color)"
-                        },
-                        style_data={
-                            "backgroundColor": "var(--bs-body-bg)",
-                            "color": "var(--bs-body-color)",
-                            "border": "1px solid var(--bs-border-color)"
-                        },
-                        style_cell={'textAlign': 'left', 'padding': '10px'},
+            dmc.GridCol([
+                dmc.Card([
+                    dmc.Group([
+                        dmc.Text("Arquivos no Servidor", size="lg", fw=500),
+                        dmc.Button(
+                            "Atualizar Lista",
+                            id="btn-refresh-files",
+                            variant="subtle",
+                            color="gray",
+                            size="sm",
+                            leftSection=DashIconify(icon="fluent:arrow-clockwise-24-regular")
+                        )
+                    ], justify="space-between", mb="sm"),
+                    
+                    dmc.ScrollArea(
+                        dash_table.DataTable(
+                            id='tabela-arquivos',
+                            columns=[
+                                {'name': 'Nome do Arquivo', 'id': 'filename'},
+                                {'name': 'Tamanho', 'id': 'size'},
+                            ],
+                            data=[],
+                            row_selectable='single', 
+                            style_table={'minWidth': '100%'},
+                            style_header={
+                                "backgroundColor": "#f8f9fa", 
+                                "color": "#000", 
+                                "fontWeight": "bold", 
+                                "fontFamily": "sans-serif"
+                            },
+                            style_data={
+                                "backgroundColor": "#fff", 
+                                "color": "#000",
+                                "fontFamily": "sans-serif"
+                            },
+                            style_cell={'textAlign': 'left', 'padding': '10px', 'border': '1px solid #dee2e6'},
+                        ),
+                        offsetScrollbars=True,
+                        type="auto"
                     ),
                     
-                    dbc.Button(
-                        [html.I(className="bi bi-trash me-2"), "Excluir Selecionado"], 
+                    dmc.Button(
+                        "Excluir Selecionado", 
                         id="btn-delete-file-init", 
-                        color="danger", 
-                        className="mt-3 w-100", 
-                        disabled=True
+                        color="red", 
+                        variant="outline",
+                        fullWidth=True,
+                        mt="md",
+                        disabled=True,
+                        leftSection=DashIconify(icon="fluent:delete-24-regular")
                     )
-                ])
-            ], className="h-100 dbc")
-        ], md=7),
-    ]),
+                ], withBorder=True, shadow="sm", radius="md", style={"height": "100%"})
+            ], span={"base": 12, "md": 7}),
+        ]
+    ),
 
-    dbc.Modal(
-        [
-            dbc.ModalHeader(dbc.ModalTitle("Confirmar Exclusão")),
-            dbc.ModalBody(id="modal-body-delete"),
-            dbc.ModalFooter(
-                [
-                    dbc.Button("Cancelar", id="btn-cancel-delete", className="ms-auto", n_clicks=0),
-                    dbc.Button("Sim, Excluir", id="btn-confirm-delete", color="danger", n_clicks=0),
-                ]
-            ),
-        ],
+    dmc.Modal(
         id="modal-confirm-delete",
-        is_open=False,
+        centered=True,
+        children=[
+            dmc.Text("Confirmar Exclusão", fw=700, size="lg", mb="md"),
+            dmc.Text(id="modal-body-delete", mb="md"),
+            dmc.Group(
+                [
+                    dmc.Button("Cancelar", id="btn-cancel-delete", variant="outline", color="gray", n_clicks=0),
+                    dmc.Button("Sim, Excluir", id="btn-confirm-delete", color="red", n_clicks=0),
+                ],
+                justify="flex-end"
+            )
+        ]
     ),
     
     dcc.Store(id='store-file-to-delete'),
@@ -234,30 +255,33 @@ def upload_file(contents, filename):
     if contents is None:
         return None
     if not filename.lower().endswith('.ods'):
-        return dbc.Alert("Erro: Apenas arquivos .ods permitidos.", color="danger", dismissable=True)
+        return dmc.Alert("Erro: Apenas arquivos .ods permitidos.", color="red", variant="filled")
     caminho = os.path.join(SHEETS_FOLDER, filename)
     if os.path.exists(caminho):
-        return dbc.Alert(
-            [html.I(className="bi bi-exclamation-octagon-fill me-2"), f"O arquivo '{filename}' já existe. Exclua-o da lista ao lado antes de enviar novamente."], 
-            color="danger", dismissable=True
+        return dmc.Alert(
+            f"O arquivo '{filename}' já existe. Exclua-o da lista ao lado antes de enviar novamente.",
+            title="Arquivo Duplicado",
+            color="red", 
+            variant="filled",
+            icon=DashIconify(icon="akar-icons:triangle-alert")
         )
     try:
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
         with open(caminho, 'wb') as f:
             f.write(decoded)
-        return dbc.Alert(f"Sucesso: '{filename}' enviado.", color="success", dismissable=True)
+        return dmc.Alert(f"Sucesso: '{filename}' enviado.", color="green", variant="filled")
     except Exception as e:
-        return dbc.Alert(f"Erro ao salvar: {str(e)}", color="danger", dismissable=True)
+        return dmc.Alert(f"Erro ao salvar: {str(e)}", color="red", variant="filled")
 
 @callback(
-    [Output('modal-confirm-delete', 'is_open'),
+    [Output('modal-confirm-delete', 'opened'),
      Output('modal-body-delete', 'children'),
      Output('store-file-to-delete', 'data')],
     [Input('btn-delete-file-init', 'n_clicks'),
      Input('btn-cancel-delete', 'n_clicks'),
      Input('btn-confirm-delete', 'n_clicks')],
-    [State('modal-confirm-delete', 'is_open'),
+    [State('modal-confirm-delete', 'opened'),
      State('tabela-arquivos', 'selected_rows'),
      State('tabela-arquivos', 'data')]
 )
@@ -273,6 +297,9 @@ def toggle_modal(n_init, n_cancel, n_confirm, is_open, selected_rows, rows):
         filename = rows[selected_rows[0]]['filename']
         msg = f"Tem certeza que deseja excluir permanentemente o arquivo '{filename}' do servidor?"
         return True, msg, filename
+    
+    if 'btn-cancel-delete' in ctx or 'btn-confirm-delete' in ctx:
+        return False, no_update, no_update
     
     return False, no_update, no_update
 

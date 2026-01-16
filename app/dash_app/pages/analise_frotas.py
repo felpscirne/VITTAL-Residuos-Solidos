@@ -2,7 +2,8 @@ from dash import dcc, html, callback
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
 from app.database import engine
 from app.services.ai_service import generate_analysis_component
@@ -99,60 +100,96 @@ def create_frota_ranking_graph(df, template):
     return fig
 
 layout = html.Div([
-    html.H1('Análise de Eficiência da Frota (por Placa)'),
-    html.P('Esta análise identifica os veículos mais e menos eficientes da operação de coleta.'),
-    html.Hr(),
-    
-    dbc.Alert(
-        [
-            html.H5("O que esta análise responde?", className="alert-heading"),
-            html.P("Temos caminhões (da frota própria ou de empresas) que estão rodando 'batendo lata' (com peso médio baixo)? "
-                   "Quais veículos são nossos 'cavalos de batalha' (muitas viagens, peso alto) e quais são 'problemáticos' (muitas viagens, peso baixo)?")
-        ], color="info", className="mb-3"
+    dmc.Title('Análise de Eficiência da Frota', order=2),
+    dmc.Text('Esta análise identifica os veículos mais e menos eficientes da operação de coleta.', c="dimmed", size="sm"),
+    dmc.Divider(variant="solid", my="md"),
+
+    dmc.Alert(
+        children=[
+            dmc.Title("Eficiência Operacional", order=5),
+            dmc.Text("Analise o desempenho individual dos veículos. Placas com muitas viagens mas pouco peso podem indicar ineficiência."),
+        ],
+        title="Dica de Análise",
+        color="orange",
+        variant="light",
+        icon=DashIconify(icon="akar-icons:light-bulb"),
+        mb="md"
     ),
 
-    dbc.Card(
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.Label("Filtrar por Empresa/Entidade:"),
-                    dcc.Dropdown(
-                        id='filtro-entidade-frota',
-                        options=entidades_options,
-                        value='todas'
+    dmc.Card(
+        children=[
+            dmc.Grid( # Usando Grid para o Slider ficar alinhado melhor
+                gutter="md",
+                children=[
+                    dmc.GridCol(
+                        [
+                            dmc.Select(
+                                label="Filtrar por Empresa/Entidade",
+                                placeholder="Selecione uma entidade",
+                                id='filtro-entidade-frota',
+                                data=entidades_options,
+                                value='todas',
+                                leftSection=DashIconify(icon="domain")
+                            )
+                        ], span={"base": 12, "md": 6}
+                    ),
+                    dmc.GridCol(
+                        [
+                            dmc.Text(id='label-slider-frota', children=f"Filtrar por Nº Mínimo de Viagens: {min_viagens_default}", size="sm", fw=500, mb=5),
+                            dmc.Slider(
+                                id='filtro-viagens-frota',
+                                min=0,
+                                max=max_viagens_slider,
+                                step=1, 
+                                value=min_viagens_default,
+                                updatemode='drag',
+                                color="teal",
+                                marks=[
+                                    {'value': 0, 'label': '0'},
+                                    {'value': int(max_viagens_slider/2), 'label': str(int(max_viagens_slider/2))},
+                                    {'value': max_viagens_slider, 'label': str(max_viagens_slider)},
+                                ]
+                            )
+                        ], span={"base": 12, "md": 6}
                     )
-                ], md=6),
-                dbc.Col([
-                    html.Label(id='label-slider-frota', children=f"Filtrar por Nº Mínimo de Viagens: {min_viagens_default}"),
-                    dcc.Slider(
-                        id='filtro-viagens-frota',
-                        min=0,
-                        max=max_viagens_slider,
-                        step=1, 
-                        value=min_viagens_default,
-                        marks=None,
-                        tooltip={"placement": "bottom", "always_visible": False}
-                    )
-                ], md=6)
-            ])
-        ]),
-        className="dbc mb-3"
+                ]
+            )
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
 
-    dbc.Button("🤖 Analisar Eficiência da Frota", id="btn-ia-frota", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
+    dmc.Button(
+        "🤖 Analisar Eficiência", 
+        id="btn-ia-frotas", 
+        n_clicks=0, 
+        variant="outline", 
+        color="indigo", 
+        leftSection=DashIconify(icon="fluent:bot-24-regular"),
+        size="compact-sm",
+        mb="md"
+    ),
     dcc.Loading(html.Div(id='ia-output-frota')), 
 
-    dbc.Card(
-        dbc.CardBody([
+    dmc.Card(
+        children=[
             dcc.Graph(id='grafico-frota-scatter') # Gráfico de Dispersão
-        ]),
-        className="mb-3"
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
-    dbc.Card(
-        dbc.CardBody([
+    dmc.Card(
+        children=[
             dcc.Graph(id='grafico-frota-ranking') # Gráfico de Ranking (Facetado)
-        ]),
-        className="mb-3"
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     )
 ])
 
@@ -202,7 +239,7 @@ def get_ia_frota_analysis(n_clicks, selected_entidade, min_viagens):
     df_filtered = df_filtered[df_filtered['total_viagens'] >= min_viagens]
 
     if df_filtered.empty:
-        return dbc.Alert("Nenhum dado encontrado para análise. Ajuste os filtros.", color="warning", className="mt-3")
+        return dmc.Alert("Nenhum dado encontrado para análise. Ajuste os filtros.", color="yellow", variant="filled", className="mt-3")
 
     df_piores = df_filtered.nsmallest(5, 'peso_medio_por_viagem')
     df_melhores = df_filtered.nlargest(5, 'peso_medio_por_viagem')

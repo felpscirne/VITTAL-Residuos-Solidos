@@ -2,7 +2,8 @@ from dash import dcc, html, callback, dash_table
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
 from app.database import engine
 
@@ -85,87 +86,134 @@ def create_micro_fluxo_graph(df, setor_selecionado, template):
     return fig
 
 layout = html.Div([
-    html.H1('Análise de Fluxo (Entrada vs. Saída)'),
-    html.P("Esta página compara o volume total de resíduos 'Entrada' (coletado de todos os setores) "
-           "com o volume de 'Saída' (registrado no setor de destino 'CANDIOTA')."),
-    html.Hr(),
+    dmc.Title('Análise de Fluxo (Entrada vs. Saída)', order=2),
+    dmc.Text(
+        "Esta página compara o volume total de resíduos 'Entrada' (coletado de todos os setores) "
+        "com o volume de 'Saída' (registrado no setor de destino 'CANDIOTA').",
+        c="dimmed",
+        size="sm"
+    ),
+    dmc.Divider(variant="solid", my="md"),
     
     
-    dbc.Alert(
+    dmc.Alert(
         [
-            html.H5("O que esta análise responde?", className="alert-heading"),
-            html.P("Qual é a relação entre o que coletamos e o que enviamos para descarte? "
-                   "Estamos coletando mais do que descartamos, ou o contrário? "
-                   "Existem setores específicos que contribuem mais para essa dinâmica?")
+            "Qual é a relação entre o que coletamos e o que enviamos para descarte? "
+            "Estamos coletando mais do que descartamos, ou o contrário? "
+            "Existem setores específicos que contribuem mais para essa dinâmica?"
         ],
-        color="info", className="mb-3"
+        title="O que esta análise responde?",
+        color="blue", 
+        variant="light",
+        icon=DashIconify(icon="akar-icons:info"),
+        mb="md"
     ),
 
-    html.H2("Visão Geral do Balanço Mensal (Gráfico)"),
+    dmc.Text("Visão Geral do Balanço Mensal (Gráfico)", size="lg", fw=500, mb="sm"),
 
-    dbc.Card(
-        dbc.CardBody(dcc.Graph(id='grafico-fluxo-candiota')),
-        className="mb-3"
+    dmc.Card(
+        children=[dcc.Graph(id='grafico-fluxo-candiota')],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
 
-    html.Div([
-        html.H2("Visão Geral do Balanço Mensal (Tabela)"),
-        dbc.Button("🤖 Explicar esta tabela", id="btn-ia-balanco", n_clicks=0, color="primary", outline=True, size="sm", className="ms-3"),
-    ], className="d-flex align-items-center mb-2"),
-    
-    dbc.Card(
-        dbc.CardBody(
-            dash_table.DataTable(
-                id='tabela-fluxo-candiota',
-                columns=[
-                    {"name": "Período", "id": "periodo"},
-                    {"name": "Entradas (kg)", "id": "entradas"},
-                    {"name": "Saídas (kg)", "id": "saidas"},
-                    {"name": "Balanço (kg)", "id": "balanco"},
-                ],
-                data=df_fluxo_macro.to_dict('records'),
-                sort_action="native", page_size=12,
-                style_header={"backgroundColor": "var(--bs-tertiary-bg)", "color": "var(--bs-body-color)", "fontWeight": "bold", "border": "1px solid var(--bs-border-color)"},
-                style_data={"backgroundColor": "var(--bs-body-bg)", "color": "var(--bs-body-color)"},
-                style_cell={'border': '1px solid var(--bs-border-color)'}
-            ),
-            className="dbc" 
+    dmc.Group([
+        dmc.Text("Visão Geral do Balanço Mensal (Tabela)", size="lg", fw=500),
+        dmc.Button(
+            "🤖 Explicar esta tabela", 
+            id="btn-ia-balanco", 
+            n_clicks=0, 
+            variant="outline", 
+            size="compact-sm",
+            leftSection=DashIconify(icon="fluent:bot-24-regular")
         ),
-        className="mb-3"
+    ], justify="space-between", mb="sm"),
+    
+    dmc.Card(
+        children=[
+            dmc.ScrollArea(
+                dash_table.DataTable(
+                    id='tabela-fluxo-candiota',
+                    columns=[
+                        {"name": "Período", "id": "periodo"},
+                        {"name": "Entradas (kg)", "id": "entradas"},
+                        {"name": "Saídas (kg)", "id": "saidas"},
+                        {"name": "Balanço (kg)", "id": "balanco"},
+                    ],
+                    data=df_fluxo_macro.to_dict('records'),
+                    sort_action="native", 
+                    page_size=12,
+                    style_header={
+                        "backgroundColor": "#f8f9fa", 
+                        "color": "#000", 
+                        "fontWeight": "bold", 
+                        "fontFamily": "sans-serif"
+                    },
+                    style_data={
+                        "backgroundColor": "#fff", 
+                        "color": "#000",
+                        "fontFamily": "sans-serif"
+                    },
+                    style_cell={'border': '1px solid #dee2e6', 'padding': '10px'}
+                ),
+                offsetScrollbars=True,
+                type="auto"
+            )
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
     
     dcc.Loading(html.Div(id='ia-output-balanco')),
 
+    dmc.Divider(variant="dotted", my="xl"),
     
-    html.Hr(className="mt-5"),
+    dmc.Group([
+        dmc.Text("Análise Setorial Detalhada (vs. Candiota)", size="lg", fw=500),
+        dmc.Button(
+            "🤖 Explicar esta análise", 
+            id="btn-ia-setor", 
+            n_clicks=0, 
+            variant="outline", 
+            size="compact-sm",
+            leftSection=DashIconify(icon="fluent:bot-24-regular")
+        ),
+    ], justify="space-between", mb="sm"),
     
-    html.Div([
-        html.H2("Análise Setorial Detalhada (vs. Candiota)"),
-        dbc.Button("🤖 Explicar esta análise", id="btn-ia-setor", n_clicks=0, color="primary", outline=True, size="sm", className="ms-3"),
-    ], className="d-flex align-items-center mb-2"),
-    
-    dbc.Card(
-        dbc.CardBody([
-            html.Label("Selecione um setor para análise detalhada:"),
-            dcc.Dropdown(
+    dmc.Card(
+        children=[
+            dmc.Select(
+                label="Selecione um setor para análise detalhada:",
+                placeholder="Selecione um setor",
                 id='dropdown-setor-fluxo',
-                options=setores_options,
-                value=setores_options[0]['value'] 
+                data=setores_options,
+                value=setores_options[0]['value'],
+                leftSection=DashIconify(icon="fa6-solid:building"),
+                mb="md"
+            ),
+             dmc.Grid(
+                gutter="md",
+                children=[
+                    dmc.GridCol(
+                        dcc.Loading(dcc.Graph(id='grafico-setor-vs-candiota')),
+                        span={"base": 12, "md": 8}
+                    ),
+                    dmc.GridCol(
+                        dcc.Loading(html.Div(id='kpi-setor-participacao')),
+                        span={"base": 12, "md": 4}
+                    )
+                ]
             )
-        ]),
-        className="mb-3 dbc" 
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
-    
-    dbc.Row([
-        dbc.Col(
-            dbc.Card(dbc.CardBody(dcc.Loading(dcc.Graph(id='grafico-setor-vs-candiota')))),
-            md=8, className="mb-3"
-        ),
-        dbc.Col(
-            dbc.Card(dbc.CardBody(dcc.Loading(html.Div(id='kpi-setor-participacao')))),
-            md=4, className="mb-3"
-        ),
-    ]),
     
     dcc.Loading(html.Div(id='ia-output-setor'))
 ])
@@ -193,7 +241,6 @@ def update_micro_analysis(setor_selecionado, switch_is_light):
     
     fig = create_micro_fluxo_graph(df_fluxo_micro, setor_selecionado, template)
     
-    
     total_saida_candiota = df_fluxo_micro[
         df_fluxo_micro['setor'] == 'CANDIOTA'
     ]['peso_kg'].sum()
@@ -207,24 +254,31 @@ def update_micro_analysis(setor_selecionado, switch_is_light):
     else:
         percentual = 0
         
-    kpi_component = html.Div([
-        html.H4("Participação vs. Saída Total"),
-        html.P(f"Análise do setor: {setor_selecionado}"),
-        html.Hr(),
-        html.H5(f"Total {setor_selecionado}:", className="fw-bold"),
-        html.P(f"{total_setor_selecionado:,.2f} kg"),
-        html.H5(f"Total Saída (Candiota):", className="fw-bold"),
-        html.P(f"{total_saida_candiota:,.2f} kg"),
-        html.Hr(),
-        html.H5("Participação Percentual:"),
-        dbc.Progress(
+    kpi_component = dmc.Stack([
+        dmc.Text("Participação vs. Saída Total", fw=500, size="lg"),
+        dmc.Text(f"Análise do setor: {setor_selecionado}", c="dimmed", size="sm"),
+        dmc.Divider(variant="solid"),
+        dmc.Group([
+            dmc.Text(f"Total {setor_selecionado}:", fw=700),
+            dmc.Text(f"{total_setor_selecionado:,.2f} kg"),
+        ], justify="space-between"),
+        dmc.Group([
+            dmc.Text(f"Total Saída (Candiota):", fw=700),
+            dmc.Text(f"{total_saida_candiota:,.2f} kg"),
+        ], justify="space-between"),
+        dmc.Divider(variant="solid"),
+        dmc.Text("Participação Percentual:", fw=500),
+        dmc.Progress(
             value=percentual, 
             label=f"{percentual:.2f}%", 
-            style={"height": "30px", "font-size": "1.1rem"}
+            size="xl",
+            radius="md",
+            color="indigo"
         ),
-        html.P(
+        dmc.Text(
             f"O volume deste setor representa {percentual:.2f}% do volume total de saída.",
-            className="mt-3"
+            size="sm",
+            mt="sm"
         )
     ])
     
@@ -237,8 +291,6 @@ def update_micro_analysis(setor_selecionado, switch_is_light):
     prevent_initial_call=True
 )
 def get_ia_balanco(n_clicks):
-    
-            
     
     df = df_fluxo_macro
     media_balanco_mensal = df['balanco'].mean()

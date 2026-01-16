@@ -2,7 +2,8 @@ from dash import dcc, html, callback
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
 from app.database import engine, get_anos_options
 from app.services.ai_service import generate_analysis_component
@@ -45,88 +46,116 @@ def fig_contagem_empresas(df, template):
     return fig
 
 layout = html.Div([
-    html.H1('Análise de Empresas e Entidades'),
-    html.P('Compare todas as empresas/entidades ou analise a tendência de uma específica ao longo do tempo.'),
-    html.Hr(),
+    dmc.Title('Análise de Empresas e Entidades', order=2),
+    dmc.Text('Compare todas as empresas/entidades ou analise a tendência de uma específica ao longo do tempo.', c="dimmed", size="sm"),
+    dmc.Divider(variant="solid", my="md"),
 
-    html.H2("Visão Geral: Ranking de Empresas"),
-    dbc.Alert(
-        [
-        html.H5("O que este gráfico responde? "),
-        html.P("Quais empresas, entidades ou secretarias mais usam o nosso sistema de pesagem? Quem são os maiores players no nosso ecossistema de resíduos?")
+    dmc.Title("Visão Geral: Ranking de Empresas", order=3, my="sm"),
+    dmc.Alert(
+        "Quais empresas, entidades ou secretarias mais usam o nosso sistema de pesagem? Quem são os maiores players no nosso ecossistema de resíduos?",
+        title="O que este gráfico responde?",
+        color="blue",
+        variant="light",
+        icon=DashIconify(icon="radix-icons:info-circled"),
+        mb="md"
+    ),
+    
+    dmc.Card(
+        children=[
+            dcc.Graph(id='grafico-contagem-empresas')
         ],
-        color="info", className="mb-3"
-    ),
-    
-    
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-contagem-empresas') 
-        ]),
-        className="mb-3"
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
 
-    dbc.Button("🤖 Explicar este ranking", id="btn-ia-empresas-ranking", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
+    dmc.Button(
+        "🤖 Explicar este ranking", 
+        id="btn-ia-empresas-ranking", 
+        n_clicks=0, 
+        variant="outline", 
+        color="indigo", 
+        leftSection=DashIconify(icon="fluent:bot-24-regular"),
+        size="compact-sm",
+        mb="md"
+    ),
     dcc.Loading(html.Div(id='ia-output-empresas-ranking')), 
 
-    html.Hr(className="mt-5"),
-    html.H2("Drill-Down: Análise Mensal por Empresa"),
-    dbc.Alert(
-        [
-        html.H5("O que esta análise responde?"),
-        html.P("Como o volume e a eficiência (peso médio) de uma empresa ou entidade específica mudam ao longo do ano? Existem tendências sazonais ou padrões notáveis?")
-        ],
-        color="info", className="mb-3"
+    dmc.Divider(label="Análise Temporal", labelPosition="center", my="xl"),
+    
+    dmc.Title("Drill-Down: Análise Mensal por Empresa", order=3, my="sm"),
+    dmc.Alert(
+        "Como o volume e a eficiência (peso médio) de uma empresa ou entidade específica mudam ao longo do ano? Existem tendências sazonais ou padrões notáveis?",
+        title="O que esta análise responde?",
+        color="cyan",
+        variant="light",
+        icon=DashIconify(icon="akar-icons:statistic-up"),
+        mb="md"
     ),
     
-    dbc.Row(
-        [
-            dbc.Col(
-                [
-                    html.Label('Selecione o Ano:'),
-                    dcc.Dropdown(
-                        id='filtro-ano-empresa',
-                        options=anos_options,
-                        value=ano_inicial,
-                        clearable=False
-                    )
-                ], md=6
+    dmc.SimpleGrid(
+        cols={"base": 1, "sm": 2},
+        spacing="md",
+        children=[
+            dmc.Select(
+                label="Selecione o Ano",
+                description="Filtrar dados por ano fiscal",
+                id='filtro-ano-empresa',
+                data=anos_options,
+                value=ano_inicial,
+                clearable=False,
+                leftSection=DashIconify(icon="clarity:calendar-line")
             ),
-            dbc.Col(
-                [
-                    html.Label('Selecione a Empresa:'),
-                    dcc.Dropdown(
-                        id='filtro-empresa-temporal',
-                        options=empresas_options,
-                        value='todas'
-                    )
-                ], md=6
+            dmc.Select(
+                label="Selecione a Empresa",
+                description="Escolha uma entidade ou 'Todas'",
+                id='filtro-empresa-temporal',
+                data=empresas_options,
+                value='todas',
+                searchable=True,
+                nothingFoundMessage="Nenhuma empresa encontrada",
+                leftSection=DashIconify(icon="domain")
             ),
         ],
-        className="dbc mb-3" 
-    ),
-    
-   
-
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-qtde-por-mes-empresa')
-        ]),
-        className="mb-3"
-    ),
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-media-peso-por-mes-empresa')
-        ]),
-        className="mb-3"
+        mb="md"
     ),
 
-    dbc.Button("🤖 Explicar gráficos temporais", id="btn-ia-empresas-temporal", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
+    dmc.SimpleGrid(
+        cols={"base": 1, "md": 2},
+        spacing="md",
+        children=[
+            dmc.Card(
+                children=[
+                    dcc.Graph(id='grafico-qtde-por-mes-empresa')
+                ],
+                withBorder=True,
+                shadow="sm",
+                radius="md"
+            ),
+            dmc.Card(
+                children=[
+                    dcc.Graph(id='grafico-media-peso-por-mes-empresa')
+                ],
+                withBorder=True,
+                shadow="sm",
+                radius="md"
+            ),
+        ],
+        mb="md"
+    ),
+
+    dmc.Button(
+        "🤖 Explicar Tendência", 
+        id="btn-ia-empresas-temporal", 
+        n_clicks=0, 
+        variant="outline", 
+        color="indigo", 
+        leftSection=DashIconify(icon="fluent:bot-24-regular")
+    ),
     dcc.Loading(html.Div(id='ia-output-empresas-temporal')), 
 
 ])
-
-
 
 
 @callback(

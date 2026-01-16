@@ -1,8 +1,8 @@
 from dash import dcc, html, callback, dash_table
 from dash.dependencies import Input, Output, State
-import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 
 from app.database import engine
 from app.services.ai_service import generate_analysis_component
@@ -27,80 +27,110 @@ def get_entidades_options():
 entidades_options = get_entidades_options()
 
 
-table_header_style = {
-    "backgroundColor": "var(--bs-tertiary-bg)",
-    "color": "var(--bs-body-color)",
-    "fontWeight": "bold",
-    "border": "1px solid var(--bs-border-color)"
-}
-table_data_style = {
-    "backgroundColor": "var(--bs-body-bg)",
-    "color": "var(--bs-body-color)",
-}
-table_cell_style = {'border': '1px solid var(--bs-border-color)', 'textAlign': 'left'}
-
-
 layout = html.Div([
-    html.H1('Auditoria de Peso (Real vs. Nota Fiscal)'),
-    html.P('Esta análise compara o peso medido em nossa balança com o peso declarado na Nota Fiscal.'),
-    html.Hr(),
-    
-    dbc.Alert(
-        [
-            html.H5("O que esta análise responde?", className="alert-heading"),
-            html.P("O peso que as empresas estão declarando confere com o que estamos medindo? "
-                   "Uma diferença grande pode indicar erro de registro, problema na balança da empresa ou, em casos extremos, fraude."),
-        ], color="info", className="mb-3"
+    dmc.Title('Auditoria de Pesagem: Balança vs Nota Fiscal', order=2),
+    dmc.Text('Esta análise compara o peso medido em nossa balança com o peso declarado na Nota Fiscal.', c="dimmed", size="sm"),
+    dmc.Divider(variant="solid", my="md"),
+
+    dmc.Alert(
+        children=[
+            dmc.Title("Sobre Auditoria", order=5),
+            dmc.Text("Identifique divergências significativas entre o peso declarado e o peso aferido."),
+        ],
+        title="Controle de Qualidade",
+        color="red",
+        variant="light",
+        icon=DashIconify(icon="akar-icons:triangle-alert"),
+        mb="md"
     ),
 
     # --- Filtros ---
-    dbc.Card(
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.Label("Filtrar por Empresa/Entidade:"),
-                    dcc.Dropdown(
-                        id='filtro-entidade-auditoria',
-                        options=entidades_options,
-                        value='todas'
+    dmc.Card(
+        children=[
+            dmc.Grid(
+                gutter="md",
+                children=[
+                    dmc.GridCol(
+                        [
+                            dmc.Select(
+                                label="Filtrar por Empresa/Entidade",
+                                placeholder="Selecione uma entidade",
+                                id='filtro-entidade-auditoria',
+                                data=entidades_options,
+                                value='todas',
+                                leftSection=DashIconify(icon="domain")
+                            )
+                        ], span={"base": 12, "md": 6}
+                    ),
+                    dmc.GridCol(
+                        [
+                            dmc.Text(id='label-slider-auditoria', children="Limite de discrepância (%): 5%", size="sm", fw=500, mb=5),
+                            dmc.Slider(
+                                id='filtro-discrepancia-auditoria',
+                                min=0,
+                                max=20,
+                                step=1,
+                                value=5,
+                                updatemode='drag',
+                                marks=[
+                                    {'value': 0, 'label': '0%'},
+                                    {'value': 5, 'label': '5%'},
+                                    {'value': 10, 'label': '10%'},
+                                    {'value': 20, 'label': '20%'},
+                                ],
+                                color="red"
+                            )
+                        ], span={"base": 12, "md": 6}
                     )
-                ], md=6),
-                dbc.Col([
-                    html.Label("Limite de discrepância (%):"),
-                    dcc.Slider(
-                        id='filtro-discrepancia-auditoria',
-                        min=0,
-                        max=20,
-                        step=1,
-                        value=5,
-                        marks={i: f'{i}%' for i in range(0, 21, 5)},
-                        tooltip={"placement": "bottom", "always_visible": False}
-                    )
-                ], md=6)
-            ])
-        ]),
-        className="dbc mb-3"
+                ]
+            )
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     ),
 
-    dbc.Button("🤖 Analisar Discrepâncias", id="btn-ia-auditoria", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
+    dmc.Button(
+        "🤖 Auditar Discrepâncias", 
+        id="btn-ia-auditoria", 
+        n_clicks=0, 
+        variant="outline", 
+        color="indigo", 
+        leftSection=DashIconify(icon="fluent:bot-24-regular")
+    ),
     dcc.Loading(html.Div(id='ia-output-auditoria')), 
 
-    dbc.Card(
-        dbc.CardBody(
-            dash_table.DataTable(
-                id='tabela-auditoria',
-                page_size=15,
-                sort_action="native",
-                filter_action="native",
-                style_table={'overflowX': 'auto'},
-                
-              
-                style_header=table_header_style,
-                style_data=table_data_style,
-                style_cell=table_cell_style,
+    dmc.Card(
+        children=[
+            dmc.ScrollArea(
+                dash_table.DataTable(
+                    id='tabela-auditoria',
+                    page_size=15,
+                    sort_action="native",
+                    filter_action="native",
+                    style_table={'minWidth': '100%'},
+                    style_header={
+                        "backgroundColor": "#f8f9fa", 
+                        "color": "#000", 
+                        "fontWeight": "bold", 
+                        "fontFamily": "sans-serif"
+                    },
+                    style_data={
+                        "backgroundColor": "#fff", 
+                        "color": "#000",
+                        "fontFamily": "sans-serif"
+                    },
+                    style_cell={'border': '1px solid #dee2e6', 'padding': '10px', 'textAlign': 'left'},
+                ), 
+                offsetScrollbars=True,
+                type="auto"
             )
-        ),
-        className="dbc mb-3"
+        ],
+        withBorder=True,
+        shadow="sm",
+        radius="md",
+        mb="md"
     )
 ])
 
@@ -108,7 +138,8 @@ layout = html.Div([
 @callback(
     [Output('tabela-auditoria', 'data'),
      Output('tabela-auditoria', 'columns'),
-     Output('tabela-auditoria', 'style_data_conditional')],
+     Output('tabela-auditoria', 'style_data_conditional'),
+     Output('label-slider-auditoria', 'children')],
     [Input('filtro-entidade-auditoria', 'value'),
      Input('filtro-discrepancia-auditoria', 'value'),
      Input("theme-switch", "value")] 
@@ -160,17 +191,18 @@ def update_audit_table(selected_entidade, min_discrepancia, switch_is_light):
         {
             'if': { 'column_id': 'diferenca_percentual',
                     'filter_query': f'{{diferenca_percentual}} > {min_discrepancia}' },
-            'backgroundColor': '#FF4136', 'color': 'white'
+            'backgroundColor': '#fa5252', 'color': 'white'
         },
         {
             'if': { 'column_id': 'diferenca_percentual',
                     'filter_query': f'{{diferenca_percentual}} < -{min_discrepancia}' },
-            'backgroundColor': '#FF4136', 'color': 'white'
+            'backgroundColor': '#fa5252', 'color': 'white'
         },
     ]
     
+    label_slider = f"Limite de discrepância (%): {min_discrepancia}%"
 
-    return data, columns, dynamic_styles
+    return data, columns, dynamic_styles, label_slider
 
 @callback(
     Output('ia-output-auditoria', 'children'),
@@ -212,7 +244,7 @@ def get_ia_audit_analysis(n_clicks, selected_entidade, min_discrepancia):
     ]
     
     if df_discrepancias.empty:
-        return dbc.Alert(f"Nenhuma discrepância significativa (> {min_discrepancia}%) encontrada para {contexto_filtro}.", color="success", className="mt-3")
+        return dmc.Alert(f"Nenhuma discrepância significativa (> {min_discrepancia}%) encontrada para {contexto_filtro}.", color="teal", variant="filled", className="mt-3")
 
     dados_em_texto = df_discrepancias.to_markdown(index=False)
 

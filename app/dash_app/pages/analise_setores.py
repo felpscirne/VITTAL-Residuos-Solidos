@@ -1,35 +1,30 @@
 from dash import dcc, html, callback, Input, Output, State
 import plotly.express as px
 import pandas as pd
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
 from sqlalchemy import or_, extract
 from datetime import datetime
 
 from app.database import engine, get_anos_options 
 from app.models import Event
 from app.services.ai_service import generate_analysis_component
+from app.services.data_repository import get_dados_setores_macro, get_dados_setor_temporal
 from app import db
 
-template_theme_light = "cosmo" 
-template_theme_dark = "plotly_dark"
+# Load data
+df_setores = get_dados_setores_macro()
 
-def load_sector_data():
-    query = """
-    SELECT 
-        setor, 
-        AVG(peso_embalagem_liquido_corrigido) as "Média de Peso (kg)",
-        COUNT(*) as quantidade
-    FROM registro 
-    WHERE 
-        setor IS NOT NULL AND
-        setor != 'ACERTO DE PESO' AND
-        setor != 'CANDIOTA'
-    GROUP BY setor
-    """
-    df = pd.read_sql(query, engine)
-    return df
+# Dropdown options
+setores_options_temporal = sorted([
+    {'label': s, 'value': s} for s in df_setores['setor'].unique()
+], key=lambda x: x['label'])
 
-df_setores = load_sector_data()
+anos_options_temporal, ano_inicial_temporal = get_anos_options()
+# DMC Select expects string value for labels usually, but let's check. 
+# It handles value as string usually.
+setor_inicial_temporal = setores_options_temporal[0]['value'] if setores_options_temporal else None
+
 
 def fig_relacao_peso_volume(df, template):
     fig = px.scatter(
@@ -38,13 +33,13 @@ def fig_relacao_peso_volume(df, template):
         labels={'quantidade': 'Volume (Contagem)', 'Média de Peso (kg)': 'Média de Peso (kg)'},
         hover_name='setor', template=template
     )
-    fig.update_layout(height=600, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(height=500, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
 
 def fig_media_por_setor(df, template):
     df_sorted = df.sort_values(by='Média de Peso (kg)', ascending=False)
     fig = px.bar(df_sorted, x='setor', y='Média de Peso (kg)', 
-                 title="Média do Peso por Setor", template=template)
+                 title="Ranking: Média do Peso por Setor", template=template)
     fig.update_xaxes(tickangle=45) 
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
@@ -54,147 +49,160 @@ def fig_contagem_por_setor(df, template):
     num_setores = len(df_sorted.index)
     dynamic_height = max(400, num_setores * 20)
     fig = px.bar(df_sorted, x='quantidade', y='setor', orientation='h', 
-                 title="Volume de Registros por Setor", template=template)
+                 title="Ranking: Volume de Registros por Setor", template=template)
     fig.update_layout(yaxis={'autorange': 'reversed'}, height=dynamic_height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
 
 
-setores_options_temporal = sorted([
-    {'label': s, 'value': s} for s in df_setores['setor'].unique()
-], key=lambda x: x['label'])
-
-anos_options_temporal, ano_inicial_temporal = get_anos_options()
-setor_inicial_temporal = setores_options_temporal[0]['value'] if setores_options_temporal else None
-
-
-layout = html.Div([
-    html.H1('Análise de Setores (Visão Geral e Temporal)'),
-    html.P('Compare todos os setores entre si ou analise a tendência de um setor específico ao longo do tempo.'),
-    html.Hr(),
-
-    html.H2("Visão Geral: Comparativo entre Setores"),
+layout = dmc.Container([
+    dmc.Title('Análise de Setores', order=2),
+    dmc.Text('Compare todos os setores entre si ou analise a tendência de um setor específico ao longo do tempo.', c="dimmed", mb="lg"),
     
-    dcc.RadioItems(
-        id='filtro-tipo-visualizacao-setores', 
-        options=[
-            {'label': 'Relação (Peso x Volume)', 'value': 'relacao'},
-            {'label': 'Rankings Individuais', 'value': 'individual'}
-        ],
-        value='relacao',
-        inline=True,
-        className="mb-3 dbc", 
-        labelStyle={'margin-right': '25px'} 
-    ),
-    
-   
-    
-    html.Div(
-        id='div-visualizacao-relacao-setores', 
-        children=[
-            dbc.Alert(
+    dmc.Divider(mb="lg"),
+
+    dmc.Title("Visão Geral: Comparativo entre Setores", order=3, mb="md"),
+
+    dmc.Tabs(
+        [
+            dmc.TabsList(
                 [
-                html.H5("O que este gráfico responde?", className="alert-heading"),
-                html.P("Existem setores (bairros/locais) que se comportam de forma estranha ou 'fora da curva'?"),
-                html.P("Este é um gráfico de detetive. Ele cruza duas informações: o número de viagens (horizontal) e o peso médio por viagem (vertical). Isso nos mostra padrões.")
-                ],
-            color="info", className="mb-3"
+                    dmc.TabsTab("Matriz de Relação", value="relacao", leftSection=DashIconify(icon="radix-icons:mix")),
+                    dmc.TabsTab("Rankings Individuais", value="individual", leftSection=DashIconify(icon="radix-icons:bar-chart")),
+                ]
             ),
-            dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-relacao-setor'))) 
+            dmc.TabsPanel(
+                children=[
+                    dmc.Alert(
+                        children=[
+                            dmc.Title("Matriz de Relação", order=5),
+                            dmc.Text("Este gráfico cruza o número de viagens (horizontal) com o peso médio (vertical). Identifique setores 'fora da curva'."),
+                        ],
+                        title="Ajuda Analítica",
+                        color="blue",
+                        variant="light",
+                        mt="md",
+                        mb="md",
+                        icon=DashIconify(icon="radix-icons:info-circled")
+                    ),
+                    dmc.Card(
+                        dcc.Graph(id='grafico-relacao-setor'),
+                        withBorder=True, shadow="sm", radius="md", p="md"
+                    )
+                ],
+                value="relacao"
+            ),
+            dmc.TabsPanel(
+                children=[
+                    dmc.Alert(
+                        children=[
+                             dmc.Title("Rankings", order=5),
+                             dmc.Text("Identifique os setores mais produtivos (peso médio) e os que geram mais demanda operacional (volume)."),
+                        ],
+                        title="Ajuda Analítica",
+                        color="blue",
+                        variant="light",
+                         mt="md",
+                        mb="md",
+                        icon=DashIconify(icon="radix-icons:info-circled")
+                    ),
+                    dmc.SimpleGrid(
+                        cols={"base": 1, "lg": 2},
+                        spacing="md",
+                        children=[
+                            dmc.Card(dcc.Graph(id='grafico-media-setor'), withBorder=True, shadow="sm", radius="md", p="md"),
+                            dmc.Card(dcc.Graph(id='grafico-contagem-setor'), withBorder=True, shadow="sm", radius="md", p="md"),
+                        ]
+                    )
+                ],
+                value="individual"
+            ),
         ],
-        className="mb-3"
+        value="relacao",
+        color="blue",
+        mb="xl"
     ),
-    html.Div(
-        id='div-visualizacao-individual-setores', 
+
+    dmc.Button(
+        "Analisar comparativo com IA", 
+        id="btn-ia-setores-overview", 
+        n_clicks=0, 
+        variant="light", 
+        color="violet", 
+        leftSection=DashIconify(icon="radix-icons:magic-wand"),
+        mb="md"
+    ),
+    dcc.Loading(html.Div(id='ia-output-setores-overview')),
+
+    dmc.Divider(my="xl"),
+
+    dmc.Title("Drill-Down: Análise Temporal por Setor", order=3, mb="md"),
+    dmc.Alert(
+        "Compare o desempenho mensal de um setor. Veja se há influência de eventos sazonais.", 
+        color="gray", 
+        variant="light", 
+        mb="md"
+    ),
+
+    dmc.Grid(
+        gutter="md",
+        mb="md",
         children=[
-            dbc.Alert(
-                [
-                html.H5("O que este gráfico responde?", className="alert-heading"),
-                html.P("Quais setores têm, em média, as coletas mais 'pesadas' (eficientes) e quais têm as mais 'leves'? Quais setores dão mais 'trabalho', ou seja, exigem o maior número de viagens e registros na balança?"),
-                html.P("Queremos comparar a eficiência média entre os bairros.")
-                ],
-            color="info", className="mb-3"
+            dmc.GridCol(
+                dmc.Select(
+                    label="Selecione o Setor",
+                    placeholder="Escolha um setor",
+                    id='filtro-setor-temporal',
+                    data=setores_options_temporal,
+                    value=setor_inicial_temporal,
+                    searchable=True
+                ), span=6
             ),
-            dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-media-setor')), className="mb-3"), 
-            dbc.Card(dbc.CardBody(dcc.Graph(id='grafico-contagem-setor')), className="mb-3") 
+             dmc.GridCol(
+                dmc.Select(
+                    label="Selecione o Ano",
+                    placeholder="Ano",
+                    id='filtro-ano-temporal',
+                    data=anos_options_temporal,
+                    value=str(ano_inicial_temporal) if ano_inicial_temporal else None,
+                     allowDeselect=False
+                ), span=6
+            )
         ]
     ),
-    dbc.Button("🤖 Explicar esta visão geral", id="btn-ia-setores-overview", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
-    dcc.Loading(html.Div(id='ia-output-setores-overview')),  
-   
-    html.Hr(className="mt-5"),
-    html.H2("Drill-Down: Análise Temporal por Setor"),
-    
-    dbc.Alert(
-        [   html.H5("O que esta análise responde?", className="alert-heading"),
-            html.P("Esta seção permite um 'zoom' em um setor específico. Ela compara um setor consigo mesmo ao longo do tempo para ver como sua média de peso (eficiência) varia mês a mês."),
-            html.P("Existem tendências sazonais ou mudanças repentinas que devemos observar?")
-        ],
-        color="info", className="mb-3"
-    ),
 
-    dbc.Row(
-        [
-            dbc.Col(
-                [
-                    html.Label('Selecione o Setor:'),
-                    dcc.Dropdown(
-                        id='filtro-setor-temporal', 
-                        options=setores_options_temporal,
-                        value=setor_inicial_temporal,
-                        clearable=False
-                    )
-                ],
-                md=6
-            ),
-            dbc.Col(
-                [
-                    html.Label('Selecione o Ano:'),
-                    dcc.Dropdown(
-                        id='filtro-ano-temporal', 
-                        options=anos_options_temporal,
-                        value=ano_inicial_temporal,
-                        clearable=False
-                    )
-                ],
-                md=6
-            ),
+    dmc.Card(
+        children=[
+             dcc.Graph(id='grafico-media-setor-temporal'),
+             html.Div(id='lista-eventos-setor', style={"paddingTop": "20px"})
         ],
-        className="dbc mb-3" 
+        withBorder=True, shadow="sm", radius="md", p="md", mb="md"
     ),
     
-
-
-    dbc.Card(
-        dbc.CardBody([
-            dcc.Graph(id='grafico-media-setor-temporal'),
-            html.Div(id='lista-eventos-setor', className="mt-3") 
-        ])
+    dmc.Button(
+        "Analisar tendência deste setor com IA", 
+        id="btn-ia-setores-temporal", 
+        n_clicks=0, 
+        variant="light", 
+        color="violet", 
+        leftSection=DashIconify(icon="radix-icons:magic-wand"),
+        mb="md"
     ),
-    dbc.Button("🤖 Explicar este setor", id="btn-ia-setores-temporal", n_clicks=0, color="primary", outline=True, size="sm", className="mb-3"),
     dcc.Loading(html.Div(id='ia-output-setores-temporal')), 
-])
 
+], fluid=True)
 
-
-@callback(
-    [Output('div-visualizacao-relacao-setores', 'style'),
-     Output('div-visualizacao-individual-setores', 'style')],
-    [Input('filtro-tipo-visualizacao-setores', 'value')]
-)
-def toggle_visualizacao(view_selected):
-    if view_selected == 'relacao':
-        return {'display': 'block'}, {'display': 'none'}
-    else: 
-        return {'display': 'none'}, {'display': 'block'}
-    
 @callback(
     [Output('grafico-relacao-setor', 'figure'),
      Output('grafico-media-setor', 'figure'),
      Output('grafico-contagem-setor', 'figure')],
-    [Input("theme-switch", "value")] 
+    [Input("mantine-provider", "forceColorScheme")] 
 )
-def update_overview_graphs_theme(switch_is_light): 
-    template = template_theme_light if switch_is_light else template_theme_dark
+def update_overview_graphs_theme(theme): 
+    # Determine template based on global Mantine theme
+    template = "plotly_dark" if theme == "dark" else "plotly_white"
+    
+    # Use standard Plotly templates that look good
+    # 'plotly_white' is cleaner than 'cosmo' for DMC
     
     fig1 = fig_relacao_peso_volume(df_setores, template)
     fig2 = fig_media_por_setor(df_setores, template)
@@ -207,59 +215,47 @@ def update_overview_graphs_theme(switch_is_light):
      Output('lista-eventos-setor', 'children')],
     [Input('filtro-setor-temporal', 'value'),
      Input('filtro-ano-temporal', 'value'),
-     Input("theme-switch", "value")]
+     Input("mantine-provider", "forceColorScheme")]
 )
-def update_temporal_graph_logic(setor_selecionado, ano_selecionado, switch_is_light):
+def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
     
-    template = template_theme_light if switch_is_light else template_theme_dark
+    template = "plotly_dark" if theme == "dark" else "plotly_white"
     
     if not setor_selecionado or not ano_selecionado:
         fig_vazia = px.line(title="Por favor, selecione um setor e um ano.", template=template)
         fig_vazia.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         return fig_vazia, ""
 
-    query = """
-    SELECT 
-        EXTRACT(MONTH FROM data_hora) as mes,
-        AVG(peso_embalagem_liquido_corrigido) as media_peso
-    FROM registro
-    WHERE 
-        setor = %(setor)s AND 
-        EXTRACT(YEAR FROM data_hora) = %(ano)s
-    GROUP BY mes
-    ORDER BY mes
-    """
-    params = {'setor': setor_selecionado, 'ano': ano_selecionado}
-    df = pd.read_sql(query, engine, params=params)
+    # Call Service
+    df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
     
     meses_map = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun',
                  7: 'Jul', 8: 'Ago', 9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'}
-    df['mes_nome'] = df['mes'].map(meses_map)
-    df = df.sort_values(by='mes')
+    
+    if not df.empty:
+        df['mes_nome'] = df['mes'].map(meses_map)
+        df = df.sort_values(by='mes')
 
     fig = px.line(
         df, 
-        x='mes_nome', 
-        y='media_peso', 
+        x='mes_nome' if not df.empty else [],
+        y='media_peso' if not df.empty else [],
         markers=True,
-        title=f"Média Mensal de Peso Corrigido para: {setor_selecionado} ({ano_selecionado})",
+        title=f"Média Mensal de Peso Corrigido: {setor_selecionado} ({ano_selecionado})",
         template=template
     )
     
     fig.update_layout(
         xaxis_title="Mês",
-        yaxis_title="Média de Peso Corrigido (kg)",
+        yaxis_title="Peso Médio (kg)",
         paper_bgcolor="rgba(0,0,0,0)", 
         plot_bgcolor="rgba(0,0,0,0)"
     )
     
     events_html = []
 
-    
     # --- Check for Events ---
     try:
-        # Events that start or end in the selected year, or span across the selected year
-        # Condition: start_year <= selected_year AND end_year >= selected_year
         events = Event.query.filter(
             extract('year', Event.start_date) <= ano_selecionado,
             extract('year', Event.end_date) >= ano_selecionado
@@ -267,89 +263,82 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, switch_is_li
         
         meses_ordem = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
         fig.update_xaxes(categoryorder='array', categoryarray=meses_ordem)
-
+        
         found_events = []
 
         for e in events:
-            # Check if sector is affected
-            # Note: affected_sectors is a string "Setor A, Setor B" or "Geral (Todos)"
+            # Filtering logic remains the same
             if not e.affected_sectors: continue 
-            
             affected_list = [s.strip() for s in e.affected_sectors.split(',')]
             is_generic = "Geral (Todos)" in affected_list or "Geral" in affected_list
             is_specific = setor_selecionado in affected_list
             
             if is_generic or is_specific:
                 found_events.append(e)
-
-                # Calculate month range for the selected year
+                # ... graph annotation logic ...
                 start_dt = e.start_date
                 end_dt = e.end_date
+                # Simple int casting for year comparison
+                s_year = int(start_dt.year)
+                e_year = int(end_dt.year)
+                sel_year = int(ano_selecionado)
+
+                start_month_idx = start_dt.month if s_year == sel_year else 1
+                end_month_idx = end_dt.month if e_year == sel_year else 12
                 
-                # If event started in previous year, clip to Jan
-                start_month_idx = start_dt.month if start_dt.year == ano_selecionado else 1
-                # If event ends in next year, clip to Dez
-                end_month_idx = end_dt.month if end_dt.year == ano_selecionado else 12
-                
-                # Validation
                 if start_month_idx > end_month_idx: continue
 
-                # Use numeric indices for width calculated on categorical axis
-                # 0-based index: Jan=0, Fev=1...
-                # We subtract 0.5 and add 0.5 to center the box on the month category tick
                 x0_val = (start_month_idx - 1) - 0.5
                 x1_val = (end_month_idx - 1) + 0.5
 
-                # Determine Color based on Type
                 color_map = {
-                    'Manutenção': 'rgba(255, 165, 0, 0.2)', # Orange
-                    'Escala': 'rgba(0, 0, 255, 0.1)',      # Blue
-                    'Parada': 'rgba(255, 0, 0, 0.2)',      # Red
-                    'Outro': 'rgba(128, 128, 128, 0.2)'    # Grey
+                    'Manutenção': 'orange',
+                    'Escala': 'blue',
+                    'Parada': 'red',
+                    'Outro': 'gray'
                 }
-                fill_color = color_map.get(e.event_type, 'rgba(128, 128, 128, 0.2)')
-
-                # Add Rectangle
+                color = color_map.get(e.event_type, 'gray')
+                
                 fig.add_vrect(
                     x0=x0_val, x1=x1_val,
-                    fillcolor=fill_color, opacity=1,
+                    fillcolor=color, opacity=0.1,
                     layer="below", line_width=0,
-                    annotation_text=f"{e.title}",
+                    annotation_text=e.title,
                     annotation_position="top left",
-                    annotation_font_size=10
                 )
-        
-        # Build HTML list
+
         if found_events:
             list_items = []
             for e in found_events:
                 dt_str = f"{e.start_date.strftime('%d/%m/%Y')} a {e.end_date.strftime('%d/%m/%Y')}"
-                badge_colors = {
-                    'Manutenção': 'warning',
-                    'Escala': 'primary',
-                    'Parada': 'danger',
-                    'Outro': 'secondary'
-                }
-                color = badge_colors.get(e.event_type, 'secondary')
+                badge_color = {
+                    'Manutenção': 'yellow',
+                    'Escala': 'blue',
+                    'Parada': 'red',
+                    'Outro': 'gray'
+                }.get(e.event_type, 'gray')
                 
                 list_items.append(
-                    dbc.ListGroupItem([
-                        html.Div([
-                            html.H5(e.title, className="mb-1"),
-                            dbc.Badge(e.event_type, color=color, className="ms-2")
-                        ], className="d-flex w-100 justify-content-between"),
-                        html.P(f"Período: {dt_str}", className="mb-1 text-muted", style={'fontSize': '0.9rem'}),
-                        html.Small(e.description or "Sem descrição adicional.")
-                    ])
+                    dmc.Paper(
+                        children=[
+                            dmc.Group([
+                                dmc.Text(e.title, fw=700),
+                                dmc.Badge(e.event_type, color=badge_color)
+                            ], justify="space-between", mb="xs"),
+                            dmc.Text(f"Período: {dt_str}", size="sm", c="dimmed"),
+                            dmc.Text(e.description, size="sm")
+                        ],
+                        withBorder=True, p="sm", mb="xs"
+                    )
                 )
             
             events_html = [
-                html.H5("Eventos neste período:", className="mt-2"),
-                dbc.ListGroup(list_items)
+                dmc.Title("Eventos neste período:", order=5, mt="md", mb="sm"),
+                dmc.ScrollArea(h=200, children=list_items)
             ]
 
     except Exception as ex:
-        print(f"Erro ao carregar eventos no gráfico: {ex}") 
+        print(f"Erro ao carregar eventos no gráfico: {str(ex)}") 
     
     return fig, events_html
 
@@ -360,39 +349,18 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, switch_is_li
     prevent_initial_call=True
 )
 def get_ia_setores_overview(n_clicks):
-            
-    # Prepara os dados (Top 5 e Piores 5)
+    # Same logic, just updated output format if needed
     df_media = df_setores.sort_values(by='Média de Peso (kg)', ascending=False)
     df_volume = df_setores.sort_values(by='quantidade', ascending=False)
     
     dados_em_texto = f"""
-    Dados de Análise de Setores (excluindo Candiota e Acerto de Peso):
-
-    TOP 5 - MAIOR MÉDIA DE PESO (kg) POR COLETA:
+    Dados de Análise de Setores:
+    TOP 5 MEDIA PESO:
     {df_media.head(5).to_markdown(index=False)}
-
-    TOP 5 - MAIOR VOLUME (Nº DE COLETAS):
+    TOP 5 VOLUME:
     {df_volume.head(5).to_markdown(index=False)}
     """
-
-    # Prompt Visão Geral
-    prompt = f"""
-    Você é um analista de dados da prefeitura de Rio Grande - RS.
-    Sua tarefa é analisar os dados de Visão Geral dos setores de coleta de resíduos.
-    
-    Aqui estão os dados:
-    {dados_em_texto}
-
-    Por favor, gere uma análise em markdown respondendo:
-    1.  O que os setores no "Top 5 de Média de Peso" nos dizem? (Estes são os mais eficientes?)
-    2.  O que os setores no "Top 5 de Volume" nos dizem? (Estes são os que dão mais trabalho?)
-    3.  Existe alguma sobreposição óbvia (ex: um setor está em ambas as listas)?
-    4.  Qual a relação entre volume de coletas e eficiência em peso observada nestes dados?
-    4.  Qual o principal insight para quem vê esses rankings?
-    
-    Responda em um texto organizado e de linguagem clara. Sem falar as perguntas. Não se apresente.
-    """
-    
+    prompt = f"Analise estes dados da coleta municipal de Rio Grande (Setores):\n{dados_em_texto}\nQuais os insights de eficiência vs volume?"
     return generate_analysis_component(prompt)
 
 @callback(
@@ -403,40 +371,9 @@ def get_ia_setores_overview(n_clicks):
     prevent_initial_call=True
 )
 def get_ia_setores_temporal(n_clicks, setor_selecionado, ano_selecionado):
-            
-    query = """
-    SELECT EXTRACT(MONTH FROM data_hora) as mes, AVG(peso_embalagem_liquido_corrigido) as media_peso_kg
-    FROM registro
-    WHERE setor = %(setor)s AND EXTRACT(YEAR FROM data_hora) = %(ano)s
-    GROUP BY mes ORDER BY mes
-    """
-    params = {'setor': setor_selecionado, 'ano': ano_selecionado}
-    df = pd.read_sql(query, engine, params=params)
+    if not setor_selecionado or not ano_selecionado: return ""
     
-    meses_map = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'}
-    df['mes'] = df['mes'].map(meses_map)
-    df['media_peso_kg'] = df['media_peso_kg'].round(2)
-    
-    dados_em_texto = df.to_markdown(index=False)
-
-    # Prompt Temporal
-    prompt = f"""
-    Você é um analista de dados da prefeitura de Rio Grande - RS.
-    Sua tarefa é analisar a tendência temporal de um setor específico.
-
-    Dados da Análise:
-    - Setor em Foco: "{setor_selecionado}"
-    - Ano: {ano_selecionado}
-    
-    Tabela de Média de Peso (kg) por Mês:
-    {dados_em_texto}
-
-    Por favor, gere uma análise em markdown respondendo:
-    1.  Qual é a tendência geral deste setor ao longo do ano? (Está estável, melhorando, piorando?)
-    2.  Existem meses com picos ou quedas repentinas que merecem investigação?
-    3.  Qual ação um gestor de logística deveria tomar com base nessa tendência?
-    
-    Responda em um texto organizado e de linguagem clara. Sem falar as perguntas. Não se apresente.
-    """
-    
+    df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
+    dados_txt = df.to_markdown(index=False)
+    prompt = f"Analise a tendência mensal de peso para o setor {setor_selecionado} em {ano_selecionado}:\n{dados_txt}"
     return generate_analysis_component(prompt)

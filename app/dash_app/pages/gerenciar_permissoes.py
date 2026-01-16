@@ -111,8 +111,10 @@ def load_role_permissions(role_id_str):
 def save_permissions(n_clicks, role_id_str, selected_page_ids_str):
     if not role_id_str:
         return dmc.Notification(
-            "Selecione uma função primeiro!",
             title="Erro",
+            id="notify-error-select",
+            action="show",
+            message="Selecione uma função primeiro!",
             color="red",
         )
         
@@ -120,7 +122,13 @@ def save_permissions(n_clicks, role_id_str, selected_page_ids_str):
         role_id = int(role_id_str)
         role = Role.query.get(role_id)
         if not role:
-            return dmc.Notification("Função não encontrada", title="Erro", color="red")
+            return dmc.Notification(
+                title="Erro",
+                id="notify-error-notfound",
+                action="show",
+                message="Função não encontrada",
+                color="red",
+            )
 
         # Clear existing
         role.pages = []
@@ -135,11 +143,19 @@ def save_permissions(n_clicks, role_id_str, selected_page_ids_str):
         db.session.commit()
         
         return dmc.Notification(
-            f"Permissões atualizadas para {role.name}!",
             title="Sucesso",
+            id="notify-success",
+            action="show",
+            message=f"Permissões atualizadas para {role.name}!",
             color="green",
         )
         
     except Exception as e:
         db.session.rollback()
-        return dmc.Notification(f"Falha ao salvar: {str(e)}", title="Erro", color="red")
+        return dmc.Notification(
+            title="Erro",
+            id="notify-exception",
+            action="show",
+            message=f"Falha ao salvar: {str(e)}",
+            color="red",
+        )

@@ -70,19 +70,38 @@ def register_global_callbacks(app):
                         allowed_routes.append(p.route)
 
         def get_link(label, href, icon):
+            if not current_user.is_authenticated:
+                return dmc.NavLink(
+                    label=label,
+                    href=href,
+                    leftSection=DashIconify(icon=icon, width=20),
+                    active=(pathname == href),
+                    variant="filled",
+                    color="ifsc-green",
+                    refresh=True
+                )
+            
             return dmc.NavLink(
                 label=label,
                 href=href,
                 leftSection=DashIconify(icon=icon, width=20),
                 active=(pathname == href),
                 variant="filled",
-                color="blue",
+                color="ifsc-green",
                 refresh=True
             )
 
         links_gerais = []
-        if '/' in allowed_routes:
-            links_gerais.append(get_link('Visão Geral', '/', "radix-icons:dashboard"))
+        if current_user.is_authenticated:
+             # Always show Overview for authenticated users? Or check role?
+             # Assuming Overview is public or basic permission.
+             if '/' in allowed_routes:
+                 links_gerais.append(get_link('Visão Geral', '/', "radix-icons:dashboard"))
+        else:
+             # Public links
+             links_gerais.append(get_link('Visão Geral', '/', "radix-icons:dashboard"))
+
+
         if '/analise-produtos' in allowed_routes:
             links_gerais.append(get_link('Análise de Produtos', '/analise-produtos', "radix-icons:cube"))
         if '/fluxo-de-caixa' in allowed_routes:
@@ -127,22 +146,35 @@ def register_global_callbacks(app):
             links_login.append(get_link("Login", "/login", "radix-icons:enter"))
             links_login.append(get_link("Registrar", "/register", "radix-icons:person"))
 
+        sidebar_children = []
+        
+        # Só adiciona seção Geral se tiver links
+        if links_gerais:
+             sidebar_children.extend([
+                 dmc.Text("Geral", size="xs", fw=500, c="dimmed", mt="md", mb="xs"),
+                 *links_gerais,
+                 dmc.Divider(my="sm")
+             ])
+             
+        if links_protegidos:
+             sidebar_children.extend([
+                dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
+                *links_protegidos,
+                dmc.Divider(my="sm")
+             ])
+             
+        if links_gestao:
+             sidebar_children.extend([
+                dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
+                *links_gestao,
+                dmc.Divider(my="sm")
+             ])
+        
+        sidebar_children.extend(links_login)
+
         return dmc.ScrollArea(
             offsetScrollbars=True,
             type="scroll",
-            children=[
-                dmc.Text("Geral", size="xs", fw=500, c="dimmed", mt="md", mb="xs"),
-                *links_gerais,
-                dmc.Divider(my="sm"),
-                
-                dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
-                *links_protegidos,
-                dmc.Divider(my="sm"),
-                
-                dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
-                *links_gestao,
-                
-                dmc.Divider(my="sm"),
-                 *links_login
-            ]
+            children=sidebar_children
         )
+

@@ -25,10 +25,6 @@ def run_import_script_thread():
     
     try:
         if not os.path.exists(SCRIPT_NAME):
-             # Try to find it in root if we are in app folder? 
-             # workspace: /home/darkfox/.../IFEsCS
-             # script is in root.
-             # cwd might be root.
              pass
 
         result = subprocess.run(

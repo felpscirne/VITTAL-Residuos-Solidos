@@ -1,4 +1,4 @@
-from dash import dcc, html, callback
+from dash import dcc, html, callback, no_update
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
@@ -23,9 +23,10 @@ dias_completos = list(dias_map.values())
 horas_completas = list(range(24))
 
 # Tratamento de opções para dmc.Select (valores como Strings)
-anos_options_raw, _ = get_anos_options()
-anos_options = [{'label': opt['label'], 'value': str(opt['value'])} for opt in anos_options_raw]
-anos_options.insert(0, {'label': 'Todos os Anos', 'value': 'todos'})
+# Removed static load
+# anos_options_raw, _ = get_anos_options()
+# anos_options = [{'label': opt['label'], 'value': str(opt['value'])} for opt in anos_options_raw]
+# anos_options.insert(0, {'label': 'Todos os Anos', 'value': 'todos'})
 
 meses_options = [
     {'label': 'Ano Inteiro', 'value': 'todos'},
@@ -60,7 +61,7 @@ def load_heatmap_data():
     df['dia_semana'] = df['dia_semana_num'].map(dias_map)
     return df
 
-df_heatmap_raw = load_heatmap_data()
+# df_heatmap_raw = load_heatmap_data()
 
 def create_heatmap_graph(df_grouped, template):
     # Pivota a tabela para preencher com zeros
@@ -113,7 +114,7 @@ layout = html.Div([
     dmc.Alert(
         "Quais são os dias e horários de maior movimento? Onde estão nossos gargalos? E quais são os horários mais ociosos? As áreas mais escuras/vermelhas são os horários de pico.",
         title="O que este gráfico responde?",
-        color="orange",
+        color="ifsc-green",
         variant="light",
         icon=DashIconify(icon="akar-icons:fire"),
         mb="md"
@@ -127,7 +128,7 @@ layout = html.Div([
                     label="Selecione o Ano",
                     placeholder="Filtrar por ano",
                     id='filtro-ano-heatmap',
-                    data=anos_options,
+                    data=[], # Dynamic load
                     value='todos',
                     clearable=False,
                     leftSection=DashIconify(icon="clarity:calendar-line")
@@ -150,7 +151,7 @@ layout = html.Div([
 
     dmc.Card(
         children=[
-            dcc.Graph(id='grafico-heatmap') 
+            dcc.Graph(id='grafico-heatmap')
         ],
         withBorder=True,
         shadow="sm",
@@ -171,28 +172,15 @@ layout = html.Div([
     dcc.Loading(html.Div(id='ia-output-heatmap'))
 ])
 
-@callback(
-    Output('grafico-heatmap', 'figure'),
-    [Input('filtro-ano-heatmap', 'value'),
-     Input('filtro-mes-heatmap', 'value'),
-     Input("theme-switch", "value")]
-)
-def update_heatmap(selected_year, selected_month, switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
-    
-    df_filtered = df_heatmap_raw.copy()
-    
-    # Conversão de tipos para filtro seguro
-    if selected_year != 'todos':
-        df_filtered = df_filtered[df_filtered['ano'] == int(selected_year)]
-        
-    if selected_month != 'todos':
-        df_filtered = df_filtered[df_filtered['mes'] == int(selected_month)]
-    
-    # Reagrupar após filtro
-    df_grouped = df_filtered.groupby(['ano', 'mes', 'dia_semana_num', 'hora_do_dia', 'dia_semana']).size().reset_index(name='numero_de_registros')
-    
-    return create_heatmap_graph(df_grouped, template)
+# @callback(
+#     Output('grafico-heatmap', 'figure'),
+#     [Input('filtro-ano-heatmap', 'value'),
+#      Input('filtro-mes-heatmap', 'value'),
+#      Input("mantine-provider", "forceColorScheme")]
+# )
+# def update_heatmap(selected_year, selected_month, color_scheme):
+#     # Legacy callback replaced by update_heatmap_graph to support dynamic loading
+#     pass
 
 @callback(
     Output('ia-output-heatmap', 'children'),
@@ -210,3 +198,56 @@ def run_ai_analysis(n_clicks, figure_data):
     prompt_context = "Analise esse mapa de calor de horários vs dia da semana. Identifique gargalos e ociosidade."
     
     return generate_analysis_component(prompt_context, "heatmap_horarios")
+
+@callback(
+    Output('grafico-heatmap', 'figure'),
+    [Input('url', 'pathname'),
+     Input('filtro-ano-heatmap', 'value'),
+     Input('filtro-mes-heatmap', 'value'),
+     Input("mantine-provider", "forceColorScheme")]
+)
+def update_heatmap_graph(pathname, ano_val, mes_val, color_scheme):
+    if pathname != '/analise-horarios': return no_update
+    
+    # Reload data
+    # Note: load_heatmap_data actually groups by everything.
+    # The original logic used df_heatmap_raw globally and filtered IT?
+    # Let's check load_heatmap_data again. It groups by ano, mes, dia, hora.
+    # So we can filter the DF here.
+    
+    df = load_heatmap_data() 
+    if df.empty:
+        is_dark = color_scheme == 'dark'
+        template = "plotly_dark" if is_dark else "plotly_white"
+        return px.density_heatmap(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+    # Apply Filters
+    if ano_val and ano_val != 'todos':
+        df = df[df['ano'] == int(ano_val)]
+    
+    if mes_val and mes_val != 'todos':
+        df = df[df['mes'] == int(mes_val)]
+    
+    # Aggregate again by dia/hora since we might have summed multiple months/years
+    df_grouped = df.groupby(['dia_semana', 'hora_do_dia']).size().reset_index(name='numero_de_registros')
+    # Wait, load_heatmap_data already has 'numero_de_registros' counted.
+    # So we should sum it.
+    df_grouped = df.groupby(['dia_semana', 'hora_do_dia'])['numero_de_registros'].sum().reset_index()
+
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
+    
+    return create_heatmap_graph(df_grouped, template)
+
+@callback(
+    [Output('filtro-ano-heatmap', 'data'),
+     Output('filtro-ano-heatmap', 'value')],
+    Input('url', 'pathname')
+)
+def update_anos_dropdown_horarios(pathname):
+    if pathname == '/analise-horarios':
+        options_raw, _ = get_anos_options()
+        options = [{'label': opt['label'], 'value': str(opt['value'])} for opt in options_raw]
+        options.insert(0, {'label': 'Todos os Anos', 'value': 'todos'})
+        return options, 'todos'
+    return no_update, no_update

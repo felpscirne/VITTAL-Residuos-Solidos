@@ -1,4 +1,4 @@
-from dash import dcc, html, callback, dash_table
+from dash import dcc, html, callback, dash_table, no_update
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
@@ -53,14 +53,21 @@ def load_fluxo_micro_data():
     df['periodo'] = pd.to_datetime(df.assign(day=1)[['year', 'month', 'day']]).dt.strftime('%Y-%m')
     return df
 
-df_fluxo_macro = load_fluxo_macro_data()
-df_fluxo_micro = load_fluxo_micro_data() 
+# df_fluxo_macro = load_fluxo_macro_data()
+# df_fluxo_micro = load_fluxo_micro_data() 
 
 # Prepara a lista de setores para o dropdown (excluindo Candiota)
-setores_para_filtro = df_fluxo_micro[
-    df_fluxo_micro['setor'] != 'CANDIOTA'
-]['setor'].unique()
-setores_options = sorted([{'label': s, 'value': s} for s in setores_para_filtro], key=lambda x: x['label'])
+# setores_para_filtro = df_fluxo_micro[
+#     df_fluxo_micro['setor'] != 'CANDIOTA'
+# ]['setor'].unique()
+# setores_options = sorted([{'label': s, 'value': s} for s in setores_para_filtro], key=lambda x: x['label'])
+
+def get_setores_options_dynamic():
+    df = load_fluxo_micro_data()
+    if df.empty: return []
+    setores = df[df['setor'] != 'CANDIOTA']['setor'].unique()
+    return sorted([{'label': s, 'value': s} for s in setores], key=lambda x: x['label'])
+
 
 
  # Criação dos gráficos 
@@ -103,7 +110,7 @@ layout = html.Div([
             "Existem setores específicos que contribuem mais para essa dinâmica?"
         ],
         title="O que esta análise responde?",
-        color="blue", 
+        color="ifsc-green", 
         variant="light",
         icon=DashIconify(icon="akar-icons:info"),
         mb="md"
@@ -142,7 +149,7 @@ layout = html.Div([
                         {"name": "Saídas (kg)", "id": "saidas"},
                         {"name": "Balanço (kg)", "id": "balanco"},
                     ],
-                    data=df_fluxo_macro.to_dict('records'),
+                    data=[], 
                     sort_action="native", 
                     page_size=12,
                     style_header={
@@ -187,12 +194,13 @@ layout = html.Div([
     dmc.Card(
         children=[
             dmc.Select(
-                label="Selecione um setor para análise detalhada:",
-                placeholder="Selecione um setor",
-                id='dropdown-setor-fluxo',
-                data=setores_options,
-                value=setores_options[0]['value'],
-                leftSection=DashIconify(icon="fa6-solid:building"),
+                label="Selecione um Setor para comparar",
+                placeholder="Carregando opções...",
+                id='select-setor-micro',
+                # data=setores_options,
+                # value=setores_options[0]['value'] if setores_options else None,
+                data=[],
+                value=None,
                 mb="md"
             ),
              dmc.Grid(
@@ -221,69 +229,68 @@ layout = html.Div([
 
 
 @callback(
-    Output('grafico-fluxo-candiota', 'figure'),
-    [Input("theme-switch", "value")]
+    Output('tabela-fluxo-candiota', 'data'),
+    Input('url', 'pathname')
 )
-def update_macro_graph_theme(switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
-    fig = create_macro_fluxo_graph(df_fluxo_macro, template)
-    return fig
+def update_table_data(pathname):
+    if pathname == '/fluxo-de-caixa':
+        return load_fluxo_macro_data().to_dict('records')
+    return no_update
 
 @callback(
-    [Output('grafico-setor-vs-candiota', 'figure'),
-     Output('kpi-setor-participacao', 'children')],
-    [Input('dropdown-setor-fluxo', 'value'),
-     Input("theme-switch", "value")]
+    [Output('select-setor-micro', 'data'),
+     Output('select-setor-micro', 'value')],
+    Input('url', 'pathname')
 )
-def update_micro_analysis(setor_selecionado, switch_is_light):
-    
-    template = template_theme_light if switch_is_light else template_theme_dark
-    
-    fig = create_micro_fluxo_graph(df_fluxo_micro, setor_selecionado, template)
-    
-    total_saida_candiota = df_fluxo_micro[
-        df_fluxo_micro['setor'] == 'CANDIOTA'
-    ]['peso_kg'].sum()
-    
-    total_setor_selecionado = df_fluxo_micro[
-        df_fluxo_micro['setor'] == setor_selecionado
-    ]['peso_kg'].sum()
-    
-    if total_saida_candiota > 0:
-        percentual = (total_setor_selecionado / total_saida_candiota) * 100
-    else:
-        percentual = 0
-        
-    kpi_component = dmc.Stack([
-        dmc.Text("Participação vs. Saída Total", fw=500, size="lg"),
-        dmc.Text(f"Análise do setor: {setor_selecionado}", c="dimmed", size="sm"),
-        dmc.Divider(variant="solid"),
-        dmc.Group([
-            dmc.Text(f"Total {setor_selecionado}:", fw=700),
-            dmc.Text(f"{total_setor_selecionado:,.2f} kg"),
-        ], justify="space-between"),
-        dmc.Group([
-            dmc.Text(f"Total Saída (Candiota):", fw=700),
-            dmc.Text(f"{total_saida_candiota:,.2f} kg"),
-        ], justify="space-between"),
-        dmc.Divider(variant="solid"),
-        dmc.Text("Participação Percentual:", fw=500),
-        dmc.Progress(
-            value=percentual, 
-            label=f"{percentual:.2f}%", 
-            size="xl",
-            radius="md",
-            color="indigo"
-        ),
-        dmc.Text(
-            f"O volume deste setor representa {percentual:.2f}% do volume total de saída.",
-            size="sm",
-            mt="sm"
-        )
-    ])
-    
-    return fig, kpi_component
+def update_setores_dropdown(pathname):
+    if pathname == '/fluxo-de-caixa':
+        options = get_setores_options_dynamic()
+        value = options[0]['value'] if options else None
+        return options, value
+    return no_update, no_update
 
+@callback(
+    Output('grafico-fluxo-candiota', 'figure'),
+    [Input('url', 'pathname'),
+     Input("mantine-provider", "forceColorScheme")]
+)
+def update_macro_graph(pathname, color_scheme):
+    if pathname != '/fluxo-de-caixa': return no_update
+    
+    # Load fresh data
+    df = load_fluxo_macro_data()
+    
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
+    
+    if df.empty:
+        # Return empty fig
+        return px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        
+    return create_macro_fluxo_graph(df, template)
+
+@callback(
+    Output('grafico-fluxo-setor', 'figure'),
+    [Input('select-setor-micro', 'value'),
+     Input("mantine-provider", "forceColorScheme")]
+)
+def update_micro_graph(setor_selecionado, color_scheme):
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
+    
+    # Handle initial state or missing selection
+    if not setor_selecionado:
+         return px.line(template=template).update_layout(
+             paper_bgcolor="rgba(0,0,0,0)", 
+             plot_bgcolor="rgba(0,0,0,0)",
+             title="Selecione um setor para visualizar"
+         )
+
+    df = load_fluxo_micro_data()
+    if df.empty:
+         return px.line(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+    return create_micro_fluxo_graph(df, setor_selecionado, template)
 
 @callback(
     Output('ia-output-balanco', 'children'),
@@ -292,7 +299,9 @@ def update_micro_analysis(setor_selecionado, switch_is_light):
 )
 def get_ia_balanco(n_clicks):
     
-    df = df_fluxo_macro
+    df = load_fluxo_macro_data()
+    if df.empty: return "Sem dados para análise."
+
     media_balanco_mensal = df['balanco'].mean()
     total_balanco_acumulado = df['balanco'].sum()
     mes_maior_excesso = df.loc[df['balanco'].idxmax()]
@@ -322,11 +331,14 @@ def get_ia_balanco(n_clicks):
 @callback(
     Output('ia-output-setor', 'children'),
     Input('btn-ia-setor', 'n_clicks'),
-    State('dropdown-setor-fluxo', 'value'),
+    State('select-setor-micro', 'value'), # Corrected ID
     prevent_initial_call=True
 )
 def get_ia_setor(n_clicks, setor_selecionado):
             
+    if not setor_selecionado: return "Selecione um setor."
+
+    df_fluxo_micro = load_fluxo_micro_data()
     total_saida_candiota = df_fluxo_micro[df_fluxo_micro['setor'] == 'CANDIOTA']['peso_kg'].sum()
     total_setor_selecionado = df_fluxo_micro[df_fluxo_micro['setor'] == setor_selecionado]['peso_kg'].sum()
     percentual = (total_setor_selecionado / total_saida_candiota) * 100 if total_saida_candiota > 0 else 0

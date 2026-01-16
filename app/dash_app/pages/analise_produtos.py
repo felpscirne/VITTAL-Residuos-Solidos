@@ -46,7 +46,7 @@ layout = dmc.Container([
             dmc.Text("Identifique os resíduos mais comuns e os mais raros para priorizar a gestão.")
         ],
         title="O que este gráfico responde?",
-        color="blue",
+        color="ifsc-green",
         variant="light",
         mb="md",
         icon=DashIconify(icon="radix-icons:question-mark-circled")
@@ -71,7 +71,7 @@ layout = dmc.Container([
     dmc.Divider(my="xl"),
     
     dmc.Title("Drill-Down: Fornecedores por Produto", order=3, mb="md"),
-    dmc.Alert("Ao selecionar um produto, veja quem movimenta ele.", color="gray", variant="light", mb="md"),
+    dmc.Alert("Ao selecionar um produto, veja quem movimenta ele.", color="ifsc-green", variant="light", mb="md"),
     
     dmc.Grid(
         children=[

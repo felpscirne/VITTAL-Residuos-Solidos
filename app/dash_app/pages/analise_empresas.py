@@ -1,4 +1,4 @@
-from dash import dcc, html, callback
+from dash import dcc, html, callback, no_update
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
@@ -25,14 +25,22 @@ def load_company_data():
     df = pd.read_sql(query, engine)
     return df
 
-df_empresas = load_company_data() 
+# df_empresas = load_company_data() 
 
 
 anos_options, ano_inicial = get_anos_options()
-empresas_options = sorted([
-    {'label': s, 'value': s} for s in df_empresas['fornecedor_cliente'].unique()
-], key=lambda x: x['label'])
-empresas_options.insert(0, {'label': 'Todas as Empresas', 'value': 'todas'})
+# empresas_options = sorted([
+#     {'label': s, 'value': s} for s in df_empresas['fornecedor_cliente'].unique()
+# ], key=lambda x: x['label'])
+# empresas_options.insert(0, {'label': 'Todas as Empresas', 'value': 'todas'})
+
+def get_empresas_options_dynamic():
+    df = load_company_data()
+    if df.empty: return [{'label': 'Todas as Empresas', 'value': 'todas'}]
+    
+    opts = sorted([{'label': s, 'value': s} for s in df['fornecedor_cliente'].unique()], key=lambda x: x['label'])
+    opts.insert(0, {'label': 'Todas as Empresas', 'value': 'todas'})
+    return opts
 
 
 def fig_contagem_empresas(df, template):
@@ -54,7 +62,7 @@ layout = html.Div([
     dmc.Alert(
         "Quais empresas, entidades ou secretarias mais usam o nosso sistema de pesagem? Quem são os maiores players no nosso ecossistema de resíduos?",
         title="O que este gráfico responde?",
-        color="blue",
+        color="ifsc-green",
         variant="light",
         icon=DashIconify(icon="radix-icons:info-circled"),
         mb="md"
@@ -88,7 +96,7 @@ layout = html.Div([
     dmc.Alert(
         "Como o volume e a eficiência (peso médio) de uma empresa ou entidade específica mudam ao longo do ano? Existem tendências sazonais ou padrões notáveis?",
         title="O que esta análise responde?",
-        color="cyan",
+        color="ifsc-green",
         variant="light",
         icon=DashIconify(icon="akar-icons:statistic-up"),
         mb="md"
@@ -102,8 +110,8 @@ layout = html.Div([
                 label="Selecione o Ano",
                 description="Filtrar dados por ano fiscal",
                 id='filtro-ano-empresa',
-                data=anos_options,
-                value=ano_inicial,
+                data=[], # Dynamic load
+                value=None, 
                 clearable=False,
                 leftSection=DashIconify(icon="clarity:calendar-line")
             ),
@@ -111,7 +119,8 @@ layout = html.Div([
                 label="Selecione a Empresa",
                 description="Escolha uma entidade ou 'Todas'",
                 id='filtro-empresa-temporal',
-                data=empresas_options,
+                # data=empresas_options, # Dynamic load needed
+                data=[],
                 value='todas',
                 searchable=True,
                 nothingFoundMessage="Nenhuma empresa encontrada",
@@ -159,29 +168,81 @@ layout = html.Div([
 
 
 @callback(
-    Output('grafico-contagem-empresas', 'figure'),
-    [Input("theme-switch", "value")]
+    Output('filtro-empresa-temporal', 'data'),
+    Input('url', 'pathname')
 )
-def update_company_rank_graph_theme(switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
-    fig = fig_contagem_empresas(df_empresas, template)
-    return fig
+def update_empresas_dropdown(pathname):
+    if pathname == '/analise-empresas':
+        return get_empresas_options_dynamic()
+    return no_update
+
+@callback(
+    [Output('filtro-ano-empresa', 'data'),
+     Output('filtro-ano-empresa', 'value')],
+    Input('url', 'pathname')
+)
+def update_anos_dropdown_empresas(pathname):
+    if pathname == '/analise-empresas':
+        options, initial_val = get_anos_options()
+        # Ensure we return valid format (options list, value)
+        if not options:
+            return [], None
+        
+        # If no initial_val returned but options exist, pick first
+        if not initial_val and options:
+             initial_val = options[0]['value']
+             
+        return options, initial_val
+        
+    return no_update, no_update
+
+@callback(
+    Output('grafico-contagem-empresas', 'figure'),
+    [Input('url', 'pathname'),
+     Input("mantine-provider", "forceColorScheme")]
+)
+def update_empresas_main_graph(pathname, color_scheme):
+    if pathname != '/analise-empresas': return no_update
+
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
+
+    df = load_company_data()
+    if df.empty:
+        return px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+    return fig_contagem_empresas(df, template)
+
+# @callback(
+#     Output('grafico-contagem-empresas', 'figure'),
+#     [Input("theme-switch", "value")]
+# )
+# def update_company_rank_graph_theme(switch_is_light):
+#     template = template_theme_light if switch_is_light else template_theme_dark
+#     fig = fig_contagem_empresas(df_empresas, template)
+#     return fig
 
 @callback(
     [Output('grafico-qtde-por-mes-empresa', 'figure'),
      Output('grafico-media-peso-por-mes-empresa', 'figure')],
     [Input('filtro-ano-empresa', 'value'),
      Input('filtro-empresa-temporal', 'value'),
-     Input("theme-switch", "value")]
+     Input("mantine-provider", "forceColorScheme")]
 )
-def update_temporal_graphs(ano_selecionado, empresa_selecionada, switch_is_light):
+def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     
-    template = template_theme_light if switch_is_light else template_theme_dark
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
     
+    # Handle initial loading state where inputs might be None
+    if not ano_selecionado:
+        empty_fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", title="Aguardando seleção de ano...")
+        return empty_fig, empty_fig
+
     base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
     params = {'ano': ano_selecionado}
     
-    if empresa_selecionada != 'todas':
+    if empresa_selecionada and empresa_selecionada != 'todas':
         base_query += " AND fornecedor_cliente = %(empresa)s"
         params['empresa'] = empresa_selecionada
         
@@ -214,8 +275,9 @@ def update_temporal_graphs(ano_selecionado, empresa_selecionada, switch_is_light
     prevent_initial_call=True
 )
 def get_ia_empresas_ranking(n_clicks):
-            
-    dados_em_texto = df_empresas.head(10).to_markdown(index=False) 
+    
+    df = load_company_data()
+    dados_em_texto = df.head(10).to_markdown(index=False) 
 
 
     # Prompt de empresas

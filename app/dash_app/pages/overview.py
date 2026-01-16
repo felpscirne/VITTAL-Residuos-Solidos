@@ -51,7 +51,7 @@ layout = dmc.Container(
                 )
             ],
             title="Informação",
-            color="blue",
+            color="ifsc-green",
             icon=DashIconify(icon="radix-icons:info-circled"),
             mb="xl",
             variant="light"
@@ -63,9 +63,9 @@ layout = dmc.Container(
             spacing="md",
             mb="xl",
             children=[
-                create_kpi_card("Total de Registros", kpi_data['total'], "radix-icons:stack", "blue"),
-                create_kpi_card("Data de Início", kpi_data['inicio'], "radix-icons:calendar", "teal"),
-                create_kpi_card("Data de Fim", kpi_data['fim'], "radix-icons:calendar", "teal"),
+                create_kpi_card("Total de Registros", kpi_data['total'], "radix-icons:stack", "ifsc-green"),
+                create_kpi_card("Data de Início", kpi_data['inicio'], "radix-icons:calendar", "ifsc-green"),
+                create_kpi_card("Data de Fim", kpi_data['fim'], "radix-icons:calendar", "ifsc-green"),
             ]
         ),
         

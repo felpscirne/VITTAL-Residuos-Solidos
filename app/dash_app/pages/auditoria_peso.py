@@ -38,7 +38,7 @@ layout = html.Div([
             dmc.Text("Identifique divergências significativas entre o peso declarado e o peso aferido."),
         ],
         title="Controle de Qualidade",
-        color="red",
+        color="ifsc-green",
         variant="light",
         icon=DashIconify(icon="akar-icons:triangle-alert"),
         mb="md"
@@ -141,10 +141,9 @@ layout = html.Div([
      Output('tabela-auditoria', 'style_data_conditional'),
      Output('label-slider-auditoria', 'children')],
     [Input('filtro-entidade-auditoria', 'value'),
-     Input('filtro-discrepancia-auditoria', 'value'),
-     Input("theme-switch", "value")] 
+     Input('filtro-discrepancia-auditoria', 'value')] 
 )
-def update_audit_table(selected_entidade, min_discrepancia, switch_is_light):
+def update_audit_table(selected_entidade, min_discrepancia):
     
     query = """
     SELECT 

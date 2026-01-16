@@ -118,14 +118,14 @@ layout = html.Div([
 @callback(
     [Output('tabela-registros-brutos', 'data'),
      Output('tabela-registros-brutos', 'columns')],
-    [Input('btn-buscar-tabela', 'n_clicks')],
+    [Input('btn-filtrar-tabela', 'n_clicks')],
     [State('filtro-ano-tabela', 'value'),
      State('filtro-mes-tabela', 'value'),
      State('filtro-ticket-tabela', 'value')]
 )
 def update_table(n_clicks, ano, mes, ticket):
-    if n_clicks == 0:
-        return [], []
+    # Remove initial check to allow loading on start
+    # if n_clicks == 0: return [], []
     
     try:
         # Convertendo o ano de volta para int se necessario, dependendo de como o get_registros_filtrados espera.

@@ -1,4 +1,4 @@
-from dash import dcc, html, callback
+from dash import dcc, html, callback, no_update
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
@@ -30,19 +30,24 @@ def load_frota_data():
     df['peso_medio_por_viagem'] = df['peso_medio_por_viagem'].round(2)
     return df
 
-df_frota_raw = load_frota_data()
+# df_frota_raw = load_frota_data()
 
-if df_frota_raw.empty:
-    max_viagens_slider = 100
-    min_viagens_default = 0
-    entidades_options = [{'label': 'Todas as Entidades', 'value': 'todas'}]
-else:
-    max_viagens_slider = int(df_frota_raw['total_viagens'].max())
-    min_viagens_default = 1
-    entidades_options = [
-        {'label': t, 'value': t} for t in df_frota_raw['entidade_responsavel'].unique()
-    ]
-    entidades_options.insert(0, {'label': 'Todas as Entidades', 'value': 'todas'})
+# if df_frota_raw.empty:
+#     max_viagens_slider = 100
+#     min_viagens_default = 0
+#     entidades_options = [{'label': 'Todas as Entidades', 'value': 'todas'}]
+# else:
+#     max_viagens_slider = int(df_frota_raw['total_viagens'].max())
+#     min_viagens_default = 1
+#     entidades_options = [
+#         {'label': t, 'value': t} for t in df_frota_raw['entidade_responsavel'].unique()
+#     ]
+#     entidades_options.insert(0, {'label': 'Todas as Entidades', 'value': 'todas'})
+
+max_viagens_slider = 500 # Default fallback
+min_viagens_default = 0
+entidades_options = [{'label': 'Todas as Entidades', 'value': 'todas'}] # Initial placeholder
+
 
 
 
@@ -110,7 +115,7 @@ layout = html.Div([
             dmc.Text("Analise o desempenho individual dos veículos. Placas com muitas viagens mas pouco peso podem indicar ineficiência."),
         ],
         title="Dica de Análise",
-        color="orange",
+        color="ifsc-green",
         variant="light",
         icon=DashIconify(icon="akar-icons:light-bulb"),
         mb="md"
@@ -195,34 +200,80 @@ layout = html.Div([
 
 
 @callback(
+    [Output('filtro-entidade-frota', 'data'),
+     Output('filtro-viagens-frota', 'max'),
+     Output('filtro-viagens-frota', 'marks')],
+    Input('url', 'pathname')
+)
+def update_frota_filters(pathname):
+    if pathname == '/analise-frotas':
+        df = load_frota_data()
+        
+        if df.empty:
+            return [{'label': 'Todas as Entidades', 'value': 'todas'}], 100, {'value': 0, 'label': '0'}
+            
+        # Entidades
+        ents = sorted([
+           {'label': t, 'value': t} for t in df['entidade_responsavel'].unique()
+        ], key=lambda x: x['label'])
+        ents.insert(0, {'label': 'Todas as Entidades', 'value': 'todas'})
+        
+        # Slider
+        max_v = int(df['total_viagens'].max()) if not df.empty else 100
+        marks = {
+            0: '0',
+            int(max_v/2): str(int(max_v/2)),
+            max_v: str(max_v)
+        }
+        
+        return ents, max_v, marks
+        
+    return no_update, no_update, no_update
+
+# @callback(
+#    [Output('grafico-frota-scatter', 'figure'),
+#     Output('grafico-frota-ranking', 'figure'),
+#     Output('label-slider-frota', 'children')], 
+#    [Input('filtro-entidade-frota', 'value'),
+#     Input('filtro-viagens-frota', 'value'),
+#     Input("theme-switch", "value")]
+# )
+# def update_frota_graphs_legacy(selected_entidade, min_viagens, switch_is_light):
+#    ...
+
+@callback(
     [Output('grafico-frota-scatter', 'figure'),
      Output('grafico-frota-ranking', 'figure'),
-     Output('label-slider-frota', 'children')], 
-    [Input('filtro-entidade-frota', 'value'),
+     Output('label-slider-frota', 'children')],
+    [Input('url', 'pathname'),
+     Input('filtro-entidade-frota', 'value'),
      Input('filtro-viagens-frota', 'value'),
-     Input("theme-switch", "value")]
+     Input("mantine-provider", "forceColorScheme")]
 )
-def update_frota_graphs(selected_entidade, min_viagens, switch_is_light):
-    template = template_theme_light if switch_is_light else template_theme_dark
+def update_frota_graphs(pathname, entidade, min_viagens, color_scheme):
+    if pathname != '/analise-frotas': return no_update, no_update, no_update
     
-    df_filtered = df_frota_raw.copy()
-    if selected_entidade != 'todas':
-        df_filtered = df_filtered[df_filtered['entidade_responsavel'] == selected_entidade]
+    df = load_frota_data()
+    is_dark = color_scheme == 'dark'
+    template = "plotly_dark" if is_dark else "plotly_white"
     
-    df_filtered = df_filtered[df_filtered['total_viagens'] >= min_viagens]
+    if df.empty:
+         empty_fig = px.scatter(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+         return empty_fig, empty_fig, "Sem dados"
+
+    # Filters
+    if entidade and entidade != 'todas':
+        df = df[df['entidade_responsavel'] == entidade]
     
-    if df_filtered.empty or len(df_filtered) < 2: 
-        fig_scatter = px.scatter(title=f"Nenhum veículo encontrado com {min_viagens}+ viagens", template=template)
-        fig_ranking = px.bar(title=f"Nenhum veículo encontrado com {min_viagens}+ viagens", template=template)
-        fig_scatter.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        fig_ranking.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    else:
-        fig_scatter = create_frota_scatter_graph(df_filtered, template)
-        fig_ranking = create_frota_ranking_graph(df_filtered, template)
+    if min_viagens is not None:
+        df = df[df['total_viagens'] >= min_viagens]
+        
+    fig_scatter = create_frota_scatter_graph(df, template)
+    fig_ranking = create_frota_ranking_graph(df, template)
     
-    label_slider = f"Filtrar por Nº Mínimo de Viagens: {min_viagens}"
+    label = f"Filtrar por Nº Mínimo de Viagens: {min_viagens}"
     
-    return fig_scatter, fig_ranking, label_slider
+    return fig_scatter, fig_ranking, label
 
 @callback(
     Output('ia-output-frota', 'children'),

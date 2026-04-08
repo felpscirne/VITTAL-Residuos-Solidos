@@ -19,7 +19,7 @@ def get_kpis_gerais():
     except Exception:
         return {'total': 'N/D', 'inicio': 'N/D', 'fim': 'N/D'}
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_qtde_por_ano():
     query = "SELECT EXTRACT(YEAR FROM data_hora) AS ano, COUNT(*) AS qtde FROM registro GROUP BY ano ORDER BY ano"
     try:
@@ -29,14 +29,14 @@ def get_qtde_por_ano():
     except Exception:
         return pd.DataFrame()
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_top_produtos_geral():
     query = "SELECT produto, COUNT(*) AS qtde FROM registro GROUP BY produto ORDER BY qtde DESC LIMIT 10"
     return pd.read_sql(query, engine)
 
 # --- 2. AUXILIARES (Usado em Gerenciar Eventos) ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_list_setores():
     try:
         query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL ORDER BY setor"
@@ -47,7 +47,7 @@ def get_list_setores():
 
 # --- 3. ANÁLISE DE SETORES ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_dados_setores_macro():
     query = """
     SELECT 
@@ -63,7 +63,7 @@ def get_dados_setores_macro():
     """
     return pd.read_sql(query, engine)
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_dados_setor_temporal(setor, ano):
     query = """
     SELECT 
@@ -80,7 +80,7 @@ def get_dados_setor_temporal(setor, ano):
 
 # --- 4. ANÁLISE DE EMPRESAS ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_ranking_empresas():
     query = """
     SELECT 
@@ -95,7 +95,7 @@ def get_ranking_empresas():
     """
     return pd.read_sql(query, engine)
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_empresa_temporal(empresa, ano):
     base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
     params = {'ano': ano}
@@ -113,7 +113,7 @@ def get_empresa_temporal(empresa, ano):
 
 # --- 5. ANÁLISE DE PRODUTOS ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_ranking_produtos():
     query = """
     SELECT produto, COUNT(*) as quantidade, SUM(peso_embalagem_liquido_corrigido) as peso_total
@@ -121,7 +121,7 @@ def get_ranking_produtos():
     """
     return pd.read_sql(query, engine)
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_produtos_resumo():
     query = """
     SELECT 
@@ -135,7 +135,7 @@ def get_produtos_resumo():
     """
     return pd.read_sql(query, engine)
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_fornecedores_por_produto(produto, limit=20):
     query = """
     SELECT fornecedor_cliente, COUNT(*) as quantidade
@@ -148,7 +148,7 @@ def get_fornecedores_por_produto(produto, limit=20):
         
     return pd.read_sql(query, engine, params={'produto': produto})
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_produtos_por_setor(setor, limit=20):
     query = """
     SELECT produto, COUNT(*) as quantidade
@@ -163,7 +163,7 @@ def get_produtos_por_setor(setor, limit=20):
 
 # --- 6. FLUXO DE CAIXA (CANDIOTA) ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_fluxo_macro():
     query = """
     SELECT 
@@ -186,7 +186,7 @@ def get_fluxo_macro():
     except Exception:
         return pd.DataFrame()
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_fluxo_micro():
     query = """
     SELECT
@@ -209,7 +209,7 @@ def get_fluxo_micro():
 
 # --- 7. ANÁLISE DE HORÁRIOS ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_heatmap_data():
     query = """
     SELECT 
@@ -225,7 +225,7 @@ def get_heatmap_data():
 
 # --- 8. ANÁLISE DE FROTA ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_frota_data():
     query = """
     SELECT 
@@ -247,7 +247,7 @@ def get_frota_data():
 
 # --- 9. OPÇÕES E LISTAS (Para Dropdowns) ---
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_produtos_options():
     try:
         df = pd.read_sql("SELECT DISTINCT produto FROM registro WHERE produto IS NOT NULL ORDER BY produto", engine)
@@ -255,7 +255,7 @@ def get_produtos_options():
     except Exception:
         return []
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_setores_options():
     try:
         query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND setor != 'ACERTO DE PESO' AND setor != 'CANDIOTA' ORDER BY setor"
@@ -264,7 +264,7 @@ def get_setores_options():
     except Exception:
         return []
 
-@cache.memoize()
+@cache.memoize(timeout=3600)
 def get_anos_options():
     try:
         anos_df = pd.read_sql("SELECT DISTINCT EXTRACT(YEAR FROM data_hora) AS ano FROM registro ORDER BY ano DESC", engine)

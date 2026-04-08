@@ -19,7 +19,7 @@ def create_dash_app(server):
         assets_folder='assets' 
     )
     
-    app.title = "IFEsCS - Plataforma Web"
+    app.title = "VITTAL Transbordo | IFEsCS"
 
     
     from . import layout

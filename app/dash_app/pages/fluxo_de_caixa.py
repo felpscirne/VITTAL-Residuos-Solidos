@@ -270,7 +270,7 @@ def update_macro_graph(pathname, color_scheme):
     return create_macro_fluxo_graph(df, template)
 
 @callback(
-    Output('grafico-fluxo-setor', 'figure'),
+    Output('grafico-setor-vs-candiota', 'figure'),
     [Input('select-setor-micro', 'value'),
      Input("mantine-provider", "forceColorScheme")]
 )
@@ -363,3 +363,20 @@ def get_ia_setor(n_clicks, setor_selecionado):
     """
     
     return generate_analysis_component(prompt)
+
+@callback(
+    Output('kpi-setor-participacao', 'children'),
+    Input('select-setor-micro', 'value'),
+)
+def update_kpi_participacao(setor_selecionado):
+    if not setor_selecionado:
+        return dmc.Text("Selecione um setor.", c="dimmed")
+    df = load_fluxo_micro_data()
+    total_saida = df[df['setor'] == 'CANDIOTA']['peso_kg'].sum()
+    total_setor = df[df['setor'] == setor_selecionado]['peso_kg'].sum()
+    pct = (total_setor / total_saida * 100) if total_saida > 0 else 0
+    return dmc.Stack([
+        dmc.Text("Participação no Total de Saída", size="xs", c="dimmed", tt="uppercase"),
+        dmc.Text(f"{pct:.1f}%", fw=700, size="xl"),
+        dmc.Text(f"{total_setor:,.0f} kg de {total_saida:,.0f} kg", size="sm", c="dimmed"),
+    ])

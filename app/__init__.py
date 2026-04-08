@@ -29,7 +29,7 @@ def create_app():
     server.config['SECURITY_CONFIRMABLE'] = True
     server.config['SECURITY_RECOVERABLE'] = True
     server.config['SECURITY_CHANGEABLE'] = True
-    server.config['SECURITY_EMAIL_SUBJECT_REGISTER'] = "Bem-vindo ao Dashboard IFEsCS!"
+    server.config['SECURITY_EMAIL_SUBJECT_REGISTER'] = "Bem-vindo ao VITTAL Transbordo — IFEsCS"
     
     server.config['SECURITY_POST_LOGIN_VIEW'] = '/'
     server.config['SECURITY_POST_LOGOUT_VIEW'] = '/'

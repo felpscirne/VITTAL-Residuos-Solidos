@@ -61,21 +61,17 @@ layout = html.Div([
 )
 def update_view_events(pathname, n):
     try:
-        events = Event.query.order_by(Event.start_time.desc()).all()
+        events = Event.query.order_by(Event.start_date.desc()).all()  
         data = []
         for e in events:
-            # Formata setores
-            s_list = [s.name for s in e.sectors]
-            sectors_str = ", ".join(s_list) if s_list else "Geral"
-            
             data.append({
-                'start': e.start_time.strftime('%d/%m/%Y %H:%M'),
-                'end': e.end_time.strftime('%d/%m/%Y %H:%M') if e.end_time else 'Em andamento',
+                'start': e.start_date.strftime('%d/%m/%Y'),          
+                'end': e.end_date.strftime('%d/%m/%Y'),               
                 'title': e.title,
-                'type': e.event_type.value, # Enum value (ex: manutenção)
-                'sectors': sectors_str
+                'type': e.event_type,                                 
+                'sectors': e.affected_sectors or "Geral"              
             })
         return data
     except Exception as e:
-        print(f"Error loading events: {e}")
+        print(f"Erro ao carregar eventos: {e}")
         return []

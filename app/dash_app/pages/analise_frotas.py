@@ -277,18 +277,17 @@ def update_frota_graphs(pathname, entidade, min_viagens, color_scheme):
 
 @callback(
     Output('ia-output-frota', 'children'),
-    [Input('btn-ia-frota', 'n_clicks')],
-    [State('filtro-entidade-frota', 'value'), 
+    [Input('btn-ia-frotas', 'n_clicks')],          # ← era 'btn-ia-frota'
+    [State('filtro-entidade-frota', 'value'),
      State('filtro-viagens-frota', 'value')],
     prevent_initial_call=True
 )
 def get_ia_frota_analysis(n_clicks, selected_entidade, min_viagens):
-            
-    df_filtered = df_frota_raw.copy()
+    df_filtered = load_frota_data()                 # ← era df_frota_raw.copy()
     if selected_entidade != 'todas':
         df_filtered = df_filtered[df_filtered['entidade_responsavel'] == selected_entidade]
-    df_filtered = df_filtered[df_filtered['total_viagens'] >= min_viagens]
-
+    if min_viagens is not None:
+        df_filtered = df_filtered[df_filtered['total_viagens'] >= min_viagens]
     if df_filtered.empty:
         return dmc.Alert("Nenhum dado encontrado para análise. Ajuste os filtros.", color="yellow", variant="filled", className="mt-3")
 

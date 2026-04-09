@@ -14,19 +14,22 @@ class AnalyticsRepositoryPort(Protocol):
     def get_top_produtos_geral(self):
         ...
 
-    def get_volume_mensal(self):
+    def get_volume_mensal(self, tipo_residuo="todos"):
         ...
 
-    def get_entradas_mensais(self):
+    def get_entradas_mensais(self, tipo_residuo="todos"):
         ...
 
-    def get_saidas_mensais(self):
+    def get_saidas_mensais(self, tipo_residuo="todos"):
         ...
 
-    def get_setor_volume_mensal(self, setor):
+    def get_setor_volume_mensal(self, setor, tipo_residuo="todos"):
         ...
 
     def get_list_setores(self):
+        ...
+
+    def get_tipos_residuo_options(self):
         ...
 
     def get_dados_setores_macro(self):
@@ -53,10 +56,10 @@ class AnalyticsRepositoryPort(Protocol):
     def get_produtos_por_setor(self, setor, limit=20):
         ...
 
-    def get_fluxo_macro(self):
+    def get_fluxo_macro(self, tipo_residuo="todos"):
         ...
 
-    def get_fluxo_micro(self):
+    def get_fluxo_micro(self, tipo_residuo="todos"):
         ...
 
     def get_heatmap_data(self):
@@ -94,20 +97,23 @@ class AnalyticsService:
     def get_top_produtos_geral(self):
         return self._repository.get_top_produtos_geral()
 
-    def get_volume_mensal(self):
-        return self._repository.get_volume_mensal()
+    def get_volume_mensal(self, tipo_residuo="todos"):
+        return self._repository.get_volume_mensal(tipo_residuo=tipo_residuo)
 
-    def get_entradas_mensais(self):
-        return self._repository.get_entradas_mensais()
+    def get_entradas_mensais(self, tipo_residuo="todos"):
+        return self._repository.get_entradas_mensais(tipo_residuo=tipo_residuo)
 
-    def get_saidas_mensais(self):
-        return self._repository.get_saidas_mensais()
+    def get_saidas_mensais(self, tipo_residuo="todos"):
+        return self._repository.get_saidas_mensais(tipo_residuo=tipo_residuo)
 
-    def get_setor_volume_mensal(self, setor):
-        return self._repository.get_setor_volume_mensal(setor)
+    def get_setor_volume_mensal(self, setor, tipo_residuo="todos"):
+        return self._repository.get_setor_volume_mensal(setor, tipo_residuo=tipo_residuo)
 
     def get_list_setores(self):
         return self._repository.get_list_setores()
+
+    def get_tipos_residuo_options(self):
+        return self._repository.get_tipos_residuo_options()
 
     def get_dados_setores_macro(self):
         return self._repository.get_dados_setores_macro()
@@ -133,11 +139,11 @@ class AnalyticsService:
     def get_produtos_por_setor(self, setor, limit=20):
         return self._repository.get_produtos_por_setor(setor, limit)
 
-    def get_fluxo_macro(self):
-        return self._repository.get_fluxo_macro()
+    def get_fluxo_macro(self, tipo_residuo="todos"):
+        return self._repository.get_fluxo_macro(tipo_residuo=tipo_residuo)
 
-    def get_fluxo_micro(self):
-        return self._repository.get_fluxo_micro()
+    def get_fluxo_micro(self, tipo_residuo="todos"):
+        return self._repository.get_fluxo_micro(tipo_residuo=tipo_residuo)
 
     def get_heatmap_data(self):
         return self._repository.get_heatmap_data()
@@ -180,24 +186,28 @@ def get_top_produtos_geral():
     return _default_analytics_service.get_top_produtos_geral()
 
 
-def get_volume_mensal():
-    return _default_analytics_service.get_volume_mensal()
+def get_volume_mensal(tipo_residuo="todos"):
+    return _default_analytics_service.get_volume_mensal(tipo_residuo=tipo_residuo)
 
 
-def get_entradas_mensais():
-    return _default_analytics_service.get_entradas_mensais()
+def get_entradas_mensais(tipo_residuo="todos"):
+    return _default_analytics_service.get_entradas_mensais(tipo_residuo=tipo_residuo)
 
 
-def get_saidas_mensais():
-    return _default_analytics_service.get_saidas_mensais()
+def get_saidas_mensais(tipo_residuo="todos"):
+    return _default_analytics_service.get_saidas_mensais(tipo_residuo=tipo_residuo)
 
 
-def get_setor_volume_mensal(setor):
-    return _default_analytics_service.get_setor_volume_mensal(setor)
+def get_setor_volume_mensal(setor, tipo_residuo="todos"):
+    return _default_analytics_service.get_setor_volume_mensal(setor, tipo_residuo=tipo_residuo)
 
 
 def get_list_setores():
     return _default_analytics_service.get_list_setores()
+
+
+def get_tipos_residuo_options():
+    return _default_analytics_service.get_tipos_residuo_options()
 
 
 def get_dados_setores_macro():
@@ -232,12 +242,12 @@ def get_produtos_por_setor(setor, limit=20):
     return _default_analytics_service.get_produtos_por_setor(setor, limit)
 
 
-def get_fluxo_macro():
-    return _default_analytics_service.get_fluxo_macro()
+def get_fluxo_macro(tipo_residuo="todos"):
+    return _default_analytics_service.get_fluxo_macro(tipo_residuo=tipo_residuo)
 
 
-def get_fluxo_micro():
-    return _default_analytics_service.get_fluxo_micro()
+def get_fluxo_micro(tipo_residuo="todos"):
+    return _default_analytics_service.get_fluxo_micro(tipo_residuo=tipo_residuo)
 
 
 def get_heatmap_data():

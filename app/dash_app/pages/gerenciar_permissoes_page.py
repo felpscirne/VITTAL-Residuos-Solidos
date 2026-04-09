@@ -4,6 +4,7 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 from app import db
 from app.models import Role, Page
+from app.services.error_messages import get_safe_database_error_message
 
 def get_roles_options():
     try:
@@ -150,12 +151,12 @@ def save_permissions(n_clicks, role_id_str, selected_page_ids_str):
             color="green",
         )
         
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return dmc.Notification(
             title="Erro",
             id="notify-exception",
             action="show",
-            message=f"Falha ao salvar: {str(e)}",
+            message=get_safe_database_error_message(),
             color="red",
         )

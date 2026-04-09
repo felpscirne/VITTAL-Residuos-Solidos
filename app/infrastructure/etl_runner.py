@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import threading
+from app.services.error_messages import get_safe_import_error_message
 
 
 class SubprocessEtlRunnerAdapter:
@@ -30,11 +31,10 @@ class SubprocessEtlRunnerAdapter:
                 self._status['message'] = 'Sucesso! Importacao concluida.'
                 self._status['color'] = 'green'
             else:
-                stderr_output = (result.stderr or '').strip()
-                self._status['message'] = f'Erro na execucao:\n{stderr_output}'
+                self._status['message'] = get_safe_import_error_message()
                 self._status['color'] = 'red'
-        except Exception as e:
-            self._status['message'] = f'Erro critico ao tentar rodar o script: {str(e)}'
+        except Exception:
+            self._status['message'] = get_safe_import_error_message()
             self._status['color'] = 'red'
         finally:
             self._status['is_running'] = False

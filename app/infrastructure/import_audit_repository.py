@@ -1,6 +1,7 @@
 import pandas as pd
 
 from app.database import engine
+from app.services.error_messages import sanitize_audit_error_message
 
 
 class SqlImportAuditRepositoryAdapter:
@@ -29,6 +30,8 @@ class SqlImportAuditRepositoryAdapter:
             for col in ['started_at', 'finished_at']:
                 df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%Y %H:%M:%S')
                 df[col] = df[col].fillna('')
+
+            df["error_message"] = df["error_message"].apply(sanitize_audit_error_message)
 
             return df.to_dict('records')
         except Exception:

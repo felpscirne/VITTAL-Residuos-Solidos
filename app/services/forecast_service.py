@@ -151,8 +151,8 @@ def fetch_rio_grande_weather_monthly(start_date: pd.Timestamp, end_date: pd.Time
         )
         monthly = monthly.rename(columns={"month": "ds"})
         return monthly, "ok"
-    except Exception as exc:  # pragma: no cover
-        return pd.DataFrame(), f"unavailable: {exc}"
+    except Exception:  # pragma: no cover
+        return pd.DataFrame(), "unavailable"
 
 
 def _build_monthly_climatology(weather_df: pd.DataFrame) -> pd.DataFrame:
@@ -197,7 +197,10 @@ def build_monthly_forecast(monthly_df: pd.DataFrame, periods: int = 6, interval_
         return _empty_result("insufficient_data", "Sao necessarios pelo menos 3 pontos mensais para calcular a previsao.")
 
     if Prophet is None:
-        return _empty_result("unavailable", f"Prophet indisponivel neste ambiente. Detalhe tecnico: {PROPHET_IMPORT_ERROR or 'nao foi possivel importar a biblioteca.'}")
+        return _empty_result(
+            "unavailable",
+            "O modulo de previsao nao esta disponivel neste ambiente no momento.",
+        )
 
     holiday_df = build_rio_grande_holidays(series_df["ds"].dt.year.min(), (series_df["ds"].dt.year.max() + 2))
     model_df, future_regressors, weather_status, weather_features = _attach_weather_regressors(series_df, periods)
@@ -301,6 +304,7 @@ def build_public_data_markdown(result: dict[str, Any]) -> str:
         f"- Status do clima publico: **{weather_status}**.",
         f"- Status dos feriados publicos: **{holiday_status}**.",
         f"- Variaveis externas usadas: **{', '.join(features_used) if features_used else 'nenhuma'}**.",
+        "- Classificacao do tipo de residuo: derivada internamente a partir do campo `produto`, com categorias operacionais como domiciliar, hospitalar e reciclavel.",
         "- Fontes:",
     ]
     for source in sources:

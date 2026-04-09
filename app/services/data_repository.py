@@ -1,9 +1,19 @@
 import pandas as pd
 from app.database import engine
 from app.extensions import cache
+from app.services.residue_types import TYPE_ALL, TYPE_OPTIONS, get_tipo_residuo_case_sql
 
 
 # --- 1. DADOS GERAIS / OVERVIEW ---
+TIPO_RESIDUO_CASE = get_tipo_residuo_case_sql("produto")
+TIPO_RESIDUO_CASE_VIEW = get_tipo_residuo_case_sql("pr.nome")
+
+
+def _apply_tipo_residuo_filter(base_where, params, tipo_residuo):
+    if tipo_residuo and tipo_residuo != TYPE_ALL:
+        params["tipo_residuo"] = tipo_residuo
+        return f"{base_where}\n        AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
+    return base_where
 
 @cache.memoize(timeout=600)
 def get_kpis_gerais():
@@ -36,21 +46,28 @@ def get_top_produtos_geral():
 
 
 @cache.memoize(timeout=3600)
-def get_volume_mensal():
-    query = """
+def get_volume_mensal(tipo_residuo=TYPE_ALL):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor != 'ACERTO DE PESO'
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = f"""
     SELECT
         DATE_TRUNC('month', data_hora)::date AS ds,
         SUM(peso_embalagem_liquido_corrigido) AS y
     FROM registro
-    WHERE
-        data_hora IS NOT NULL
-        AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor != 'ACERTO DE PESO'
+    WHERE {where_clause}
     GROUP BY ds
     ORDER BY ds
     """
     try:
-        df = pd.read_sql(query, engine)
+        df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
@@ -60,22 +77,29 @@ def get_volume_mensal():
 
 
 @cache.memoize(timeout=3600)
-def get_entradas_mensais():
-    query = """
-    SELECT
-        DATE_TRUNC('month', data_hora)::date AS ds,
-        SUM(peso_embalagem_liquido_corrigido) AS y
-    FROM registro
-    WHERE
+def get_entradas_mensais(tipo_residuo=TYPE_ALL):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
         AND setor != 'ACERTO DE PESO'
         AND setor != 'CANDIOTA'
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = f"""
+    SELECT
+        DATE_TRUNC('month', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE {where_clause}
     GROUP BY ds
     ORDER BY ds
     """
     try:
-        df = pd.read_sql(query, engine)
+        df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
@@ -85,21 +109,28 @@ def get_entradas_mensais():
 
 
 @cache.memoize(timeout=3600)
-def get_saidas_mensais():
-    query = """
-    SELECT
-        DATE_TRUNC('month', data_hora)::date AS ds,
-        SUM(peso_embalagem_liquido_corrigido) AS y
-    FROM registro
-    WHERE
+def get_saidas_mensais(tipo_residuo=TYPE_ALL):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
         AND setor = 'CANDIOTA'
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = f"""
+    SELECT
+        DATE_TRUNC('month', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE {where_clause}
     GROUP BY ds
     ORDER BY ds
     """
     try:
-        df = pd.read_sql(query, engine)
+        df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
@@ -109,21 +140,28 @@ def get_saidas_mensais():
 
 
 @cache.memoize(timeout=3600)
-def get_setor_volume_mensal(setor):
-    query = """
+def get_setor_volume_mensal(setor, tipo_residuo=TYPE_ALL):
+    params = {"setor": setor}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor = %(setor)s
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = f"""
     SELECT
         DATE_TRUNC('month', data_hora)::date AS ds,
         SUM(peso_embalagem_liquido_corrigido) AS y
     FROM registro
-    WHERE
-        data_hora IS NOT NULL
-        AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor = %(setor)s
+    WHERE {where_clause}
     GROUP BY ds
     ORDER BY ds
     """
     try:
-        df = pd.read_sql(query, engine, params={"setor": setor})
+        df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
@@ -141,6 +179,11 @@ def get_list_setores():
         return df['setor'].tolist()
     except Exception:
         return []
+
+
+@cache.memoize(timeout=3600)
+def get_tipos_residuo_options():
+    return TYPE_OPTIONS
 
 # --- 3. ANÁLISE DE SETORES ---
 
@@ -261,19 +304,25 @@ def get_produtos_por_setor(setor, limit=20):
 # --- 6. FLUXO DE CAIXA (CANDIOTA) ---
 
 @cache.memoize(timeout=3600)
-def get_fluxo_macro():
-    query = """
+def get_fluxo_macro(tipo_residuo=TYPE_ALL):
+    params = {}
+    tipo_clause = ""
+    if tipo_residuo and tipo_residuo != TYPE_ALL:
+        params["tipo_residuo"] = tipo_residuo
+        tipo_clause = f" AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
+    query = f"""
     SELECT 
         EXTRACT(YEAR FROM data_hora) as year,
         EXTRACT(MONTH FROM data_hora) as month,
         SUM(CASE WHEN setor = 'CANDIOTA' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as saidas,
         SUM(CASE WHEN setor != 'CANDIOTA' AND setor != 'ACERTO DE PESO' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as entradas
     FROM registro
+    WHERE data_hora IS NOT NULL{tipo_clause}
     GROUP BY year, month
     ORDER BY year, month
     """
     try:
-        df = pd.read_sql(query, engine)
+        df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df['balanco'] = (df['entradas'] - df['saidas']).round(2)
             df['entradas'] = df['entradas'].round(2)
@@ -284,20 +333,26 @@ def get_fluxo_macro():
         return pd.DataFrame()
 
 @cache.memoize(timeout=3600)
-def get_fluxo_micro():
-    query = """
+def get_fluxo_micro(tipo_residuo=TYPE_ALL):
+    params = {}
+    tipo_clause = ""
+    if tipo_residuo and tipo_residuo != TYPE_ALL:
+        params["tipo_residuo"] = tipo_residuo
+        tipo_clause = f" AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
+    query = f"""
     SELECT
         EXTRACT(YEAR FROM data_hora) as year,
         EXTRACT(MONTH FROM data_hora) as month,
         setor,
+        {TIPO_RESIDUO_CASE} as tipo_residuo,
         SUM(peso_embalagem_liquido_corrigido) as peso_kg
     FROM registro
-    WHERE setor != 'ACERTO DE PESO'
-    GROUP BY year, month, setor
-    ORDER BY year, month, setor
+    WHERE setor != 'ACERTO DE PESO'{tipo_clause}
+    GROUP BY year, month, setor, tipo_residuo
+    ORDER BY year, month, setor, tipo_residuo
     """
     try:
-        df = pd.read_sql(query, engine)
+        df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df['periodo'] = pd.to_datetime(df.assign(day=1)[['year', 'month', 'day']]).dt.strftime('%Y-%m')
         return df

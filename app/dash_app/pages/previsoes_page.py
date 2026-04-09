@@ -4,7 +4,7 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 import plotly.graph_objects as go
 
-from app.application.analytics import get_setores_options
+from app.application.analytics import get_setores_options, get_tipos_residuo_options
 from app.application.forecasting import (
     get_entradas_mensais_forecast,
     get_public_data_context_markdown,
@@ -93,6 +93,8 @@ def _forecast_figure(result, title, template_name, confidence_label):
 
 setores_options = get_setores_options()
 setor_inicial = setores_options[0]["value"] if setores_options else None
+tipos_residuo_options = get_tipos_residuo_options()
+tipo_residuo_inicial = tipos_residuo_options[0]["value"] if tipos_residuo_options else "todos"
 
 
 layout = dmc.Container(
@@ -117,7 +119,7 @@ layout = dmc.Container(
             variant="light",
         ),
         dmc.SimpleGrid(
-            cols={"base": 1, "lg": 3},
+            cols={"base": 1, "lg": 4},
             spacing="md",
             mb="md",
             children=[
@@ -133,6 +135,13 @@ layout = dmc.Container(
                     label="Faixa de confianca",
                     data=CONFIDENCE_OPTIONS,
                     value=0.80,
+                    allowDeselect=False,
+                ),
+                dmc.Select(
+                    id="previsao-tipo-residuo-select",
+                    label="Tipo de residuo",
+                    data=tipos_residuo_options,
+                    value=tipo_residuo_inicial,
                     allowDeselect=False,
                 ),
                 dmc.Card(
@@ -250,30 +259,40 @@ layout = dmc.Container(
         Input("previsao-setor-select", "value"),
         Input("previsao-horizonte-select", "value"),
         Input("previsao-confianca-select", "value"),
+        Input("previsao-tipo-residuo-select", "value"),
     ],
 )
-def update_previsoes(color_scheme, setor, horizonte, confianca):
+def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
     template_name = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     horizonte = int(horizonte or 6)
     confianca = float(confianca or 0.80)
     confidence_label = f"{int(confianca * 100)}%"
+    tipo_residuo = tipo_residuo or "todos"
+    tipo_label = next(
+        (opt["label"] for opt in tipos_residuo_options if opt["value"] == tipo_residuo),
+        "Todos os residuos",
+    )
 
     total_result = get_volume_mensal_forecast(
         periods=horizonte,
         interval_width=confianca,
+        tipo_residuo=tipo_residuo,
     )
     entradas_result = get_entradas_mensais_forecast(
         periods=horizonte,
         interval_width=confianca,
+        tipo_residuo=tipo_residuo,
     )
     saidas_result = get_saidas_mensais_forecast(
         periods=horizonte,
         interval_width=confianca,
+        tipo_residuo=tipo_residuo,
     )
     setor_result = get_setor_volume_mensal_forecast(
         setor,
         periods=horizonte,
         interval_width=confianca,
+        tipo_residuo=tipo_residuo,
     ) if setor else {
         "status": "no_data",
         "message": "Selecione um setor para visualizar a previsao.",
@@ -282,28 +301,28 @@ def update_previsoes(color_scheme, setor, horizonte, confianca):
     return (
         _forecast_figure(
             total_result,
-            "Previsao do Volume Total",
+            f"Previsao do Volume Total - {tipo_label}",
             template_name,
             confidence_label,
         ),
         build_forecast_summary_markdown(total_result),
         _forecast_figure(
             entradas_result,
-            "Previsao das Entradas",
+            f"Previsao das Entradas - {tipo_label}",
             template_name,
             confidence_label,
         ),
         build_forecast_summary_markdown(entradas_result),
         _forecast_figure(
             saidas_result,
-            "Previsao das Saidas para Candiota",
+            f"Previsao das Saidas para Candiota - {tipo_label}",
             template_name,
             confidence_label,
         ),
         build_forecast_summary_markdown(saidas_result),
         _forecast_figure(
             setor_result,
-            f"Previsao do Setor: {setor or 'N/D'}",
+            f"Previsao do Setor: {setor or 'N/D'} - {tipo_label}",
             template_name,
             confidence_label,
         ),

@@ -3,16 +3,12 @@ from dash.dependencies import Input, Output
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 import plotly.express as px
-import plotly.graph_objects as go
 
 from app.application.analytics import (
     get_kpis_gerais,
+    get_qtde_por_ano,
     get_top_produtos_geral,
     get_volume_mensal,
-)
-from app.application.forecasting import (
-    get_volume_mensal_forecast,
-    get_volume_mensal_forecast_summary,
 )
 
 
@@ -52,13 +48,13 @@ layout = dmc.Container(
         ),
         dmc.Alert(
             children=[
-                dmc.Title("Nova abordagem analitica", order=5, mb="xs"),
+                dmc.Title("Indicadores operacionais", order=5, mb="xs"),
                 dmc.Text(
-                    "Esta tela prioriza metricas consolidadas e previsao temporal para apoiar "
-                    "o planejamento logistico e orcamentario do projeto."
+                    "Esta tela apresenta apenas indicadores consolidados e historicos gerais. "
+                    "As previsoes ficam em modulo separado com permissao de gestao."
                 ),
             ],
-            title="Contexto do TCC",
+            title="Visao publica e institucional",
             color="ifsc-green",
             icon=DashIconify(icon="radix-icons:bar-chart"),
             mb="xl",
@@ -89,7 +85,7 @@ layout = dmc.Container(
                     p="md",
                 ),
                 dmc.Card(
-                    dcc.Graph(id="overview-grafico-forecast"),
+                    dcc.Graph(id="overview-grafico-ano"),
                     withBorder=True,
                     shadow="sm",
                     radius="md",
@@ -103,13 +99,6 @@ layout = dmc.Container(
             children=[
                 dmc.Card(
                     dcc.Graph(id="overview-grafico-produtos"),
-                    withBorder=True,
-                    shadow="sm",
-                    radius="md",
-                    p="md",
-                ),
-                dmc.Card(
-                    dcc.Markdown(id="overview-forecast-summary"),
                     withBorder=True,
                     shadow="sm",
                     radius="md",
@@ -131,9 +120,8 @@ layout = dmc.Container(
         Output("overview-kpi-volume", "children"),
         Output("overview-kpi-media", "children"),
         Output("overview-grafico-serie-mensal", "figure"),
-        Output("overview-grafico-forecast", "figure"),
+        Output("overview-grafico-ano", "figure"),
         Output("overview-grafico-produtos", "figure"),
-        Output("overview-forecast-summary", "children"),
     ],
     [Input("mantine-provider", "forceColorScheme")],
 )
@@ -142,9 +130,8 @@ def update_overview_graphs(color_scheme):
 
     kpi_data = get_kpis_gerais()
     df_mensal = get_volume_mensal()
+    df_ano = get_qtde_por_ano()
     df_produtos = get_top_produtos_geral()
-    forecast_result = get_volume_mensal_forecast(periods=6)
-    forecast_summary = get_volume_mensal_forecast_summary(periods=6)
 
     total_volume = "N/D"
     media_mensal = "N/D"
@@ -175,60 +162,17 @@ def update_overview_graphs(color_scheme):
         margin={"l": 40, "r": 20, "t": 50, "b": 30},
     )
 
-    fig_forecast = go.Figure()
-    if forecast_result["status"] == "ok":
-        history = forecast_result["history"]
-        forecast = forecast_result["forecast"]
-        observed_end = history["ds"].max()
-        future_only = forecast[forecast["ds"] > observed_end].copy()
-
-        fig_forecast.add_trace(
-            go.Scatter(
-                x=history["ds"],
-                y=history["y"],
-                mode="lines+markers",
-                name="Realizado",
-            )
-        )
-        fig_forecast.add_trace(
-            go.Scatter(
-                x=forecast["ds"],
-                y=forecast["yhat"],
-                mode="lines",
-                name="Previsto",
-                line={"dash": "dash"},
-            )
-        )
-        fig_forecast.add_trace(
-            go.Scatter(
-                x=future_only["ds"].tolist() + future_only["ds"].tolist()[::-1],
-                y=future_only["yhat_upper"].tolist() + future_only["yhat_lower"].tolist()[::-1],
-                fill="toself",
-                fillcolor="rgba(76, 175, 80, 0.15)",
-                line={"color": "rgba(255,255,255,0)"},
-                hoverinfo="skip",
-                name="Intervalo de confianca",
-            )
-        )
-        fig_forecast.update_layout(title="Previsao Mensal com Prophet")
-    else:
-        fig_forecast = px.line(template=template_name, title="Previsao Mensal com Prophet")
-        fig_forecast.add_annotation(
-            text=forecast_result["message"],
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            showarrow=False,
-        )
-
-    fig_forecast.update_layout(
+    fig_ano = px.bar(
+        df_ano,
+        x="ano",
+        y="qtde",
+        title="Total de Registros por Ano",
         template=template_name,
+    ) if not df_ano.empty else px.bar(template=template_name, title="Total de Registros por Ano")
+    fig_ano.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         margin={"l": 40, "r": 20, "t": 50, "b": 30},
-        xaxis_title="Mes",
-        yaxis_title="Volume (kg)",
     )
 
     fig_produtos = px.pie(
@@ -251,7 +195,6 @@ def update_overview_graphs(color_scheme):
         kpi_volume,
         kpi_media,
         fig_mensal,
-        fig_forecast,
+        fig_ano,
         fig_produtos,
-        forecast_summary,
     )

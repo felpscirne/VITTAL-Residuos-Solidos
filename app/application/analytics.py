@@ -17,6 +17,15 @@ class AnalyticsRepositoryPort(Protocol):
     def get_volume_mensal(self):
         ...
 
+    def get_entradas_mensais(self):
+        ...
+
+    def get_saidas_mensais(self):
+        ...
+
+    def get_setor_volume_mensal(self, setor):
+        ...
+
     def get_list_setores(self):
         ...
 
@@ -87,6 +96,15 @@ class AnalyticsService:
 
     def get_volume_mensal(self):
         return self._repository.get_volume_mensal()
+
+    def get_entradas_mensais(self):
+        return self._repository.get_entradas_mensais()
+
+    def get_saidas_mensais(self):
+        return self._repository.get_saidas_mensais()
+
+    def get_setor_volume_mensal(self, setor):
+        return self._repository.get_setor_volume_mensal(setor)
 
     def get_list_setores(self):
         return self._repository.get_list_setores()
@@ -164,6 +182,18 @@ def get_top_produtos_geral():
 
 def get_volume_mensal():
     return _default_analytics_service.get_volume_mensal()
+
+
+def get_entradas_mensais():
+    return _default_analytics_service.get_entradas_mensais()
+
+
+def get_saidas_mensais():
+    return _default_analytics_service.get_saidas_mensais()
+
+
+def get_setor_volume_mensal(setor):
+    return _default_analytics_service.get_setor_volume_mensal(setor)
 
 
 def get_list_setores():

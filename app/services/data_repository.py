@@ -58,6 +58,79 @@ def get_volume_mensal():
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
 
+
+@cache.memoize(timeout=3600)
+def get_entradas_mensais():
+    query = """
+    SELECT
+        DATE_TRUNC('month', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor != 'ACERTO DE PESO'
+        AND setor != 'CANDIOTA'
+    GROUP BY ds
+    ORDER BY ds
+    """
+    try:
+        df = pd.read_sql(query, engine)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
+def get_saidas_mensais():
+    query = """
+    SELECT
+        DATE_TRUNC('month', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor = 'CANDIOTA'
+    GROUP BY ds
+    ORDER BY ds
+    """
+    try:
+        df = pd.read_sql(query, engine)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
+def get_setor_volume_mensal(setor):
+    query = """
+    SELECT
+        DATE_TRUNC('month', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor = %(setor)s
+    GROUP BY ds
+    ORDER BY ds
+    """
+    try:
+        df = pd.read_sql(query, engine, params={"setor": setor})
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
 # --- 2. AUXILIARES (Usado em Gerenciar Eventos) ---
 
 @cache.memoize(timeout=3600)

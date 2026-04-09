@@ -18,6 +18,15 @@ class SqlAnalyticsRepositoryAdapter:
     def get_volume_mensal(self):
         return data_repository.get_volume_mensal()
 
+    def get_entradas_mensais(self):
+        return data_repository.get_entradas_mensais()
+
+    def get_saidas_mensais(self):
+        return data_repository.get_saidas_mensais()
+
+    def get_setor_volume_mensal(self, setor):
+        return data_repository.get_setor_volume_mensal(setor)
+
     def get_list_setores(self):
         return data_repository.get_list_setores()
 
@@ -91,6 +100,18 @@ def get_top_produtos_geral():
 
 def get_volume_mensal():
     return _default_adapter.get_volume_mensal()
+
+
+def get_entradas_mensais():
+    return _default_adapter.get_entradas_mensais()
+
+
+def get_saidas_mensais():
+    return _default_adapter.get_saidas_mensais()
+
+
+def get_setor_volume_mensal(setor):
+    return _default_adapter.get_setor_volume_mensal(setor)
 
 
 def get_list_setores():

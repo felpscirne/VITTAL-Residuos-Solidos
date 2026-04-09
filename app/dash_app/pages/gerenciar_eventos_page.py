@@ -9,7 +9,7 @@ from flask_login import current_user
 from app import db
 from app.models import Event
 # Certifique-se que o data_repository foi criado no passo anterior
-from app.services.data_repository import get_list_setores 
+from app.application.analytics import get_list_setores 
 
 # --- Layout ---
 layout = html.Div([

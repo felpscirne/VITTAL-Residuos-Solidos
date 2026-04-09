@@ -8,37 +8,37 @@ from flask_login import current_user
 from app import db
 from app.models import Role, Page
 from app.dash_app.pages import (
-    overview,
-    analise_produtos,
-    analise_setores,
-    analise_empresas,
-    analise_horarios,
-    analise_frotas,
-    registros,
-    auditoria_peso,
-    gerenciar_eventos,
-    gerenciar_arquivos,
-    gerenciar_permissoes,
-    visualizar_eventos,
-    fluxo_de_caixa
+    overview_page,
+    analise_produtos_page,
+    analise_setores_page,
+    analise_empresas_page,
+    analise_horarios_page,
+    analise_frotas_page,
+    registros_page,
+    auditoria_peso_page,
+    gerenciar_eventos_page,
+    gerenciar_arquivos_page,
+    gerenciar_permissoes_page,
+    visualizar_eventos_page,
+    fluxo_de_caixa_page,
 )
 
 def register_global_callbacks(app):
 
     PAGE_MAP = {
-        "/": overview.layout,
-        "/analise-produtos": analise_produtos.layout,
-        "/analise-setores": analise_setores.layout,
-        "/analise-empresas": analise_empresas.layout,
-        "/analise-horarios": analise_horarios.layout,
-        "/analise-frotas": analise_frotas.layout,
-        "/registros": registros.layout,
-        "/auditoria-peso": auditoria_peso.layout,
-        "/gerenciar-eventos": gerenciar_eventos.layout,
-        "/gerenciar-arquivos": gerenciar_arquivos.layout,
-        "/gerenciar-permissoes": gerenciar_permissoes.layout,
-        "/visualizar-eventos": visualizar_eventos.layout,
-        "/fluxo-de-caixa": fluxo_de_caixa.layout,
+        "/": overview_page.layout,
+        "/analise-produtos": analise_produtos_page.layout,
+        "/analise-setores": analise_setores_page.layout,
+        "/analise-empresas": analise_empresas_page.layout,
+        "/analise-horarios": analise_horarios_page.layout,
+        "/analise-frotas": analise_frotas_page.layout,
+        "/registros": registros_page.layout,
+        "/auditoria-peso": auditoria_peso_page.layout,
+        "/gerenciar-eventos": gerenciar_eventos_page.layout,
+        "/gerenciar-arquivos": gerenciar_arquivos_page.layout,
+        "/gerenciar-permissoes": gerenciar_permissoes_page.layout,
+        "/visualizar-eventos": visualizar_eventos_page.layout,
+        "/fluxo-de-caixa": fluxo_de_caixa_page.layout,
     }
 
     @app.callback(

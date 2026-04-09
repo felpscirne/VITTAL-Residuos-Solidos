@@ -5,7 +5,7 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 # Service imports
-from app.services.data_repository import get_anos_options, get_registros_filtrados
+from app.application.analytics import get_anos_options, get_registros_filtrados
 
 anos_options_raw, ano_inicial = get_anos_options()
 # Garantindo que as opções sejam string para o dmc.Select

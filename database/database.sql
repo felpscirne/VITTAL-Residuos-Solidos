@@ -46,85 +46,8 @@ CREATE TABLE role_page_permission (
     PRIMARY KEY (role_id, page_id)
 );
 
-INSERT INTO role (name, description)
-VALUES
-    ('sem_login', 'Nível: sem_login'),
-    ('geral', 'Nível: geral'),
-    ('estudantil', 'Nível: estudantil'),
-    ('gestao', 'Nível: gestao'),
-    ('superadmin', 'Nível: superadmin')
-ON CONFLICT (name) DO UPDATE
-SET description = EXCLUDED.description;
-
-INSERT INTO page (route, description)
-VALUES
-    ('/', 'Visão Geral (Dashboard)'),
-    ('/analise-produtos', 'Análise de Produtos'),
-    ('/fluxo-de-caixa', 'Fluxo de Caixa (Entrada vs Saída)'),
-    ('/analise-setores', 'Análise de Setores'),
-    ('/analise-empresas', 'Análise de Empresas'),
-    ('/analise-horarios', 'Análise de Horários'),
-    ('/analise-frotas', 'Análise de Frota'),
-    ('/registros', 'Buscar Registros'),
-    ('/auditoria-peso', 'Auditoria de Peso'),
-    ('/gerenciar-arquivos', 'Gerenciar Arquivos (.ods)'),
-    ('/gerenciar-permissoes', 'Gerenciar Permissões de Acesso'),
-    ('/gerenciar-eventos', 'Gerenciar Eventos'),
-    ('/visualizar-eventos', 'Quadro de Avisos e Eventos')
-ON CONFLICT (route) DO UPDATE
-SET description = EXCLUDED.description;
-
-INSERT INTO role_page_permission (role_id, page_id)
-SELECT r.id, p.id
-FROM (
-    VALUES
-        ('sem_login', '/'),
-        ('sem_login', '/analise-produtos'),
-        ('sem_login', '/fluxo-de-caixa'),
-        ('sem_login', '/visualizar-eventos'),
-        ('geral', '/'),
-        ('geral', '/analise-produtos'),
-        ('geral', '/fluxo-de-caixa'),
-        ('geral', '/visualizar-eventos'),
-        ('estudantil', '/'),
-        ('estudantil', '/analise-produtos'),
-        ('estudantil', '/fluxo-de-caixa'),
-        ('estudantil', '/analise-setores'),
-        ('estudantil', '/analise-empresas'),
-        ('estudantil', '/analise-horarios'),
-        ('estudantil', '/analise-frotas'),
-        ('estudantil', '/registros'),
-        ('estudantil', '/visualizar-eventos'),
-        ('gestao', '/'),
-        ('gestao', '/analise-produtos'),
-        ('gestao', '/fluxo-de-caixa'),
-        ('gestao', '/analise-setores'),
-        ('gestao', '/analise-empresas'),
-        ('gestao', '/analise-horarios'),
-        ('gestao', '/analise-frotas'),
-        ('gestao', '/registros'),
-        ('gestao', '/auditoria-peso'),
-        ('gestao', '/gerenciar-arquivos'),
-        ('gestao', '/gerenciar-permissoes'),
-        ('gestao', '/gerenciar-eventos'),
-        ('gestao', '/visualizar-eventos'),
-        ('superadmin', '/'),
-        ('superadmin', '/analise-produtos'),
-        ('superadmin', '/fluxo-de-caixa'),
-        ('superadmin', '/analise-setores'),
-        ('superadmin', '/analise-empresas'),
-        ('superadmin', '/analise-horarios'),
-        ('superadmin', '/analise-frotas'),
-        ('superadmin', '/registros'),
-        ('superadmin', '/auditoria-peso'),
-        ('superadmin', '/gerenciar-arquivos'),
-        ('superadmin', '/gerenciar-permissoes'),
-        ('superadmin', '/gerenciar-eventos'),
-        ('superadmin', '/visualizar-eventos')
-) AS perms(role_name, route)
-JOIN role r ON r.name = perms.role_name
-JOIN page p ON p.route = perms.route
-ON CONFLICT DO NOTHING;
+-- O catálogo de roles, páginas e permissões é sincronizado apenas pelo Python.
+-- Veja `app/services/rbac_bootstrap.py`.
 
 CREATE TABLE produto (
     id_produto  SERIAL       PRIMARY KEY,

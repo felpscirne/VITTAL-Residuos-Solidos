@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from flask_security import SQLAlchemyUserDatastore, user_registered
 from app.extensions import db, bcrypt, mail, security, cache
 from app.models import db, User, Role
+from app.services.rbac_bootstrap import run_startup_migrations
 
 load_dotenv()
 
@@ -30,6 +31,7 @@ def create_app():
     server.config['SECURITY_RECOVERABLE'] = True
     server.config['SECURITY_CHANGEABLE'] = True
     server.config['SECURITY_EMAIL_SUBJECT_REGISTER'] = "Bem-vindo ao VITTAL Transbordo — IFEsCS"
+    server.config['AUTO_MIGRATE_ON_STARTUP'] = os.getenv('AUTO_MIGRATE_ON_STARTUP', 'True').lower() in ['true', '1']
     
     server.config['SECURITY_POST_LOGIN_VIEW'] = '/'
     server.config['SECURITY_POST_LOGOUT_VIEW'] = '/'
@@ -74,10 +76,9 @@ def create_app():
         db.session.commit()
 
     with server.app_context():
-        
-        
-        from .dash_app import create_dash_app
-        app = create_dash_app(server)
+        if server.config['AUTO_MIGRATE_ON_STARTUP']:
+            run_startup_migrations()
 
-        db.create_all()
+        from .dash_app import create_dash_app
+        create_dash_app(server)
         return server

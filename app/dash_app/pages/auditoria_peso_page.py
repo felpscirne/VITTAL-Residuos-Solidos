@@ -4,8 +4,8 @@ import pandas as pd
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
-from app.database import engine
-from app.services.ai_service import generate_analysis_component
+from app.application.analytics import engine
+from app.application.insights import generate_analysis_component
 
 template_theme_light = "cosmo" 
 template_theme_dark = "plotly_dark"

@@ -1,76 +1,10 @@
-import os
-import base64
-import threading
-import subprocess
-import sys
 from dash import dcc, html, callback, dash_table, no_update, callback_context
 from dash.dependencies import Input, Output, State
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
+from app.application.file_management import build_default_file_management_service
 
-SHEETS_FOLDER = 'sheets'
-SCRIPT_NAME = 'import_sheet.py'
-
-ETL_STATUS = {
-    'is_running': False,
-    'message': '',
-    'color': 'gray'
-}
-
-def run_import_script_thread():
-    global ETL_STATUS
-    ETL_STATUS['is_running'] = True
-    ETL_STATUS['message'] = "O script de importação está rodando... Isso pode levar alguns minutos."
-    ETL_STATUS['color'] = "blue"
-    
-    try:
-        if not os.path.exists(SCRIPT_NAME):
-             pass
-
-        result = subprocess.run(
-            [sys.executable, SCRIPT_NAME], 
-            capture_output=True, 
-            text=True, 
-            cwd=os.getcwd() 
-        )
-        
-        if result.returncode == 0:
-            ETL_STATUS['message'] = f"Sucesso! Importação concluída..." 
-            ETL_STATUS['color'] = "green"
-        else:
-            ETL_STATUS['message'] = f"Erro na execução:\n{result.stderr}"
-            ETL_STATUS['color'] = "red"
-            
-    except Exception as e:
-        ETL_STATUS['message'] = f"Erro crítico ao tentar rodar o script: {str(e)}"
-        ETL_STATUS['color'] = "red"
-    
-    finally:
-        ETL_STATUS['is_running'] = False
-
-def listar_arquivos():
-    # Letura dos arquivos na pasta
-    if not os.path.exists(SHEETS_FOLDER):
-        try:
-            os.makedirs(SHEETS_FOLDER)
-        except OSError:
-            return []
-        
-    arquivos = []
-    try:
-        for f in os.listdir(SHEETS_FOLDER):
-            if f.endswith('.ods') and not f.startswith('~'): 
-                caminho = os.path.join(SHEETS_FOLDER, f)
-                try:
-                    tamanho = os.path.getsize(caminho) / 1024 
-                    arquivos.append({'filename': f, 'size': f"{tamanho:.2f} KB"})
-                except OSError:
-                    continue
-    except Exception as e:
-        print(f"Erro ao listar arquivos: {e}")
-        return []
-    
-    return sorted(arquivos, key=lambda x: x['filename'])
+file_management = build_default_file_management_service()
 
 layout = html.Div([
     dmc.Title('Gerenciamento de Arquivos e Dados', order=2),
@@ -218,6 +152,73 @@ layout = html.Div([
             )
         ]
     ),
+
+    dmc.Card([
+        dmc.Group([
+            dmc.Text("Histórico de Importações", size="lg", fw=500),
+            dmc.Text("Últimas 20 execuções", c="dimmed", size="sm")
+        ], justify="space-between", mb="sm"),
+
+        dash_table.DataTable(
+            id='tabela-import-auditoria',
+            columns=[
+                {'name': 'ID', 'id': 'id'},
+                {'name': 'Início', 'id': 'started_at'},
+                {'name': 'Fim', 'id': 'finished_at'},
+                {'name': 'Status', 'id': 'status'},
+                {'name': 'Arquivos', 'id': 'files_count'},
+                {'name': 'Lidas', 'id': 'rows_read'},
+                {'name': 'Válidas', 'id': 'rows_valid'},
+                {'name': 'Novas', 'id': 'rows_new'},
+                {'name': 'Atualizadas', 'id': 'rows_updated'},
+                {'name': 'Erro', 'id': 'error_message'},
+            ],
+            data=[],
+            style_table={'overflowX': 'auto'},
+            style_header={
+                "backgroundColor": "#f8f9fa",
+                "color": "#000",
+                "fontWeight": "bold",
+                "fontFamily": "sans-serif"
+            },
+            style_data={
+                "backgroundColor": "#fff",
+                "color": "#000",
+                "fontFamily": "sans-serif"
+            },
+            style_data_conditional=[
+                {
+                    'if': {'column_id': 'status'},
+                    'fontWeight': 'bold',
+                    'textTransform': 'uppercase'
+                },
+                {
+                    'if': {'filter_query': '{status} = "success"', 'column_id': 'status'},
+                    'backgroundColor': '#d3f9d8',
+                    'color': '#2b8a3e'
+                },
+                {
+                    'if': {'filter_query': '{status} = "error"', 'column_id': 'status'},
+                    'backgroundColor': '#ffe3e3',
+                    'color': '#c92a2a'
+                },
+                {
+                    'if': {'filter_query': '{status} = "running"', 'column_id': 'status'},
+                    'backgroundColor': '#dbe4ff',
+                    'color': '#364fc7'
+                },
+            ],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '10px',
+                'border': '1px solid #dee2e6',
+                'minWidth': '120px',
+                'maxWidth': '350px',
+                'whiteSpace': 'normal'
+            },
+            page_size=10,
+        )
+    ], withBorder=True, shadow="sm", radius="md", mt="md"),
     
     dcc.Store(id='store-file-to-delete'),
     html.Div(id='dummy-delete-output')
@@ -232,7 +233,17 @@ layout = html.Div([
      Input('dummy-delete-output', 'children')]
 )
 def update_file_list(pathname, n_refresh, upload_trigger, delete_trigger):
-    return listar_arquivos()
+    return file_management.list_files()
+
+
+@callback(
+    Output('tabela-import-auditoria', 'data'),
+    [Input('url', 'pathname'),
+     Input('btn-refresh-files', 'n_clicks'),
+     Input('interval-etl-status', 'n_intervals')]
+)
+def update_import_audit_table(pathname, n_refresh, n_intervals):
+    return file_management.list_import_audit()
 
 @callback(
     Output('btn-delete-file-init', 'disabled'),
@@ -250,25 +261,21 @@ def toggle_delete_btn(selected_rows):
 def upload_file(contents, filename):
     if contents is None:
         return None
-    if not filename.lower().endswith('.ods'):
-        return dmc.Alert("Erro: Apenas arquivos .ods permitidos.", color="red", variant="filled")
-    caminho = os.path.join(SHEETS_FOLDER, filename)
-    if os.path.exists(caminho):
+
+    success, message = file_management.save_uploaded_file(contents, filename)
+    if success:
+        return dmc.Alert(message, color="green", variant="filled")
+
+    if 'ja existe' in message.lower() or 'já existe' in message.lower():
         return dmc.Alert(
-            f"O arquivo '{filename}' já existe. Exclua-o da lista ao lado antes de enviar novamente.",
+            message,
             title="Arquivo Duplicado",
             color="red", 
             variant="filled",
             icon=DashIconify(icon="akar-icons:triangle-alert")
         )
-    try:
-        content_type, content_string = contents.split(',')
-        decoded = base64.b64decode(content_string)
-        with open(caminho, 'wb') as f:
-            f.write(decoded)
-        return dmc.Alert(f"Sucesso: '{filename}' enviado.", color="green", variant="filled")
-    except Exception as e:
-        return dmc.Alert(f"Erro ao salvar: {str(e)}", color="red", variant="filled")
+
+    return dmc.Alert(message, color="red", variant="filled")
 
 @callback(
     [Output('modal-confirm-delete', 'opened'),
@@ -306,16 +313,8 @@ def toggle_modal(n_init, n_cancel, n_confirm, is_open, selected_rows, rows):
     prevent_initial_call=True
 )
 def delete_file_action(n_clicks, filename):
-    if not filename:
-        return no_update
-    caminho = os.path.join(SHEETS_FOLDER, filename)
-    try:
-        if os.path.exists(caminho):
-            os.remove(caminho)
-            return "deleted"
-    except Exception as e:
-        print(f"Erro ao deletar: {e}")
-        pass
+    if file_management.delete_file(filename):
+        return "deleted"
     return no_update
 
 
@@ -328,14 +327,10 @@ def delete_file_action(n_clicks, filename):
     prevent_initial_call=True
 )
 def start_etl(n_clicks):
-    if ETL_STATUS['is_running']:
+    started = file_management.start_etl_async()
+    if not started:
         return no_update, True, "" 
-    
-    # Inicia a thread
-    thread = threading.Thread(target=run_import_script_thread)
-    thread.start()
-    
-    # Ativa o intervalo (disabled=False), Desativa o botão
+
     return False, True, "rodando"
 
 # Monitora o progresso (a cada 2 segundos)
@@ -348,10 +343,7 @@ def start_etl(n_clicks):
     prevent_initial_call=True
 )
 def check_etl_status(n):
-    # Lê o estado global
-    status = ETL_STATUS['is_running']
-    message = ETL_STATUS['message']
-    color = ETL_STATUS['color']
+    status, message, color = file_management.get_etl_status()
     
     if status:
         # Ainda rodando: mantém intervalo ligado, botão desligado

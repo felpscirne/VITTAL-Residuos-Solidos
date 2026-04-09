@@ -34,6 +34,30 @@ def get_top_produtos_geral():
     query = "SELECT produto, COUNT(*) AS qtde FROM registro GROUP BY produto ORDER BY qtde DESC LIMIT 10"
     return pd.read_sql(query, engine)
 
+
+@cache.memoize(timeout=3600)
+def get_volume_mensal():
+    query = """
+    SELECT
+        DATE_TRUNC('month', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor != 'ACERTO DE PESO'
+    GROUP BY ds
+    ORDER BY ds
+    """
+    try:
+        df = pd.read_sql(query, engine)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
 # --- 2. AUXILIARES (Usado em Gerenciar Eventos) ---
 
 @cache.memoize(timeout=3600)

@@ -163,6 +163,17 @@ def tratar_planilhas_para_carga(df):
     valid_df = valid_df.sort_values(['ticket', 'data_hora']).drop_duplicates(subset=['ticket'], keep='last')
     valid_df = valid_df.drop(columns=['_rejection_reason'])
 
+    numeric_columns = WEIGHT_COLUMNS + ['diferenca_peso_porcentagem']
+    for column in numeric_columns:
+        if column in valid_df.columns:
+            valid_df[column] = pd.to_numeric(valid_df[column], errors='coerce').astype('Float64')
+
+    if 'ticket' in valid_df.columns:
+        valid_df['ticket'] = pd.to_numeric(valid_df['ticket'], errors='coerce').astype('Int64')
+
+    if 'data_hora' in valid_df.columns:
+        valid_df['data_hora'] = pd.to_datetime(valid_df['data_hora'], errors='coerce')
+
     rejection_counter = Counter()
     for raw_reasons in treated.loc[rejected_mask, '_rejection_reason'].tolist():
         for reason in raw_reasons.split(';'):

@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from collections import Counter
+import zlib
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -105,6 +106,49 @@ def _infer_setor_tipo(codigo_setor):
     return 'coleta'
 
 
+def _resolve_ticket_collisions(df):
+    if df.empty or 'ticket' not in df.columns or 'source_file' not in df.columns:
+        return df
+
+    resolved = df.copy()
+    valid_mask = resolved['ticket'].notna()
+    collision_counts = resolved.loc[valid_mask, 'ticket'].value_counts()
+    colliding_tickets = collision_counts[collision_counts > 1].index.tolist()
+    used_tickets = set(resolved.loc[valid_mask, 'ticket'].dropna().astype(int).tolist())
+
+    if not colliding_tickets:
+        return resolved
+
+    for ticket in colliding_tickets:
+        ticket_mask = valid_mask & (resolved['ticket'] == ticket)
+        duplicate_rows = resolved.loc[ticket_mask].copy()
+
+        # Se todas as ocorrencias sao efetivamente iguais, mantem o ticket original
+        comparable_cols = [
+            'data_hora', 'produto', 'fornecedor_cliente', 'setor',
+            'peso_liquido', 'peso_embalagem_liquido_corrigido', 'source_file'
+        ]
+        if duplicate_rows[comparable_cols].drop_duplicates().shape[0] <= 1:
+            continue
+
+        for idx, row in duplicate_rows.iloc[1:].iterrows():
+            source_file = row.get('source_file') or 'arquivo'
+            hash_seed = f"{source_file}|{ticket}|{row.get('data_hora')}"
+            synthetic_seed = (zlib.crc32(str(hash_seed).encode('utf-8')) % 2_147_483_647) + 1
+            new_ticket = -synthetic_seed
+
+            # Mantem tickets sinteticos sempre no intervalo do INTEGER do Postgres
+            while new_ticket in used_tickets or new_ticket < -2_147_483_648:
+                new_ticket += 1
+                if new_ticket == 0:
+                    new_ticket = -1
+
+            resolved.at[idx, 'ticket'] = new_ticket
+            used_tickets.add(new_ticket)
+
+    return resolved
+
+
 def tratar_planilhas_para_carga(df):
     if df.empty:
         return df, {
@@ -160,6 +204,7 @@ def tratar_planilhas_para_carga(df):
     rejected_mask = treated['_rejection_reason'] != ''
 
     valid_df = treated.loc[~rejected_mask].copy()
+    valid_df = _resolve_ticket_collisions(valid_df)
     valid_df = valid_df.sort_values(['ticket', 'data_hora']).drop_duplicates(subset=['ticket'], keep='last')
     valid_df = valid_df.drop(columns=['_rejection_reason'])
 
@@ -190,7 +235,7 @@ def tratar_planilhas_para_carga(df):
     return valid_df, metrics
 
 
-def _create_audit_table_if_needed(conn):
+def _ensure_audit_table_schema(conn):
     conn.execute(
         text(
             """
@@ -210,6 +255,27 @@ def _create_audit_table_if_needed(conn):
             """
         )
     )
+
+
+def _ensure_pesagem_import_tracking(conn):
+    conn.execute(
+        text(
+            """
+            ALTER TABLE pesagem
+            ADD COLUMN IF NOT EXISTS import_audit_id INTEGER
+            """
+        )
+    )
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT NOW()"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS files_count INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_read INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_valid INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_new INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_updated INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
 
 
 def _start_audit(conn, files_count, rows_read):
@@ -257,6 +323,16 @@ def _finish_audit(conn, audit_id, status, rows_valid, rows_new, rows_updated, de
     )
 
 
+def _cleanup_processed_files(arquivos):
+    for arquivo in arquivos:
+        caminho = os.path.join(PASTA_PLANILHAS, arquivo)
+        if os.path.exists(caminho):
+            try:
+                os.remove(caminho)
+            except OSError:
+                pass
+
+
 def enviar_para_postgres(df, db_uri, arquivos, metrics):
     if df.empty:
         print('Nenhum dado válido para enviar ao banco.')
@@ -268,7 +344,8 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics):
     engine = create_engine(db_uri)
 
     with engine.begin() as conn:
-        _create_audit_table_if_needed(conn)
+        _ensure_audit_table_schema(conn)
+        _ensure_pesagem_import_tracking(conn)
         audit_id = _start_audit(conn, files_count=len(arquivos), rows_read=metrics.get('rows_read', len(df)))
 
     try:
@@ -384,7 +461,8 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics):
                         peso_nota_fiscal,
                         diferenca_peso,
                         diferenca_peso_porcentagem,
-                        nro_nota_fiscal
+                        nro_nota_fiscal,
+                        import_audit_id
                     )
                     SELECT
                         s.ticket,
@@ -402,7 +480,8 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics):
                         s.peso_nota_fiscal,
                         s.diferenca_peso,
                         s.diferenca_peso_porcentagem,
-                        s.nro_nota_fiscal
+                        s.nro_nota_fiscal,
+                        :audit_id
                     FROM staging_import_registro s
                     JOIN produto pr ON pr.nome = s.produto
                     JOIN empresa c ON c.nome = s.fornecedor_cliente
@@ -425,9 +504,13 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics):
                         peso_nota_fiscal = EXCLUDED.peso_nota_fiscal,
                         diferenca_peso = EXCLUDED.diferenca_peso,
                         diferenca_peso_porcentagem = EXCLUDED.diferenca_peso_porcentagem,
-                        nro_nota_fiscal = EXCLUDED.nro_nota_fiscal
+                        nro_nota_fiscal = EXCLUDED.nro_nota_fiscal,
+                        import_audit_id = EXCLUDED.import_audit_id
                     """
-                )
+                ),
+                {
+                    'audit_id': audit_id,
+                }
             )
 
             conn.execute(text(f'DROP TABLE IF EXISTS {staging_table}'))
@@ -455,6 +538,8 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics):
                 details=details,
             )
 
+        _cleanup_processed_files(arquivos)
+
         print(
             f'Importação concluída com sucesso. '\
             f'Registros válidos: {rows_valid} | Novos: {rows_new} | Atualizados: {rows_updated}'
@@ -471,6 +556,7 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics):
                 rows_updated=0,
                 error_message=str(e),
             )
+        _cleanup_processed_files(arquivos)
         raise
 
 

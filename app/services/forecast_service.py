@@ -205,13 +205,19 @@ def build_monthly_forecast(monthly_df: pd.DataFrame, periods: int = 6, interval_
     holiday_df = build_rio_grande_holidays(series_df["ds"].dt.year.min(), (series_df["ds"].dt.year.max() + 2))
     model_df, future_regressors, weather_status, weather_features = _attach_weather_regressors(series_df, periods)
 
-    model = Prophet(
-        yearly_seasonality=True,
-        weekly_seasonality=False,
-        daily_seasonality=False,
-        interval_width=interval_width,
-        holidays=holiday_df,
-    )
+    try:
+        model = Prophet(
+            yearly_seasonality=True,
+            weekly_seasonality=False,
+            daily_seasonality=False,
+            interval_width=interval_width,
+            holidays=holiday_df,
+        )
+    except Exception:
+        return _empty_result(
+            "unavailable",
+            "O ambiente atual nao conseguiu inicializar o Prophet para esta previsao.",
+        )
 
     for regressor in weather_features:
         if regressor in model_df.columns and model_df[regressor].notna().any():
@@ -221,7 +227,13 @@ def build_monthly_forecast(monthly_df: pd.DataFrame, periods: int = 6, interval_
     if len(fit_df) < 3:
         fit_df = series_df.copy()
 
-    model.fit(fit_df)
+    try:
+        model.fit(fit_df)
+    except Exception:
+        return _empty_result(
+            "unavailable",
+            "O ambiente atual nao conseguiu ajustar o modelo Prophet com seguranca.",
+        )
 
     future = model.make_future_dataframe(periods=periods, freq="MS")
     if weather_features:
@@ -233,7 +245,13 @@ def build_monthly_forecast(monthly_df: pd.DataFrame, periods: int = 6, interval_
             future[regressor] = pd.to_numeric(future[regressor], errors="coerce")
             future[regressor] = future[regressor].fillna(future[regressor].mean())
 
-    forecast = model.predict(future)
+    try:
+        forecast = model.predict(future)
+    except Exception:
+        return _empty_result(
+            "unavailable",
+            "O ambiente atual nao conseguiu gerar a previsao com Prophet.",
+        )
     forecast_view = forecast[["ds", "yhat", "yhat_lower", "yhat_upper", "trend"]].copy()
     history = series_df.merge(forecast_view[["ds", "yhat"]], on="ds", how="left")
 

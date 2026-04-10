@@ -9,6 +9,26 @@ TIPO_RESIDUO_CASE = get_tipo_residuo_case_sql("produto")
 TIPO_RESIDUO_CASE_VIEW = get_tipo_residuo_case_sql("pr.nome")
 
 
+def _fill_monthly_gaps(df, value_columns):
+    if df is None or df.empty or "ds" not in df.columns:
+        return df
+
+    filled = df.copy()
+    filled["ds"] = pd.to_datetime(filled["ds"])
+    full_range = pd.date_range(
+        filled["ds"].min(),
+        filled["ds"].max(),
+        freq="MS",
+    )
+    filled = filled.set_index("ds").reindex(full_range).rename_axis("ds").reset_index()
+
+    for column in value_columns:
+        if column in filled.columns:
+            filled[column] = pd.to_numeric(filled[column], errors="coerce").fillna(0)
+
+    return filled
+
+
 def _apply_tipo_residuo_filter(base_where, params, tipo_residuo):
     if tipo_residuo and tipo_residuo != TYPE_ALL:
         params["tipo_residuo"] = tipo_residuo
@@ -71,6 +91,7 @@ def get_volume_mensal(tipo_residuo=TYPE_ALL):
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
@@ -103,6 +124,7 @@ def get_entradas_mensais(tipo_residuo=TYPE_ALL):
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
@@ -134,6 +156,7 @@ def get_saidas_mensais(tipo_residuo=TYPE_ALL):
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
@@ -165,6 +188,7 @@ def get_setor_volume_mensal(setor, tipo_residuo=TYPE_ALL):
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
@@ -324,10 +348,14 @@ def get_fluxo_macro(tipo_residuo=TYPE_ALL):
     try:
         df = pd.read_sql(query, engine, params=params)
         if not df.empty:
+            df["ds"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]])
+            df = _fill_monthly_gaps(df, ["entradas", "saidas", "balanco"])
             df['balanco'] = (df['entradas'] - df['saidas']).round(2)
             df['entradas'] = df['entradas'].round(2)
             df['saidas'] = df['saidas'].round(2)
-            df['periodo'] = pd.to_datetime(df.assign(day=1)[['year', 'month', 'day']]).dt.strftime('%Y-%m')
+            df['year'] = df['ds'].dt.year
+            df['month'] = df['ds'].dt.month
+            df['periodo'] = df['ds'].dt.strftime('%Y-%m')
         return df
     except Exception:
         return pd.DataFrame()

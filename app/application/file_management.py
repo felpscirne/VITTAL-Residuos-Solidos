@@ -8,7 +8,13 @@ class FileStoragePort(Protocol):
     def save_uploaded_file(self, contents, filename):
         ...
 
+    def save_uploaded_files(self, contents_list, filenames):
+        ...
+
     def delete_file(self, filename):
+        ...
+
+    def delete_files(self, filenames):
         ...
 
 
@@ -24,6 +30,12 @@ class ImportAuditRepositoryPort(Protocol):
     def list_import_audit(self):
         ...
 
+    def delete_imported_data(self, audit_id):
+        ...
+
+    def reset_import_data(self):
+        ...
+
 
 class FileManagementService:
     def __init__(self, file_storage: FileStoragePort, etl_runner: EtlRunnerPort, audit_repository: ImportAuditRepositoryPort):
@@ -37,8 +49,14 @@ class FileManagementService:
     def save_uploaded_file(self, contents, filename):
         return self._file_storage.save_uploaded_file(contents, filename)
 
+    def save_uploaded_files(self, contents_list, filenames):
+        return self._file_storage.save_uploaded_files(contents_list, filenames)
+
     def delete_file(self, filename):
         return self._file_storage.delete_file(filename)
+
+    def delete_files(self, filenames):
+        return self._file_storage.delete_files(filenames)
 
     def start_etl_async(self):
         return self._etl_runner.start_etl_async()
@@ -48,6 +66,12 @@ class FileManagementService:
 
     def list_import_audit(self):
         return self._audit_repository.list_import_audit()
+
+    def delete_imported_data(self, audit_id):
+        return self._audit_repository.delete_imported_data(audit_id)
+
+    def reset_import_data(self):
+        return self._audit_repository.reset_import_data()
 
 
 def build_default_file_management_service():

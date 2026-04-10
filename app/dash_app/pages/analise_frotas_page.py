@@ -19,6 +19,12 @@ def load_frota_data():
     ORDER BY total_viagens DESC;
     """
     df = pd.read_sql(query, engine)
+    if df.empty:
+        return df
+
+    df["total_viagens"] = pd.to_numeric(df["total_viagens"], errors="coerce").fillna(0).astype(int)
+    df["peso_medio_por_viagem"] = pd.to_numeric(df["peso_medio_por_viagem"], errors="coerce")
+    df = df.dropna(subset=["peso_medio_por_viagem"]).copy()
     df["peso_medio_por_viagem"] = df["peso_medio_por_viagem"].round(2)
     return df
 

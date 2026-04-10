@@ -37,6 +37,13 @@ def create_app():
     server.config['SECURITY_POST_LOGOUT_VIEW'] = '/'
     server.config['SECURITY_POST_REGISTER_VIEW'] = '/login'
 
+    cache_dir = os.getenv('CACHE_DIR') or os.path.join(server.instance_path, 'cache')
+    os.makedirs(cache_dir, exist_ok=True)
+    server.config['CACHE_TYPE'] = os.getenv('CACHE_TYPE', 'FileSystemCache')
+    server.config['CACHE_DIR'] = cache_dir
+    server.config['CACHE_DEFAULT_TIMEOUT'] = int(os.getenv('CACHE_DEFAULT_TIMEOUT', 3600))
+    server.config['CACHE_THRESHOLD'] = int(os.getenv('CACHE_THRESHOLD', 500))
+
     from app.forms import ExtendedRegisterForm
     server.config['SECURITY_CONFIRM_REGISTER_FORM'] = ExtendedRegisterForm
     server.config['SECURITY_REGISTER_FORM'] = ExtendedRegisterForm

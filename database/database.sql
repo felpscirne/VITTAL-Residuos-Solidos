@@ -7,10 +7,6 @@ CREATE DATABASE projeto
 
 \c projeto;
 
--- -----------------------------------------------------------------------------
--- Autenticação e autorização da plataforma
--- Roles representam os tipos de usuário da aplicação.
--- -----------------------------------------------------------------------------
 
 CREATE TABLE role (
     id          SERIAL       PRIMARY KEY,

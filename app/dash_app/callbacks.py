@@ -47,10 +47,10 @@ def register_global_callbacks(app):
             return []
 
         allowed = []
-        if hasattr(current_user, "roles"):
-            for role in current_user.roles:
-                for page in role.pages:
-                    allowed.append(page.route)
+        role = getattr(current_user, "role_ref", None)
+        if role:
+            for page in role.pages:
+                allowed.append(page.route)
         return list(dict.fromkeys(allowed))
 
     @app.callback(

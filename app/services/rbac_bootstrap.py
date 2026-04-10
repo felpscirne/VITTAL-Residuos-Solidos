@@ -69,6 +69,29 @@ DEFAULT_ADMIN_USER = {
 def run_startup_migrations():
     db.create_all()
 
+    with db.engine.begin() as conn:
+        conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS role_id INTEGER'))
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM information_schema.table_constraints
+                        WHERE constraint_name = 'user_role_id_fkey'
+                          AND table_name = 'user'
+                    ) THEN
+                        ALTER TABLE "user"
+                        ADD CONSTRAINT user_role_id_fkey
+                        FOREIGN KEY (role_id) REFERENCES role(id);
+                    END IF;
+                END $$;
+                """
+            )
+        )
+        
+
     role_upsert = text(
         """
         INSERT INTO role (name, description)
@@ -99,8 +122,8 @@ def run_startup_migrations():
 
     user_insert = text(
         """
-        INSERT INTO "user" (name, email, password, active, confirmed_at, fs_uniquifier)
-        VALUES (:name, :email, :password, :active, :confirmed_at, :fs_uniquifier)
+        INSERT INTO "user" (name, email, password, active, confirmed_at, fs_uniquifier, role_id)
+        VALUES (:name, :email, :password, :active, :confirmed_at, :fs_uniquifier, :role_id)
         ON CONFLICT (email) DO NOTHING
         RETURNING id
         """
@@ -114,13 +137,15 @@ def run_startup_migrations():
         """
     )
 
-    user_role_insert = text(
+    user_role_update = text(
         """
-        INSERT INTO roles_users (user_id, role_id)
-        SELECT u.id, r.id
-        FROM "user" u
-        JOIN role r ON u.email = :email AND r.name = :role_name
-        ON CONFLICT DO NOTHING
+        UPDATE "user"
+        SET role_id = (
+            SELECT r.id
+            FROM role r
+            WHERE r.name = :role_name
+        )
+        WHERE email = :email
         """
     )
 
@@ -144,8 +169,38 @@ def run_startup_migrations():
                     {"role_name": role_name, "route": route},
                 )
 
+        roles_users_exists = db.session.execute(
+            text(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = 'roles_users'
+                )
+                """
+            )
+        ).scalar()
+
+        if roles_users_exists:
+            db.session.execute(
+                text(
+                    """
+                    UPDATE "user" u
+                    SET role_id = ru.role_id
+                    FROM roles_users ru
+                    WHERE u.id = ru.user_id
+                      AND u.role_id IS NULL
+                    """
+                )
+            )
+
         admin_password = hash_password(DEFAULT_ADMIN_USER["password"])
         admin_unique = str(uuid4())
+        admin_role_id = db.session.execute(
+            text("SELECT id FROM role WHERE name = :role_name"),
+            {"role_name": DEFAULT_ADMIN_USER["role"]},
+        ).scalar_one()
         inserted_admin = db.session.execute(
             user_insert,
             {
@@ -155,6 +210,7 @@ def run_startup_migrations():
                 "active": True,
                 "confirmed_at": datetime.utcnow(),
                 "fs_uniquifier": admin_unique,
+                "role_id": admin_role_id,
             },
         ).scalar()
 
@@ -167,11 +223,14 @@ def run_startup_migrations():
             admin_id = inserted_admin
 
         db.session.execute(
-            user_role_insert,
+            user_role_update,
             {
                 "email": DEFAULT_ADMIN_USER["email"],
                 "role_name": DEFAULT_ADMIN_USER["role"],
             },
         )
+
+    with db.engine.begin() as conn:
+        conn.execute(text('DROP TABLE IF EXISTS roles_users'))
 
     return {"roles": len(ROLES_TO_SEED), "pages": len(PAGES_TO_SEED), "admin_id": admin_id}

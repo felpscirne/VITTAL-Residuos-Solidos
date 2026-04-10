@@ -79,7 +79,7 @@ def create_app():
         if not role_obj:
              role_obj = user_datastore.find_role('geral')
         
-        user_datastore.add_role_to_user(user, role_obj)
+        user.role_ref = role_obj
         db.session.commit()
 
     with server.app_context():

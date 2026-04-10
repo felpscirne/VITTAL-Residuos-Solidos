@@ -19,9 +19,9 @@ from app.services.forecast_service import (
 
 
 HORIZON_OPTIONS = [
-    {"label": "3 meses", "value": 3},
-    {"label": "6 meses", "value": 6},
-    {"label": "12 meses", "value": 12},
+    {"label": "2 quinzenas", "value": 2},
+    {"label": "4 quinzenas", "value": 4},
+    {"label": "8 quinzenas", "value": 8},
 ]
 
 CONFIDENCE_OPTIONS = [
@@ -47,17 +47,20 @@ def _forecast_figure(result, title, template_name, confidence_label):
                 name="Realizado",
             )
         )
-        fig.add_trace(
-            go.Scatter(
-                x=forecast["ds"],
-                y=forecast["yhat"],
-                mode="lines",
-                name="Previsto",
-                line={"dash": "dash"},
-            )
-        )
 
         if not future_only.empty:
+            bridge_x = [observed_end] + future_only["ds"].tolist()
+            bridge_y = [history.loc[history["ds"] == observed_end, "y"].iloc[0]] + future_only["yhat"].tolist()
+
+            fig.add_trace(
+                go.Scatter(
+                    x=bridge_x,
+                    y=bridge_y,
+                    mode="lines+markers",
+                    name="Previsto",
+                    line={"dash": "dash"},
+                )
+            )
             fig.add_trace(
                 go.Scatter(
                     x=future_only["ds"].tolist() + future_only["ds"].tolist()[::-1],
@@ -85,7 +88,7 @@ def _forecast_figure(result, title, template_name, confidence_label):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         margin={"l": 40, "r": 20, "t": 50, "b": 30},
-        xaxis_title="Mes",
+        xaxis_title="Quinzena",
         yaxis_title="Volume (kg)",
     )
     return fig
@@ -101,22 +104,9 @@ layout = dmc.Container(
     [
         dmc.Title("Previsoes com Prophet", order=2, mb="xs"),
         dmc.Text(
-            "Modulo gerencial para previsao temporal de residuos, apoio logistico e planejamento orcamentario com dados publicos de Rio Grande - RS.",
+            "Modulo gerencial para previsao quinzenal de residuos, apoio logistico e planejamento orcamentario com dados publicos de Rio Grande - RS.",
             c="dimmed",
             mb="lg",
-        ),
-        dmc.Alert(
-            children=[
-                dmc.Title("Acesso restrito", order=5, mb="xs"),
-                dmc.Text(
-                    "As previsoes ficam disponiveis apenas para perfis com permissao especifica de gestao."
-                ),
-            ],
-            title="Controle de acesso",
-            color="orange",
-            icon=DashIconify(icon="radix-icons:lock-closed"),
-            mb="lg",
-            variant="light",
         ),
         dmc.SimpleGrid(
             cols={"base": 1, "lg": 4},
@@ -127,7 +117,7 @@ layout = dmc.Container(
                     id="previsao-horizonte-select",
                     label="Horizonte de previsao",
                     data=HORIZON_OPTIONS,
-                    value=6,
+                    value=4,
                     allowDeselect=False,
                 ),
                 dmc.Select(

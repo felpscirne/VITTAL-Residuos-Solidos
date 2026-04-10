@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from app.extensions import cache
 from app.services.forecast_service import (
     build_public_data_markdown,
     build_forecast_summary_markdown,
@@ -8,16 +9,16 @@ from app.services.forecast_service import (
 
 
 class ForecastingRepositoryPort(Protocol):
-    def get_volume_mensal(self, tipo_residuo="todos"):
+    def get_volume_quinzenal(self, tipo_residuo="todos"):
         ...
 
-    def get_entradas_mensais(self, tipo_residuo="todos"):
+    def get_entradas_quinzenais(self, tipo_residuo="todos"):
         ...
 
-    def get_saidas_mensais(self, tipo_residuo="todos"):
+    def get_saidas_quinzenais(self, tipo_residuo="todos"):
         ...
 
-    def get_setor_volume_mensal(self, setor, tipo_residuo="todos"):
+    def get_setor_volume_quinzenal(self, setor, tipo_residuo="todos"):
         ...
 
 
@@ -25,44 +26,53 @@ class ForecastingService:
     def __init__(self, repository: ForecastingRepositoryPort):
         self._repository = repository
 
-    def get_volume_mensal_forecast(self, periods=6, interval_width=0.8, tipo_residuo="todos"):
-        monthly_df = self._repository.get_volume_mensal(tipo_residuo=tipo_residuo)
+    @cache.memoize(timeout=3600)
+    def get_volume_quinzenal_forecast(self, periods=4, interval_width=0.8, tipo_residuo="todos"):
+        monthly_df = self._repository.get_volume_quinzenal(tipo_residuo=tipo_residuo)
         return build_monthly_forecast(
             monthly_df,
             periods=periods,
             interval_width=interval_width,
+            cadence="quinzenal",
         )
 
-    def get_volume_mensal_forecast_summary(self, periods=6, interval_width=0.8, tipo_residuo="todos"):
-        result = self.get_volume_mensal_forecast(
+    @cache.memoize(timeout=3600)
+    def get_volume_quinzenal_forecast_summary(self, periods=4, interval_width=0.8, tipo_residuo="todos"):
+        result = self.get_volume_quinzenal_forecast(
             periods=periods,
             interval_width=interval_width,
             tipo_residuo=tipo_residuo,
         )
         return build_forecast_summary_markdown(result)
 
-    def get_entradas_mensais_forecast(self, periods=6, interval_width=0.8, tipo_residuo="todos"):
-        monthly_df = self._repository.get_entradas_mensais(tipo_residuo=tipo_residuo)
+    @cache.memoize(timeout=3600)
+    def get_entradas_quinzenais_forecast(self, periods=4, interval_width=0.8, tipo_residuo="todos"):
+        monthly_df = self._repository.get_entradas_quinzenais(tipo_residuo=tipo_residuo)
         return build_monthly_forecast(
             monthly_df,
             periods=periods,
             interval_width=interval_width,
+            cadence="quinzenal",
         )
 
-    def get_saidas_mensais_forecast(self, periods=6, interval_width=0.8, tipo_residuo="todos"):
-        monthly_df = self._repository.get_saidas_mensais(tipo_residuo=tipo_residuo)
+    @cache.memoize(timeout=3600)
+    def get_saidas_quinzenais_forecast(self, periods=4, interval_width=0.8, tipo_residuo="todos"):
+        monthly_df = self._repository.get_saidas_quinzenais(tipo_residuo=tipo_residuo)
         return build_monthly_forecast(
             monthly_df,
             periods=periods,
             interval_width=interval_width,
+            cadence="quinzenal",
         )
 
-    def get_setor_volume_mensal_forecast(self, setor, periods=6, interval_width=0.8, tipo_residuo="todos"):
-        monthly_df = self._repository.get_setor_volume_mensal(setor, tipo_residuo=tipo_residuo)
+    @cache.memoize(timeout=3600)
+    def get_setor_volume_quinzenal_forecast(self, setor, periods=4, interval_width=0.8, tipo_residuo="todos"):
+        monthly_df = self._repository.get_setor_volume_quinzenal(setor, tipo_residuo=tipo_residuo)
         return build_monthly_forecast(
             monthly_df,
             periods=periods,
             interval_width=interval_width,
+            cadence="quinzenal",
         )
 
 
@@ -75,40 +85,40 @@ def build_default_forecasting_service():
 _default_forecasting_service = build_default_forecasting_service()
 
 
-def get_volume_mensal_forecast(periods=6, interval_width=0.8, tipo_residuo="todos"):
-    return _default_forecasting_service.get_volume_mensal_forecast(
+def get_volume_mensal_forecast(periods=4, interval_width=0.8, tipo_residuo="todos"):
+    return _default_forecasting_service.get_volume_quinzenal_forecast(
         periods=periods,
         interval_width=interval_width,
         tipo_residuo=tipo_residuo,
     )
 
 
-def get_volume_mensal_forecast_summary(periods=6, interval_width=0.8, tipo_residuo="todos"):
-    return _default_forecasting_service.get_volume_mensal_forecast_summary(
+def get_volume_mensal_forecast_summary(periods=4, interval_width=0.8, tipo_residuo="todos"):
+    return _default_forecasting_service.get_volume_quinzenal_forecast_summary(
         periods=periods,
         interval_width=interval_width,
         tipo_residuo=tipo_residuo,
     )
 
 
-def get_entradas_mensais_forecast(periods=6, interval_width=0.8, tipo_residuo="todos"):
-    return _default_forecasting_service.get_entradas_mensais_forecast(
+def get_entradas_mensais_forecast(periods=4, interval_width=0.8, tipo_residuo="todos"):
+    return _default_forecasting_service.get_entradas_quinzenais_forecast(
         periods=periods,
         interval_width=interval_width,
         tipo_residuo=tipo_residuo,
     )
 
 
-def get_saidas_mensais_forecast(periods=6, interval_width=0.8, tipo_residuo="todos"):
-    return _default_forecasting_service.get_saidas_mensais_forecast(
+def get_saidas_mensais_forecast(periods=4, interval_width=0.8, tipo_residuo="todos"):
+    return _default_forecasting_service.get_saidas_quinzenais_forecast(
         periods=periods,
         interval_width=interval_width,
         tipo_residuo=tipo_residuo,
     )
 
 
-def get_setor_volume_mensal_forecast(setor, periods=6, interval_width=0.8, tipo_residuo="todos"):
-    return _default_forecasting_service.get_setor_volume_mensal_forecast(
+def get_setor_volume_mensal_forecast(setor, periods=4, interval_width=0.8, tipo_residuo="todos"):
+    return _default_forecasting_service.get_setor_volume_quinzenal_forecast(
         setor,
         periods=periods,
         interval_width=interval_width,

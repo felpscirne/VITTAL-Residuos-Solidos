@@ -4,6 +4,7 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from app.application.file_management import build_default_file_management_service
+from app.extensions import cache
 
 file_management = build_default_file_management_service()
 
@@ -431,6 +432,8 @@ def check_import_status(n):
     status, message, color = file_management.get_etl_status()
     if status:
         return message, color, False
+    if color == "green":
+        cache.clear()
     return message, color, True
 
 

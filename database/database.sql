@@ -46,9 +46,6 @@ CREATE TABLE role_page_permission (
     PRIMARY KEY (role_id, page_id)
 );
 
--- O catálogo de roles, páginas e permissões é sincronizado apenas pelo Python.
--- Veja `app/services/rbac_bootstrap.py`.
-
 CREATE TABLE produto (
     id_produto  SERIAL       PRIMARY KEY,
     nome        VARCHAR(100) NOT NULL UNIQUE,

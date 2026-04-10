@@ -35,6 +35,21 @@ def _apply_tipo_residuo_filter(base_where, params, tipo_residuo):
         return f"{base_where}\n        AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
     return base_where
 
+
+def _build_quinzenal_query(where_clause):
+    return f"""
+    SELECT
+        (
+            DATE_TRUNC('month', data_hora)::date
+            + CASE WHEN EXTRACT(DAY FROM data_hora) <= 15 THEN INTERVAL '0 day' ELSE INTERVAL '15 day' END
+        )::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE {where_clause}
+    GROUP BY ds
+    ORDER BY ds
+    """
+
 @cache.memoize(timeout=600)
 def get_kpis_gerais():
     query = "SELECT COUNT(*) AS total_registros, MIN(data_hora) AS data_inicio, MAX(data_hora) AS data_fim FROM registro"
@@ -66,7 +81,7 @@ def get_top_produtos_geral():
 
 
 @cache.memoize(timeout=3600)
-def get_volume_mensal(tipo_residuo=TYPE_ALL):
+def get_volume_quinzenal(tipo_residuo=TYPE_ALL):
     params = {}
     where_clause = _apply_tipo_residuo_filter(
         """
@@ -77,28 +92,19 @@ def get_volume_mensal(tipo_residuo=TYPE_ALL):
         params,
         tipo_residuo,
     )
-    query = f"""
-    SELECT
-        DATE_TRUNC('month', data_hora)::date AS ds,
-        SUM(peso_embalagem_liquido_corrigido) AS y
-    FROM registro
-    WHERE {where_clause}
-    GROUP BY ds
-    ORDER BY ds
-    """
+    query = _build_quinzenal_query(where_clause)
     try:
         df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
-            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
 
 
 @cache.memoize(timeout=3600)
-def get_entradas_mensais(tipo_residuo=TYPE_ALL):
+def get_entradas_quinzenais(tipo_residuo=TYPE_ALL):
     params = {}
     where_clause = _apply_tipo_residuo_filter(
         """
@@ -110,28 +116,19 @@ def get_entradas_mensais(tipo_residuo=TYPE_ALL):
         params,
         tipo_residuo,
     )
-    query = f"""
-    SELECT
-        DATE_TRUNC('month', data_hora)::date AS ds,
-        SUM(peso_embalagem_liquido_corrigido) AS y
-    FROM registro
-    WHERE {where_clause}
-    GROUP BY ds
-    ORDER BY ds
-    """
+    query = _build_quinzenal_query(where_clause)
     try:
         df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
-            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
 
 
 @cache.memoize(timeout=3600)
-def get_saidas_mensais(tipo_residuo=TYPE_ALL):
+def get_saidas_quinzenais(tipo_residuo=TYPE_ALL):
     params = {}
     where_clause = _apply_tipo_residuo_filter(
         """
@@ -142,28 +139,19 @@ def get_saidas_mensais(tipo_residuo=TYPE_ALL):
         params,
         tipo_residuo,
     )
-    query = f"""
-    SELECT
-        DATE_TRUNC('month', data_hora)::date AS ds,
-        SUM(peso_embalagem_liquido_corrigido) AS y
-    FROM registro
-    WHERE {where_clause}
-    GROUP BY ds
-    ORDER BY ds
-    """
+    query = _build_quinzenal_query(where_clause)
     try:
         df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
-            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
 
 
 @cache.memoize(timeout=3600)
-def get_setor_volume_mensal(setor, tipo_residuo=TYPE_ALL):
+def get_setor_volume_quinzenal(setor, tipo_residuo=TYPE_ALL):
     params = {"setor": setor}
     where_clause = _apply_tipo_residuo_filter(
         """
@@ -174,24 +162,31 @@ def get_setor_volume_mensal(setor, tipo_residuo=TYPE_ALL):
         params,
         tipo_residuo,
     )
-    query = f"""
-    SELECT
-        DATE_TRUNC('month', data_hora)::date AS ds,
-        SUM(peso_embalagem_liquido_corrigido) AS y
-    FROM registro
-    WHERE {where_clause}
-    GROUP BY ds
-    ORDER BY ds
-    """
+    query = _build_quinzenal_query(where_clause)
     try:
         df = pd.read_sql(query, engine, params=params)
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
-            df = _fill_monthly_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
+
+
+def get_volume_mensal(tipo_residuo=TYPE_ALL):
+    return get_volume_quinzenal(tipo_residuo=tipo_residuo)
+
+
+def get_entradas_mensais(tipo_residuo=TYPE_ALL):
+    return get_entradas_quinzenais(tipo_residuo=tipo_residuo)
+
+
+def get_saidas_mensais(tipo_residuo=TYPE_ALL):
+    return get_saidas_quinzenais(tipo_residuo=tipo_residuo)
+
+
+def get_setor_volume_mensal(setor, tipo_residuo=TYPE_ALL):
+    return get_setor_volume_quinzenal(setor, tipo_residuo=tipo_residuo)
 
 # --- 2. AUXILIARES (Usado em Gerenciar Eventos) ---
 

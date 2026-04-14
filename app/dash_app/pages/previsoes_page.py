@@ -31,7 +31,7 @@ CONFIDENCE_OPTIONS = [
 ]
 
 
-def _forecast_figure(result, title, template_name, confidence_label):
+def _forecast_figure(result, title, template_name, interval_label):
     fig = go.Figure()
     if result["status"] == "ok":
         history = result["history"]
@@ -69,7 +69,7 @@ def _forecast_figure(result, title, template_name, confidence_label):
                     fillcolor="rgba(76, 175, 80, 0.15)",
                     line={"color": "rgba(255,255,255,0)"},
                     hoverinfo="skip",
-                    name=f"Faixa de confianca ({confidence_label})",
+                    name=f"Intervalo preditivo ({interval_label})",
                 )
             )
     else:
@@ -122,7 +122,7 @@ layout = dmc.Container(
                 ),
                 dmc.Select(
                     id="previsao-confianca-select",
-                    label="Faixa de confianca",
+                    label="Intervalo preditivo",
                     data=CONFIDENCE_OPTIONS,
                     value=0.80,
                     allowDeselect=False,
@@ -256,7 +256,7 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
     template_name = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     horizonte = int(horizonte or 6)
     confianca = float(confianca or 0.80)
-    confidence_label = f"{int(confianca * 100)}%"
+    interval_label = f"{int(confianca * 100)}%"
     tipo_residuo = tipo_residuo or "todos"
     tipo_label = next(
         (opt["label"] for opt in tipos_residuo_options if opt["value"] == tipo_residuo),
@@ -293,28 +293,28 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
             total_result,
             f"Previsao do Volume Total - {tipo_label}",
             template_name,
-            confidence_label,
+            interval_label,
         ),
         build_forecast_summary_markdown(total_result),
         _forecast_figure(
             entradas_result,
             f"Previsao das Entradas - {tipo_label}",
             template_name,
-            confidence_label,
+            interval_label,
         ),
         build_forecast_summary_markdown(entradas_result),
         _forecast_figure(
             saidas_result,
             f"Previsao das Saidas para Candiota - {tipo_label}",
             template_name,
-            confidence_label,
+            interval_label,
         ),
         build_forecast_summary_markdown(saidas_result),
         _forecast_figure(
             setor_result,
             f"Previsao do Setor: {setor or 'N/D'} - {tipo_label}",
             template_name,
-            confidence_label,
+            interval_label,
         ),
         build_forecast_summary_markdown(setor_result),
         get_public_data_context_markdown(total_result),

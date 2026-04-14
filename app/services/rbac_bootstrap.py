@@ -8,6 +8,7 @@ from app.extensions import db
 
 PAGES_TO_SEED = {
     "/": "Visao Geral (Dashboard)",
+    "/estudo-ifescs": "Ambiente de Estudo IFEsCS",
     "/previsoes": "Previsoes com Prophet",
     "/analise-produtos": "Analise de Produtos",
     "/fluxo-de-caixa": "Fluxo de Caixa (Entrada vs Saida)",
@@ -26,10 +27,11 @@ PAGES_TO_SEED = {
 ROLES_TO_SEED = ["sem_login", "geral", "estudantil", "gestao", "superadmin"]
 
 DEFAULT_PERMISSIONS = {
-    "sem_login": ["/", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
-    "geral": ["/", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
+    "sem_login": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
+    "geral": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
     "estudantil": [
         "/",
+        "/estudo-ifescs",
         "/analise-produtos",
         "/fluxo-de-caixa",
         "/analise-setores",
@@ -41,6 +43,7 @@ DEFAULT_PERMISSIONS = {
     ],
     "gestao": [
         "/",
+        "/estudo-ifescs",
         "/previsoes",
         "/analise-produtos",
         "/fluxo-de-caixa",

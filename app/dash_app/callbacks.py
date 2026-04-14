@@ -6,6 +6,7 @@ from flask_login import current_user
 
 from app.dash_app.pages import (
     overview_page,
+    estudo_ifescs_page,
     previsoes_page,
     analise_produtos_page,
     analise_setores_page,
@@ -23,10 +24,11 @@ from app.dash_app.pages import (
 
 
 def register_global_callbacks(app):
-    public_routes = {"/", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"}
+    public_routes = {"/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"}
 
     page_map = {
         "/": overview_page.layout,
+        "/estudo-ifescs": estudo_ifescs_page.layout,
         "/previsoes": previsoes_page.layout,
         "/analise-produtos": analise_produtos_page.layout,
         "/analise-setores": analise_setores_page.layout,
@@ -111,6 +113,8 @@ def register_global_callbacks(app):
         if current_user.is_authenticated:
             if "/" in allowed_routes:
                 links_gerais.append(get_link("Visao Geral", "/", "radix-icons:dashboard"))
+            if "/estudo-ifescs" in allowed_routes:
+                links_gerais.append(get_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader"))
             if "/analise-produtos" in allowed_routes:
                 links_gerais.append(get_link("Analise de Produtos", "/analise-produtos", "radix-icons:cube"))
             if "/fluxo-de-caixa" in allowed_routes:
@@ -119,6 +123,7 @@ def register_global_callbacks(app):
                 links_gerais.append(get_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell"))
         else:
             links_gerais.append(get_link("Visao Geral", "/", "radix-icons:dashboard"))
+            links_gerais.append(get_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader"))
             links_gerais.append(get_link("Analise de Produtos", "/analise-produtos", "radix-icons:cube"))
             links_gerais.append(get_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart"))
             links_gerais.append(get_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell"))

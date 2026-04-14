@@ -36,11 +36,14 @@ class User(db.Model, UserMixin):
     confirmed_at = db.Column(db.DateTime())
     fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False)
     role_id = db.Column(db.Integer(), db.ForeignKey('role.id'))
-    role_ref = db.relationship('Role', backref=db.backref('users', lazy='dynamic'))
-
-    @property
-    def roles(self):
-        return [self.role_ref] if self.role_ref else []
+    role_ref = db.relationship('Role', foreign_keys=[role_id], backref=db.backref('users', lazy='dynamic'))
+    roles = db.relationship(
+        'Role',
+        primaryjoin='User.role_id == Role.id',
+        foreign_keys=[role_id],
+        uselist=True,
+        viewonly=True,
+    )
 
     @property
     def role(self):

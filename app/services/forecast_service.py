@@ -53,6 +53,11 @@ FEATURE_LABELS = {
     "precip_sum": "Precipitacao acumulada",
 }
 
+SMOOTHING_LABELS = {
+    "rolling_median_ewma": "Media Movel Exponencialmente Ponderada",
+    "none": "Sem estabilizacao adicional",
+}
+
 
 def _empty_result(status: str, message: str) -> dict[str, Any]:
     return {
@@ -417,13 +422,23 @@ def _run_retrospective_validation(
     cadence: str,
 ) -> dict[str, float]:
     if len(fit_df) < 8:
-        return {"retrospective_mae": 0.0, "retrospective_rmse": 0.0, "retrospective_periods": 0}
+        return {
+            "retrospective_mae": 0.0,
+            "retrospective_rmse": 0.0,
+            "retrospective_periods": 0,
+            "retrospective_interval_coverage": 0.0,
+        }
 
     holdout_periods = min(max(periods, 2), max(2, len(fit_df) // 4))
     train_df = fit_df.iloc[:-holdout_periods].copy()
     validation_df = fit_df.iloc[-holdout_periods:].copy()
     if len(train_df) < 4 or validation_df.empty:
-        return {"retrospective_mae": 0.0, "retrospective_rmse": 0.0, "retrospective_periods": 0}
+        return {
+            "retrospective_mae": 0.0,
+            "retrospective_rmse": 0.0,
+            "retrospective_periods": 0,
+            "retrospective_interval_coverage": 0.0,
+        }
 
     model = _build_prophet_model(
         interval_width=interval_width,
@@ -441,17 +456,35 @@ def _run_retrospective_validation(
             future_dates[regressor] = future_dates[regressor].interpolate(method="linear", limit_direction="both")
             future_dates[regressor] = future_dates[regressor].fillna(future_dates[regressor].mean())
 
-    predicted = model.predict(future_dates)[["ds", "yhat"]]
-    comparison = validation_df[["ds", "y"]].merge(predicted, on="ds", how="left").dropna(subset=["yhat"])
+    predicted = model.predict(future_dates)[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
+    for column in ["yhat", "yhat_lower", "yhat_upper"]:
+        predicted[column] = pd.to_numeric(predicted[column], errors="coerce")
+    predicted["yhat_lower"] = predicted["yhat_lower"].clip(lower=0)
+    predicted["yhat_upper"] = predicted[["yhat_upper", "yhat"]].max(axis=1)
+
+    comparison = validation_df[["ds", "y"]].merge(predicted, on="ds", how="left")
+    comparison = comparison.dropna(subset=["yhat", "yhat_lower", "yhat_upper"])
     if comparison.empty:
-        return {"retrospective_mae": 0.0, "retrospective_rmse": 0.0, "retrospective_periods": 0}
+        return {
+            "retrospective_mae": 0.0,
+            "retrospective_rmse": 0.0,
+            "retrospective_periods": 0,
+            "retrospective_interval_coverage": 0.0,
+        }
 
     mae = float((comparison["y"] - comparison["yhat"]).abs().mean())
     rmse = float(math.sqrt(((comparison["y"] - comparison["yhat"]) ** 2).mean()))
+    coverage = float(
+        (
+            (comparison["y"] >= comparison["yhat_lower"]) &
+            (comparison["y"] <= comparison["yhat_upper"])
+        ).mean()
+    )
     return {
         "retrospective_mae": mae,
         "retrospective_rmse": rmse,
         "retrospective_periods": int(len(comparison)),
+        "retrospective_interval_coverage": coverage,
     }
 
 
@@ -602,22 +635,27 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
 
     metrics = result["metrics"]
     direction = "crescimento" if metrics["trend_pct"] >= 0 else "queda"
-    confianca = int(metrics["confidence"] * 100)
+    intervalo_nominal = int(metrics["confidence"] * 100)
     cadence_label = metrics.get("cadence_label", "periodos")
+    cobertura_empirica = metrics.get("retrospective_interval_coverage", 0.0) * 100
+    smoothing_label = SMOOTHING_LABELS.get(metrics.get("signal_smoothing", "none"), metrics.get("signal_smoothing", "none"))
     return (
         "### Resumo preditivo\n"
         f"- Observacoes historicas: {metrics['observations']}\n"
         f"- Horizonte de previsao: {metrics['forecast_periods']} {cadence_label}\n"
-        f"- Faixa de confianca exibida: **{confianca}%**\n"
+        f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**\n"
         f"- Periodos ausentes tratados antes do ajuste: {metrics.get('missing_months_filled', 0)}\n"
-        f"- Estabilizacao da serie para treino: {metrics.get('signal_smoothing', 'none')}\n"
+        f"- Estabilizacao da serie para treino: {smoothing_label}\n"
+
         f"- Erro medio absoluto (MAE): {metrics['mae']:.2f}\n"
         f"- Raiz do erro quadratico medio (RMSE): {metrics['rmse']:.2f}\n"
         f"- Validacao retrospectiva ({metrics.get('retrospective_periods', 0)} periodos): MAE {metrics.get('retrospective_mae', 0.0):.2f} | RMSE {metrics.get('retrospective_rmse', 0.0):.2f}\n"
+        f"- Cobertura empirica do intervalo na validacao: {cobertura_empirica:.2f}%\n"
         f"- Ultimo volume observado: {metrics['last_actual']:.2f} kg\n"
         f"- Volume previsto no fim do horizonte: {metrics['last_forecast']:.2f} kg\n"
         f"- Tendencia estimada: {direction} de {abs(metrics['trend_pct']):.2f}% no horizonte projetado\n"
-        )
+        "- Interpretacao: o percentual nominal do intervalo e a cobertura empirica observada nao sao necessariamente iguais; a validacao retrospectiva indica quao bem o intervalo cobriu os valores reais recentes."
+    )
 
 
 def build_public_data_markdown(result: dict[str, Any]) -> str:

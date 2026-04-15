@@ -4,6 +4,7 @@ from sqlalchemy import text
 from app.database import engine
 from app.extensions import cache
 from app.services.error_messages import sanitize_audit_error_message
+from app.services.localization import get_import_status_label
 
 
 class SqlImportAuditRepositoryAdapter:
@@ -83,6 +84,7 @@ class SqlImportAuditRepositoryAdapter:
                 df[col] = df[col].fillna('')
 
             df["error_message"] = df["error_message"].apply(sanitize_audit_error_message)
+            df["status_label"] = df["status"].apply(get_import_status_label)
 
             return df.to_dict('records')
         except Exception:

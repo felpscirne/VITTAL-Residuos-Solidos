@@ -58,11 +58,11 @@ def _get_current_role():
 
 
 def _user_can_import_files():
-    return _get_current_role() in {"operador", "gestao", "superadmin"}
+    return _get_current_role() in {"operator", "management", "superadmin"}
 
 
 def _user_can_delete_data():
-    return _get_current_role() in {"gestao", "superadmin"}
+    return _get_current_role() in {"management", "superadmin"}
 
 
 layout = html.Div([
@@ -269,7 +269,7 @@ layout = html.Div([
                 {'name': 'Incluido por', 'id': 'initiated_by'},
                 {'name': 'Inicio', 'id': 'started_at'},
                 {'name': 'Fim', 'id': 'finished_at'},
-                {'name': 'Status', 'id': 'status'},
+                {'name': 'Status', 'id': 'status_label'},
                 {'name': 'Lidas', 'id': 'rows_read'},
                 {'name': 'Validas', 'id': 'rows_valid'},
                 {'name': 'Novas', 'id': 'rows_new'},
@@ -294,11 +294,11 @@ layout = html.Div([
                 "fontFamily": "sans-serif",
             },
             style_data_conditional=[
-                {'if': {'column_id': 'status'}, 'fontWeight': 'bold', 'textTransform': 'uppercase'},
-                {'if': {'filter_query': '{status} = "success"', 'column_id': 'status'}, 'backgroundColor': '#d3f9d8', 'color': '#2b8a3e'},
-                {'if': {'filter_query': '{status} = "error"', 'column_id': 'status'}, 'backgroundColor': '#ffe3e3', 'color': '#c92a2a'},
-                {'if': {'filter_query': '{status} = "running"', 'column_id': 'status'}, 'backgroundColor': '#dbe4ff', 'color': '#364fc7'},
-                {'if': {'filter_query': '{status} = "deleted"', 'column_id': 'status'}, 'backgroundColor': '#fff3bf', 'color': '#e67700'},
+                {'if': {'column_id': 'status_label'}, 'fontWeight': 'bold', 'textTransform': 'uppercase'},
+                {'if': {'filter_query': '{status_label} = "Concluida"', 'column_id': 'status_label'}, 'backgroundColor': '#d3f9d8', 'color': '#2b8a3e'},
+                {'if': {'filter_query': '{status_label} = "Falhou"', 'column_id': 'status_label'}, 'backgroundColor': '#ffe3e3', 'color': '#c92a2a'},
+                {'if': {'filter_query': '{status_label} = "Em andamento"', 'column_id': 'status_label'}, 'backgroundColor': '#dbe4ff', 'color': '#364fc7'},
+                {'if': {'filter_query': '{status_label} = "Excluida"', 'column_id': 'status_label'}, 'backgroundColor': '#fff3bf', 'color': '#e67700'},
             ],
             style_cell={
                 'textAlign': 'left',
@@ -592,7 +592,7 @@ def open_import_details(n_clicks, selected_rows, table_data):
         f"### Importacao #{record.get('id')}\n"
         f"- Arquivo: {record.get('source_file')}\n"
         f"- Incluido por: {record.get('initiated_by') or 'Nao informado'}\n"
-        f"- Status: {record.get('status')}\n"
+        f"- Status: {record.get('status_label') or record.get('status')}\n"
         f"- Inicio: {record.get('started_at')}\n"
         f"- Fim: {record.get('finished_at')}\n"
         f"- Linhas lidas: {record.get('rows_read')}\n"

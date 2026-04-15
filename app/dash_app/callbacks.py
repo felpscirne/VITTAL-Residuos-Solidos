@@ -156,7 +156,7 @@ def register_global_callbacks(app):
         if current_user.is_authenticated:
             links_login.append(
                 dmc.NavLink(
-                    label=f"Logout ({display_name})",
+                    label=f"Sair ({display_name})",
                     href="/logout",
                     leftSection=DashIconify(icon="radix-icons:exit", width=20),
                     variant="subtle",
@@ -165,7 +165,7 @@ def register_global_callbacks(app):
                 )
             )
         else:
-            links_login.append(get_link("Login", "/login", "radix-icons:enter"))
+            links_login.append(get_link("Entrar", "/login", "radix-icons:enter"))
             links_login.append(get_link("Registrar", "/register", "radix-icons:person"))
 
         sidebar_children = []

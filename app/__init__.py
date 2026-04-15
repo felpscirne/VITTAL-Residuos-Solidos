@@ -68,16 +68,16 @@ def create_app():
         management_code = form_data.get('management_code')
         secret_code = os.getenv('MANAGEMENT_SECRET_CODE')
         
-        role_name = 'geral'
+        role_name = 'general'
         
         if management_code and secret_code and management_code == secret_code:
-            role_name = 'gestao'
+            role_name = 'management'
         elif user.email.endswith(('.edu', '.edu.br', '.ifrs.edu.br')):
-            role_name = 'estudantil'
+            role_name = 'student'
             
         role_obj = user_datastore.find_role(role_name)
         if not role_obj:
-             role_obj = user_datastore.find_role('geral')
+             role_obj = user_datastore.find_role('general')
         
         user.role_ref = role_obj
         db.session.commit()

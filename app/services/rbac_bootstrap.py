@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.extensions import db
 
 PAGES_TO_SEED = {
-    "/": "Visao Geral (Dashboard)",
+    "/": "Visao Geral do Painel",
     "/estudo-ifescs": "Ambiente de Estudo IFEsCS",
     "/previsoes": "Previsoes com Prophet",
     "/analise-produtos": "Analise de Produtos",
@@ -24,12 +24,29 @@ PAGES_TO_SEED = {
     "/visualizar-eventos": "Quadro de Avisos e Eventos",
 }
 
-ROLES_TO_SEED = ["sem_login", "geral", "estudantil", "operador", "gestao", "superadmin"]
+ROLE_MIGRATIONS = {
+    "sem_login": "anonymous",
+    "geral": "general",
+    "estudantil": "student",
+    "operador": "operator",
+    "gestao": "management",
+}
+
+ROLE_DESCRIPTIONS = {
+    "anonymous": "Sem login",
+    "general": "Geral",
+    "student": "Estudantil",
+    "operator": "Operador",
+    "management": "Gestao",
+    "superadmin": "Superadministrador",
+}
+
+ROLES_TO_SEED = ["anonymous", "general", "student", "operator", "management", "superadmin"]
 
 DEFAULT_PERMISSIONS = {
-    "sem_login": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
-    "geral": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
-    "estudantil": [
+    "anonymous": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
+    "general": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
+    "student": [
         "/",
         "/estudo-ifescs",
         "/analise-produtos",
@@ -41,7 +58,7 @@ DEFAULT_PERMISSIONS = {
         "/registros",
         "/visualizar-eventos",
     ],
-    "operador": [
+    "operator": [
         "/",
         "/estudo-ifescs",
         "/analise-produtos",
@@ -49,7 +66,7 @@ DEFAULT_PERMISSIONS = {
         "/visualizar-eventos",
         "/gerenciar-arquivos",
     ],
-    "gestao": [
+    "management": [
         "/",
         "/estudo-ifescs",
         "/previsoes",
@@ -82,6 +99,17 @@ def run_startup_migrations():
 
     with db.engine.begin() as conn:
         conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS role_id INTEGER'))
+        for old_name, new_name in ROLE_MIGRATIONS.items():
+            conn.execute(
+                text(
+                    """
+                    UPDATE role
+                    SET name = :new_name
+                    WHERE name = :old_name
+                    """
+                ),
+                {"old_name": old_name, "new_name": new_name},
+            )
         conn.execute(
             text(
                 """
@@ -164,7 +192,7 @@ def run_startup_migrations():
         for role_name in ROLES_TO_SEED:
             db.session.execute(
                 role_upsert,
-                {"name": role_name, "description": f"Nivel: {role_name}"},
+                {"name": role_name, "description": ROLE_DESCRIPTIONS[role_name]},
             )
 
         for route, description in PAGES_TO_SEED.items():

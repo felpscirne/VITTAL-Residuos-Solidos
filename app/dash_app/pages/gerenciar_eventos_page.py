@@ -165,7 +165,7 @@ def update_layout_by_role(pathname):
          return {'display': 'none'}, {"base": 12, "md": 12}, {'display': 'none'}
 
     role = current_user.role
-    if role in ['gestao', 'superadmin']:
+    if role in ['management', 'superadmin']:
         return {'display': 'block'}, {"base": 12, "md": 8}, {'display': 'block'}
     else:
         return {'display': 'none'}, {"base": 12, "md": 12}, {'display': 'none'}
@@ -235,7 +235,7 @@ def load_and_select_sectors(pathname, n_clicks, current_options):
 )
 def manage_events(pathname, n_save, n_delete, title, etype, date_range, sectors, desc, selected_rows, rows, sectors_opts):
     msg = ""
-    user_can_edit = current_user.is_authenticated and current_user.role in ['gestao', 'superadmin']
+    user_can_edit = current_user.is_authenticated and current_user.role in ['management', 'superadmin']
     
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else 'init'

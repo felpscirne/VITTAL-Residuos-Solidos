@@ -1,7 +1,10 @@
+from datetime import datetime
+
 from dash import callback, callback_context, dash_table, dcc, html, no_update
 from dash.dependencies import Input, Output, State
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
+from flask_login import current_user
 
 from app.application.file_management import build_default_file_management_service
 from app.extensions import cache
@@ -42,15 +45,35 @@ def _build_upload_feedback(saved, errors, processing_started):
     return alerts or None
 
 
+def _get_current_actor():
+    if getattr(current_user, "is_authenticated", False):
+        if getattr(current_user, "name", None) and getattr(current_user, "email", None):
+            return f"{current_user.name} <{current_user.email}>"
+        return current_user.name or current_user.email or "Usuario autenticado"
+    return "Sistema"
+
+
+def _get_current_role():
+    return getattr(current_user, "role", None)
+
+
+def _user_can_import_files():
+    return _get_current_role() in {"operador", "gestao", "superadmin"}
+
+
+def _user_can_delete_data():
+    return _get_current_role() in {"gestao", "superadmin"}
+
+
 layout = html.Div([
     dmc.Title('Gerenciamento de Arquivos e Dados', order=2),
-    dmc.Text('Selecione arquivos, confira os pendentes e confirme a importacao. A base de testes pode ser reiniciada por esta tela.', c="dimmed", size="sm"),
+    dmc.Text('Selecione arquivos, confira os pendentes e confirme a importacao. Todo o historico de carga e exclusao pode ser acompanhado por esta tela.', c="dimmed", size="sm"),
     dmc.Divider(variant="solid", my="md"),
 
     dmc.Group(
         [
             dmc.Button(
-                "Reiniciar Base de Testes",
+                "Reiniciar Base",
                 id="btn-reset-import-data",
                 color="red",
                 variant="outline",
@@ -193,7 +216,7 @@ layout = html.Div([
                         disabled=True,
                     ),
                     dmc.Button(
-                        "Excluir Dados da Importacao",
+                        "Excluir Dados do Arquivo",
                         id="btn-delete-import-data",
                         variant="outline",
                         color="red",
@@ -204,18 +227,56 @@ layout = html.Div([
                 gap="sm",
             ),
         ], justify="space-between", mb="sm"),
+        dmc.SimpleGrid(
+            cols={"base": 1, "md": 2, "xl": 4},
+            spacing="sm",
+            mb="sm",
+            children=[
+                dmc.TextInput(
+                    id="filtro-import-arquivo",
+                    label="Nome do arquivo",
+                    placeholder="Filtrar por arquivo",
+                ),
+                dmc.TextInput(
+                    id="filtro-import-incluido-por",
+                    label="Incluido por",
+                    placeholder="Filtrar por usuario",
+                ),
+                dmc.TextInput(
+                    id="filtro-import-excluido-por",
+                    label="Excluido por",
+                    placeholder="Filtrar por usuario",
+                ),
+                dmc.Select(
+                    id="filtro-import-ordem",
+                    label="Ordenacao",
+                    value="adicionadas_mais_recentes",
+                    data=[
+                        {"value": "adicionadas_mais_recentes", "label": "Adicionadas mais recentes"},
+                        {"value": "adicionadas_mais_antigas", "label": "Adicionadas mais antigas"},
+                        {"value": "excluidas_mais_recentes", "label": "Excluidas mais recentes"},
+                        {"value": "excluidas_mais_antigas", "label": "Excluidas mais antigas"},
+                    ],
+                    allowDeselect=False,
+                ),
+            ],
+        ),
         dash_table.DataTable(
             id='tabela-import-auditoria',
             columns=[
                 {'name': 'ID', 'id': 'id'},
+                {'name': 'Arquivo', 'id': 'source_file'},
+                {'name': 'Incluido por', 'id': 'initiated_by'},
                 {'name': 'Inicio', 'id': 'started_at'},
                 {'name': 'Fim', 'id': 'finished_at'},
                 {'name': 'Status', 'id': 'status'},
-                {'name': 'Arquivos', 'id': 'files_count'},
                 {'name': 'Lidas', 'id': 'rows_read'},
                 {'name': 'Validas', 'id': 'rows_valid'},
                 {'name': 'Novas', 'id': 'rows_new'},
                 {'name': 'Atualizadas', 'id': 'rows_updated'},
+                {'name': 'Excluido por', 'id': 'deleted_by'},
+                {'name': 'Data da exclusao', 'id': 'deleted_at'},
+                {'name': 'Linhas excluidas', 'id': 'deleted_rows'},
                 {'name': 'Erro', 'id': 'error_message'},
             ],
             data=[],
@@ -237,6 +298,7 @@ layout = html.Div([
                 {'if': {'filter_query': '{status} = "success"', 'column_id': 'status'}, 'backgroundColor': '#d3f9d8', 'color': '#2b8a3e'},
                 {'if': {'filter_query': '{status} = "error"', 'column_id': 'status'}, 'backgroundColor': '#ffe3e3', 'color': '#c92a2a'},
                 {'if': {'filter_query': '{status} = "running"', 'column_id': 'status'}, 'backgroundColor': '#dbe4ff', 'color': '#364fc7'},
+                {'if': {'filter_query': '{status} = "deleted"', 'column_id': 'status'}, 'backgroundColor': '#fff3bf', 'color': '#e67700'},
             ],
             style_cell={
                 'textAlign': 'left',
@@ -278,7 +340,7 @@ layout = html.Div([
         id="modal-reset-import-data",
         centered=True,
         children=[
-            dmc.Text("Reiniciar base de testes", fw=700, size="lg", mb="md"),
+            dmc.Text("Reiniciar base", fw=700, size="lg", mb="md"),
             dmc.Text(
                 "Esta acao remove todos os dados importados e o historico de importacoes, preservando usuarios e permissoes.",
                 mb="md",
@@ -295,6 +357,7 @@ layout = html.Div([
 
     dcc.Store(id='store-pending-uploads', data=[]),
     dcc.Store(id='store-import-to-delete'),
+    dcc.Store(id='store-import-audit-raw', data=[]),
     html.Div(id='dummy-import-output'),
 ])
 
@@ -343,6 +406,16 @@ def update_pending_table(pending_uploads):
     prevent_initial_call=True,
 )
 def confirm_pending_uploads(n_clicks, pending_uploads):
+    if not _user_can_import_files():
+        return (
+            dmc.Alert("Voce nao possui permissao para iniciar importacoes.", color="red", variant="filled"),
+            pending_uploads or [],
+            True,
+            no_update,
+            "Voce nao possui permissao para iniciar importacoes.",
+            "red",
+        )
+
     if not pending_uploads:
         return (
             dmc.Alert("Nao ha arquivos pendentes para importar.", color="yellow", variant="filled"),
@@ -361,7 +434,7 @@ def confirm_pending_uploads(n_clicks, pending_uploads):
 
     processing_started = False
     if saved:
-        processing_started = file_management.start_etl_async()
+        processing_started = file_management.start_etl_async(initiated_by=_get_current_actor())
 
     status_message = (
         "Importacao em andamento..."
@@ -402,7 +475,7 @@ def update_temp_file_list(pathname, n_intervals, import_trigger, upload_trigger)
 
 
 @callback(
-    Output('tabela-import-auditoria', 'data'),
+    Output('store-import-audit-raw', 'data'),
     [Input('url', 'pathname'),
      Input('interval-import-status', 'n_intervals'),
      Input('dummy-import-output', 'children')]
@@ -412,13 +485,76 @@ def update_import_audit_table(pathname, n_intervals, import_trigger):
 
 
 @callback(
+    [Output('btn-reset-import-data', 'style'),
+     Output('btn-delete-import-data', 'style')],
+    Input('url', 'pathname'),
+)
+def update_file_management_action_visibility(pathname):
+    hidden_style = {'display': 'none'}
+    if _user_can_delete_data():
+        return {}, {}
+    return hidden_style, hidden_style
+
+
+@callback(
+    Output('tabela-import-auditoria', 'data'),
+    [
+        Input('store-import-audit-raw', 'data'),
+        Input('filtro-import-arquivo', 'value'),
+        Input('filtro-import-incluido-por', 'value'),
+        Input('filtro-import-excluido-por', 'value'),
+        Input('filtro-import-ordem', 'value'),
+    ],
+)
+def filter_import_audit_table(records, file_filter, added_by_filter, deleted_by_filter, order_filter):
+    data = list(records or [])
+
+    def _matches(value, pattern):
+        if not pattern:
+            return True
+        return pattern.strip().lower() in str(value or "").lower()
+
+    filtered = [
+        row for row in data
+        if _matches(row.get('source_file'), file_filter)
+        and _matches(row.get('initiated_by'), added_by_filter)
+        and _matches(row.get('deleted_by'), deleted_by_filter)
+    ]
+
+    def _date_key(row, field):
+        raw = row.get(field) or ""
+        if not raw:
+            return datetime.min
+        try:
+            return datetime.strptime(raw, "%d/%m/%Y %H:%M:%S")
+        except ValueError:
+            return datetime.min
+
+    if order_filter == "adicionadas_mais_antigas":
+        filtered.sort(key=lambda row: _date_key(row, 'started_at'))
+    elif order_filter == "excluidas_mais_recentes":
+        filtered.sort(key=lambda row: _date_key(row, 'deleted_at'), reverse=True)
+    elif order_filter == "excluidas_mais_antigas":
+        filtered.sort(key=lambda row: _date_key(row, 'deleted_at'))
+    else:
+        filtered.sort(key=lambda row: _date_key(row, 'started_at'), reverse=True)
+
+    return filtered
+
+
+@callback(
     [Output('btn-open-import-details', 'disabled'),
      Output('btn-delete-import-data', 'disabled')],
-    Input('tabela-import-auditoria', 'selected_rows')
+    [Input('tabela-import-auditoria', 'selected_rows'),
+     State('tabela-import-auditoria', 'data')]
 )
-def toggle_audit_action_buttons(selected_rows):
-    disabled = not selected_rows
-    return disabled, disabled
+def toggle_audit_action_buttons(selected_rows, table_data):
+    if not selected_rows or not table_data:
+        return True, True
+
+    record = table_data[selected_rows[0]]
+    delete_disabled = (not _user_can_delete_data()) or record.get('status') in {'deleted', 'running'}
+    return False, delete_disabled
 
 
 @callback(
@@ -454,14 +590,18 @@ def open_import_details(n_clicks, selected_rows, table_data):
     error_message = record.get('error_message') or 'Sem erro registrado.'
     content = (
         f"### Importacao #{record.get('id')}\n"
+        f"- Arquivo: {record.get('source_file')}\n"
+        f"- Incluido por: {record.get('initiated_by') or 'Nao informado'}\n"
         f"- Status: {record.get('status')}\n"
         f"- Inicio: {record.get('started_at')}\n"
         f"- Fim: {record.get('finished_at')}\n"
-        f"- Arquivos processados: {record.get('files_count')}\n"
         f"- Linhas lidas: {record.get('rows_read')}\n"
         f"- Linhas validas: {record.get('rows_valid')}\n"
         f"- Novas: {record.get('rows_new')}\n"
         f"- Atualizadas: {record.get('rows_updated')}\n"
+        f"- Excluido por: {record.get('deleted_by') or 'Nao aplicavel'}\n"
+        f"- Data da exclusao: {record.get('deleted_at') or 'Nao aplicavel'}\n"
+        f"- Linhas excluidas: {record.get('deleted_rows')}\n"
         f"- Erro: {error_message}\n\n"
         f"### Detalhes\n{details}"
     )
@@ -482,10 +622,12 @@ def open_import_details(n_clicks, selected_rows, table_data):
 def toggle_delete_import_modal(n_open, n_cancel, n_confirm, selected_rows, table_data):
     trigger = callback_context.triggered_id
     if trigger == 'btn-delete-import-data' and selected_rows and table_data:
+        if not _user_can_delete_data():
+            return False, no_update, no_update
         record = table_data[selected_rows[0]]
         message = (
-            f"Confirma a exclusao do banco dos dados vinculados a importacao #{record.get('id')}? "
-            "Esta acao afeta os registros carregados por esse lote."
+            f"Confirma a exclusao do banco dos dados importados a partir do arquivo '{record.get('source_file')}'? "
+            "A remocao afetara somente os registros vinculados a este arquivo."
         )
         return True, message, record.get('id')
 
@@ -502,10 +644,10 @@ def toggle_delete_import_modal(n_open, n_cancel, n_confirm, selected_rows, table
     prevent_initial_call=True,
 )
 def delete_imported_data(n_clicks, audit_id):
-    if not audit_id:
+    if not audit_id or not _user_can_delete_data():
         return no_update
 
-    deleted_count = file_management.delete_imported_data(audit_id)
+    deleted_count = file_management.delete_imported_data(audit_id, deleted_by=_get_current_actor())
     return f"import-deleted-{audit_id}-{deleted_count}"
 
 
@@ -520,10 +662,14 @@ def delete_imported_data(n_clicks, audit_id):
 def reset_import_data(n_open, n_cancel, n_confirm):
     trigger = callback_context.triggered_id
     if trigger == 'btn-reset-import-data':
+        if not _user_can_delete_data():
+            return False, no_update
         return True, no_update
     if trigger == 'btn-cancel-reset-import-data':
         return False, no_update
     if trigger == 'btn-confirm-reset-import-data':
+        if not _user_can_delete_data():
+            return False, no_update
         success = file_management.reset_import_data()
         return False, "import-reset-success" if success else "import-reset-failed"
     return False, no_update

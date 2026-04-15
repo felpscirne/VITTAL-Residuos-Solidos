@@ -24,7 +24,7 @@ PAGES_TO_SEED = {
     "/visualizar-eventos": "Quadro de Avisos e Eventos",
 }
 
-ROLES_TO_SEED = ["sem_login", "geral", "estudantil", "gestao", "superadmin"]
+ROLES_TO_SEED = ["sem_login", "geral", "estudantil", "operador", "gestao", "superadmin"]
 
 DEFAULT_PERMISSIONS = {
     "sem_login": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
@@ -40,6 +40,14 @@ DEFAULT_PERMISSIONS = {
         "/analise-frotas",
         "/registros",
         "/visualizar-eventos",
+    ],
+    "operador": [
+        "/",
+        "/estudo-ifescs",
+        "/analise-produtos",
+        "/fluxo-de-caixa",
+        "/visualizar-eventos",
+        "/gerenciar-arquivos",
     ],
     "gestao": [
         "/",

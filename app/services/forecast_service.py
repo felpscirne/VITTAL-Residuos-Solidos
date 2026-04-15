@@ -77,6 +77,7 @@ def _empty_result(status: str, message: str) -> dict[str, Any]:
             "weather_status": "not_used",
             "holiday_status": "not_used",
             "features_used": [],
+            "insights": [],
         },
     }
 
@@ -373,6 +374,82 @@ def _build_monthly_climatology(weather_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def _safe_corr(series_a: pd.Series, series_b: pd.Series) -> float | None:
+    clean = pd.DataFrame(
+        {
+            "a": pd.to_numeric(series_a, errors="coerce"),
+            "b": pd.to_numeric(series_b, errors="coerce"),
+        }
+    ).dropna()
+    if len(clean) < 3 or clean["a"].nunique() <= 1 or clean["b"].nunique() <= 1:
+        return None
+    corr = clean["a"].corr(clean["b"])
+    if pd.isna(corr):
+        return None
+    return float(corr)
+
+
+def _describe_correlation(label: str, corr: float | None) -> str | None:
+    if corr is None:
+        return None
+    abs_corr = abs(corr)
+    if abs_corr < 0.15:
+        strength = "relacao pouco evidente"
+    elif abs_corr < 0.35:
+        strength = "relacao discreta"
+    elif abs_corr < 0.60:
+        strength = "relacao moderada"
+    else:
+        strength = "relacao forte"
+    direction = "positiva" if corr >= 0 else "negativa"
+    return f"{label}: {strength} ({direction}, correlacao aproximada de {corr:.2f})"
+
+
+def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataFrame, weather_features: list[str]) -> list[str]:
+    if model_df is None or model_df.empty or "y" not in model_df.columns:
+        return []
+
+    enriched = model_df.copy()
+    enriched["ds"] = pd.to_datetime(enriched["ds"], errors="coerce")
+    enriched["y"] = pd.to_numeric(enriched["y"], errors="coerce")
+    enriched = enriched.dropna(subset=["ds", "y"])
+    if enriched.empty:
+        return []
+
+    insights = []
+
+    if "temp_mean" in weather_features and "temp_mean" in enriched.columns:
+        temp_text = _describe_correlation("Temperatura media", _safe_corr(enriched["y"], enriched["temp_mean"]))
+        if temp_text:
+            insights.append(temp_text)
+
+    if "precip_sum" in weather_features and "precip_sum" in enriched.columns:
+        precip_text = _describe_correlation("Precipitacao acumulada", _safe_corr(enriched["y"], enriched["precip_sum"]))
+        if precip_text:
+            insights.append(precip_text)
+
+    if holiday_df is not None and not holiday_df.empty:
+        holiday_periods = set(pd.to_datetime(holiday_df["ds"], errors="coerce").dropna().dt.to_period("M").astype(str).tolist())
+        if holiday_periods:
+            enriched["period_key"] = enriched["ds"].dt.to_period("M").astype(str)
+            enriched["has_holiday"] = enriched["period_key"].isin(holiday_periods)
+            holiday_slice = enriched[enriched["has_holiday"]]
+            regular_slice = enriched[~enriched["has_holiday"]]
+            if not holiday_slice.empty and not regular_slice.empty:
+                holiday_mean = float(holiday_slice["y"].mean())
+                regular_mean = float(regular_slice["y"].mean())
+                diff_pct = ((holiday_mean - regular_mean) / regular_mean * 100) if regular_mean else 0.0
+                if abs(diff_pct) < 5:
+                    holiday_desc = "sem diferenca relevante frente aos demais periodos"
+                elif diff_pct > 0:
+                    holiday_desc = f"volumes historicamente acima da media em cerca de {abs(diff_pct):.1f}%"
+                else:
+                    holiday_desc = f"volumes historicamente abaixo da media em cerca de {abs(diff_pct):.1f}%"
+                insights.append(f"Feriados publicos: {holiday_desc}")
+
+    return insights
+
+
 def _attach_weather_regressors(series_df: pd.DataFrame, periods: int) -> tuple[pd.DataFrame, pd.DataFrame, str, list[str]]:
     weather_df, weather_status = fetch_rio_grande_weather_monthly(series_df["ds"].min(), series_df["ds"].max())
     if weather_df.empty:
@@ -624,6 +701,7 @@ def build_monthly_forecast(
             "weather_status": weather_status,
             "holiday_status": holiday_status,
             "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(weather_features if use_weather else [])],
+            "insights": _build_external_factor_insights(model_df, holiday_df, weather_features if use_weather else []),
         },
     }
 
@@ -665,6 +743,7 @@ def build_public_data_markdown(result: dict[str, Any]) -> str:
     holiday_status = public_data.get("holiday_status", "desconhecido")
     features_used = public_data.get("features_used", [])
     sources = public_data.get("sources", [])
+    insights = public_data.get("insights", [])
     feature_labels = [FEATURE_LABELS.get(feature, feature) for feature in features_used]
 
     lines = [
@@ -675,8 +754,13 @@ def build_public_data_markdown(result: dict[str, Any]) -> str:
         f"- Variaveis externas usadas: **{', '.join(feature_labels) if feature_labels else 'nenhuma'}**.",
         f"- Periodos ausentes tratados na serie: **{result.get('metrics', {}).get('missing_months_filled', 0)}**.",
         "- Classificacao do tipo de residuo: derivada internamente a partir do campo `produto`, com categorias operacionais como domiciliar, hospitalar e reciclavel.",
-        "- Fontes:",
     ]
+    if insights:
+        lines.append("- Indicios observados na serie:")
+        for insight in insights:
+            lines.append(f"  - {insight}.")
+        lines.append("- Observacao metodologica: esses indicios expressam associacoes observadas na serie historica e devem apoiar investigacao gerencial, nao serem tratados isoladamente como causalidade comprovada.")
+    lines.append("- Fontes:")
     for source in sources:
         lines.append(f"  - [{source['name']}]({source['url']}): {source['description']}")
     return "\n".join(lines)

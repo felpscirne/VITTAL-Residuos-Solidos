@@ -10,6 +10,7 @@ from app.application.analytics import (
     get_top_produtos_geral,
     get_volume_mensal,
 )
+from app.services.management_insights import render_management_insight
 
 
 def create_kpi_card(title, value, icon, color):
@@ -106,6 +107,7 @@ layout = dmc.Container(
                 ),
             ],
         ),
+        html.Div(id="overview-management-insight"),
     ],
     fluid=True,
     p=0,
@@ -122,6 +124,7 @@ layout = dmc.Container(
         Output("overview-grafico-serie-mensal", "figure"),
         Output("overview-grafico-ano", "figure"),
         Output("overview-grafico-produtos", "figure"),
+        Output("overview-management-insight", "children"),
     ],
     [Input("mantine-provider", "forceColorScheme")],
 )
@@ -188,6 +191,19 @@ def update_overview_graphs(color_scheme):
         margin={"l": 20, "r": 20, "t": 50, "b": 20},
     )
 
+    lider_produto = "N/D"
+    if not df_produtos.empty:
+        lider_produto = str(df_produtos.iloc[0]["produto"])
+
+    overview_summary = (
+        "### Resumo analitico\n"
+        f"- Total de registros consolidados: **{kpi_data['total']}**.\n"
+        f"- Volume acumulado da serie: **{total_volume}**.\n"
+        f"- Media do periodo consolidado: **{media_mensal}**.\n"
+        f"- Produto de maior recorrencia: **{lider_produto}**.\n"
+        "- Leitura gerencial: a visao geral permite relacionar escala operacional, distribuicao temporal e concentracao do mix de residuos antes de aprofundar a analise nas demais paginas."
+    )
+
     return (
         kpi_total,
         kpi_inicio,
@@ -197,4 +213,8 @@ def update_overview_graphs(color_scheme):
         fig_mensal,
         fig_ano,
         fig_produtos,
+        render_management_insight(
+            overview_summary,
+            "os KPIs sintetizam a escala da operacao, enquanto os graficos mostram como esse volume se distribui no tempo e entre os produtos mais recorrentes",
+        ),
     )

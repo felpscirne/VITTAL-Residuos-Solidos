@@ -7,6 +7,7 @@ from dash_iconify import DashIconify
 
 from app.application.analytics import engine, get_anos_options
 from app.services.dashboard_summaries import summarize_empresas_ranking, summarize_empresas_temporal
+from app.services.management_insights import render_management_insight
 
 
 def load_company_data():
@@ -44,6 +45,7 @@ layout = html.Div([
     dmc.Alert("Quais entidades mais usam o sistema de pesagem e concentram o fluxo registrado?", title="O que este grafico responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="radix-icons:info-circled"), mb="md"),
     dmc.Card([dcc.Graph(id="grafico-contagem-empresas")], withBorder=True, shadow="sm", radius="md", mb="md"),
     dmc.Card(dcc.Markdown(id="resumo-empresas-ranking"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
+    html.Div(id="insight-empresas-ranking-gerencial"),
     dmc.Divider(label="Analise Temporal", labelPosition="center", my="xl"),
     dmc.Title("Drill-Down: Analise Mensal por Empresa", order=3, my="sm"),
     dmc.Alert("Acompanhe volume mensal e media de peso para avaliar carga operacional e perfil de atendimento.", title="O que esta analise responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:statistic-up"), mb="md"),
@@ -66,6 +68,7 @@ layout = html.Div([
         mb="md",
     ),
     dmc.Card(dcc.Markdown(id="resumo-empresas-temporal"), withBorder=True, shadow="sm", radius="md", p="md"),
+    html.Div(id="insight-empresas-temporal-gerencial"),
 ])
 
 
@@ -88,27 +91,30 @@ def update_anos_dropdown_empresas(pathname):
     return no_update, no_update
 
 
-@callback([Output("grafico-contagem-empresas", "figure"), Output("resumo-empresas-ranking", "children")], [Input("url", "pathname"), Input("mantine-provider", "forceColorScheme")])
+@callback([Output("grafico-contagem-empresas", "figure"), Output("resumo-empresas-ranking", "children"), Output("insight-empresas-ranking-gerencial", "children")], [Input("url", "pathname"), Input("mantine-provider", "forceColorScheme")])
 def update_empresas_main_graph(pathname, color_scheme):
     if pathname != "/analise-empresas":
-        return no_update, no_update
+        return no_update, no_update, no_update
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     df = load_company_data()
     if df.empty:
         fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        return fig, "### Resumo analitico\n- Nao ha dados de empresas disponiveis."
-    return fig_contagem_empresas(df, template), summarize_empresas_ranking(df.head(10))
+        summary = "### Resumo analitico\n- Nao ha dados de empresas disponiveis."
+        return fig, summary, render_management_insight(summary, "a concentracao entre entidades ajuda a identificar dependencias institucionais e prioridades de articulacao")
+    summary = summarize_empresas_ranking(df.head(10))
+    return fig_contagem_empresas(df, template), summary, render_management_insight(summary, "o ranking relaciona volume de registros e concentracao de entidades, apoiando negociacao, auditoria e planejamento institucional")
 
 
 @callback(
-    [Output("grafico-qtde-por-mes-empresa", "figure"), Output("grafico-media-peso-por-mes-empresa", "figure"), Output("resumo-empresas-temporal", "children")],
+    [Output("grafico-qtde-por-mes-empresa", "figure"), Output("grafico-media-peso-por-mes-empresa", "figure"), Output("resumo-empresas-temporal", "children"), Output("insight-empresas-temporal-gerencial", "children")],
     [Input("filtro-ano-empresa", "value"), Input("filtro-empresa-temporal", "value"), Input("mantine-provider", "forceColorScheme")],
 )
 def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     if not ano_selecionado:
         empty_fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", title="Aguardando selecao de ano...")
-        return empty_fig, empty_fig, "### Resumo analitico\n- Selecione um ano para visualizar a serie."
+        summary = "### Resumo analitico\n- Selecione um ano para visualizar a serie."
+        return empty_fig, empty_fig, summary, render_management_insight(summary, "a comparacao mensal entre volume e peso medio depende da selecao temporal adequada")
 
     base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
     params = {"ano": ano_selecionado}
@@ -127,4 +133,5 @@ def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     fig2 = px.line(df2, x="mes_nome", y="media", title=f"Media de Peso de Entrada ({empresa_selecionada}, {ano_selecionado})", markers=True, template=template)
     fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     fig2.update_layout(yaxis_title="Media de Peso Entrada (kg)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    return fig1, fig2, summarize_empresas_temporal(df1[["mes_nome", "qtde"]], df2[["mes_nome", "media"]], empresa_selecionada, ano_selecionado)
+    summary = summarize_empresas_temporal(df1[["mes_nome", "qtde"]], df2[["mes_nome", "media"]], empresa_selecionada, ano_selecionado)
+    return fig1, fig2, summary, render_management_insight(summary, f"a relacao entre quantidade mensal e peso medio de {empresa_selecionada} ajuda a distinguir aumento de demanda de mudanca no perfil de carga")

@@ -7,6 +7,7 @@ from dash_iconify import DashIconify
 
 from app.application.analytics import engine, get_anos_options
 from app.services.dashboard_summaries import summarize_heatmap
+from app.services.management_insights import render_management_insight
 
 
 dias_map = {0: "Domingo", 1: "Segunda-feira", 2: "Terca-feira", 3: "Quarta-feira", 4: "Quinta-feira", 5: "Sexta-feira", 6: "Sabado"}
@@ -51,13 +52,14 @@ layout = html.Div([
     ),
     dmc.Card([dcc.Graph(id="grafico-heatmap")], withBorder=True, shadow="sm", radius="md", mb="md"),
     dmc.Card(dcc.Markdown(id="resumo-heatmap"), withBorder=True, shadow="sm", radius="md", p="md"),
+    html.Div(id="insight-heatmap-gerencial"),
 ])
 
 
-@callback([Output("grafico-heatmap", "figure"), Output("resumo-heatmap", "children")], [Input("url", "pathname"), Input("filtro-ano-heatmap", "value"), Input("filtro-mes-heatmap", "value"), Input("mantine-provider", "forceColorScheme")])
+@callback([Output("grafico-heatmap", "figure"), Output("resumo-heatmap", "children"), Output("insight-heatmap-gerencial", "children")], [Input("url", "pathname"), Input("filtro-ano-heatmap", "value"), Input("filtro-mes-heatmap", "value"), Input("mantine-provider", "forceColorScheme")])
 def update_heatmap_graph(pathname, ano_val, mes_val, color_scheme):
     if pathname != "/analise-horarios":
-        return no_update, no_update
+        return no_update, no_update, no_update
     df = load_heatmap_data()
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     if ano_val and ano_val != "todos":
@@ -66,9 +68,11 @@ def update_heatmap_graph(pathname, ano_val, mes_val, color_scheme):
         df = df[df["mes"] == int(mes_val)]
     if df.empty:
         fig = px.density_heatmap(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        return fig, summarize_heatmap(df)
+        summary = summarize_heatmap(df)
+        return fig, summary, render_management_insight(summary, "a distribuicao por dia e hora ajuda a decidir escala, reforco operacional e janelas de atendimento")
     df_grouped = df.groupby(["dia_semana", "hora_do_dia"])["numero_de_registros"].sum().reset_index()
-    return create_heatmap_graph(df_grouped, template), summarize_heatmap(df_grouped)
+    summary = summarize_heatmap(df_grouped)
+    return create_heatmap_graph(df_grouped, template), summary, render_management_insight(summary, "os picos do heatmap relacionam calendario operacional e carga horaria, apoiando redistribuicao de equipe e balanca")
 
 
 @callback([Output("filtro-ano-heatmap", "data"), Output("filtro-ano-heatmap", "value")], Input("url", "pathname"))

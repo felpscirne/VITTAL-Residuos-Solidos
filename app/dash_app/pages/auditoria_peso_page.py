@@ -6,6 +6,7 @@ from dash_iconify import DashIconify
 
 from app.application.analytics import engine
 from app.services.dashboard_summaries import summarize_auditoria
+from app.services.management_insights import render_management_insight
 
 
 def get_entidades_options():
@@ -42,6 +43,7 @@ layout = html.Div([
         withBorder=True, shadow="sm", radius="md", mb="md"
     ),
     dmc.Card(dcc.Markdown(id="resumo-auditoria"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
+    html.Div(id="insight-auditoria-gerencial"),
     dmc.Card(
         children=[
             dmc.ScrollArea(
@@ -65,7 +67,7 @@ layout = html.Div([
 
 
 @callback(
-    [Output("tabela-auditoria", "data"), Output("tabela-auditoria", "columns"), Output("tabela-auditoria", "style_data_conditional"), Output("label-slider-auditoria", "children"), Output("resumo-auditoria", "children")],
+    [Output("tabela-auditoria", "data"), Output("tabela-auditoria", "columns"), Output("tabela-auditoria", "style_data_conditional"), Output("label-slider-auditoria", "children"), Output("resumo-auditoria", "children"), Output("insight-auditoria-gerencial", "children")],
     [Input("filtro-entidade-auditoria", "value"), Input("filtro-discrepancia-auditoria", "value")],
 )
 def update_audit_table(selected_entidade, min_discrepancia):
@@ -91,4 +93,5 @@ def update_audit_table(selected_entidade, min_discrepancia):
         {"if": {"column_id": "diferenca_percentual", "filter_query": f"{{diferenca_percentual}} > {min_discrepancia}"}, "backgroundColor": "#fa5252", "color": "white"},
         {"if": {"column_id": "diferenca_percentual", "filter_query": f"{{diferenca_percentual}} < -{min_discrepancia}"}, "backgroundColor": "#fa5252", "color": "white"},
     ]
-    return df_filtered.to_dict("records"), [{"name": i, "id": i} for i in df_filtered.columns], styles, f"Limite de discrepancia (%): {min_discrepancia}%", summarize_auditoria(df_filtered, min_discrepancia, entidade_label)
+    summary = summarize_auditoria(df_filtered, min_discrepancia, entidade_label)
+    return df_filtered.to_dict("records"), [{"name": i, "id": i} for i in df_filtered.columns], styles, f"Limite de discrepancia (%): {min_discrepancia}%", summary, render_management_insight(summary, "a relacao entre peso aferido e nota fiscal ajuda a priorizar auditoria, verificar falhas documentais e identificar risco de inconsistencias sistemicas")

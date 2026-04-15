@@ -7,6 +7,7 @@ from dash_iconify import DashIconify
 
 from app.application.analytics import engine
 from app.services.dashboard_summaries import summarize_frota
+from app.services.management_insights import render_management_insight
 
 
 def load_frota_data():
@@ -65,6 +66,7 @@ layout = html.Div([
         withBorder=True, shadow="sm", radius="md", mb="md"
     ),
     dmc.Card(dcc.Markdown(id="resumo-frota"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
+    html.Div(id="insight-frota-gerencial"),
     dmc.Card([dcc.Graph(id="grafico-frota-scatter")], withBorder=True, shadow="sm", radius="md", mb="md"),
     dmc.Card([dcc.Graph(id="grafico-frota-ranking")], withBorder=True, shadow="sm", radius="md", mb="md"),
 ])
@@ -84,12 +86,12 @@ def update_frota_filters(pathname):
 
 
 @callback(
-    [Output("grafico-frota-scatter", "figure"), Output("grafico-frota-ranking", "figure"), Output("label-slider-frota", "children"), Output("resumo-frota", "children")],
+    [Output("grafico-frota-scatter", "figure"), Output("grafico-frota-ranking", "figure"), Output("label-slider-frota", "children"), Output("resumo-frota", "children"), Output("insight-frota-gerencial", "children")],
     [Input("url", "pathname"), Input("filtro-entidade-frota", "value"), Input("filtro-viagens-frota", "value"), Input("mantine-provider", "forceColorScheme")],
 )
 def update_frota_graphs(pathname, entidade, min_viagens, color_scheme):
     if pathname != "/analise-frotas":
-        return no_update, no_update, no_update, no_update
+        return no_update, no_update, no_update, no_update, no_update
     df = load_frota_data()
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     if entidade and entidade != "todas":
@@ -98,5 +100,7 @@ def update_frota_graphs(pathname, entidade, min_viagens, color_scheme):
         df = df[df["total_viagens"] >= min_viagens]
     if df.empty:
         empty_fig = px.scatter(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        return empty_fig, empty_fig, f"Filtrar por N minimo de viagens: {min_viagens}", summarize_frota(df)
-    return create_frota_scatter_graph(df, template), create_frota_ranking_graph(df, template), f"Filtrar por N minimo de viagens: {min_viagens}", summarize_frota(df)
+        summary = summarize_frota(df)
+        return empty_fig, empty_fig, f"Filtrar por N minimo de viagens: {min_viagens}", summary, render_management_insight(summary, "a leitura da frota depende de relacionar frequencia de viagens e peso medio para detectar ineficiencia operacional")
+    summary = summarize_frota(df)
+    return create_frota_scatter_graph(df, template), create_frota_ranking_graph(df, template), f"Filtrar por N minimo de viagens: {min_viagens}", summary, render_management_insight(summary, "a relacao entre numero de viagens e peso medio indica uso eficiente ou disperso da frota e ajuda a revisar rota, manutencao e alocacao")

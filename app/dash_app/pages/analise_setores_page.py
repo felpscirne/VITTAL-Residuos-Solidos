@@ -7,6 +7,7 @@ from sqlalchemy import extract
 from app.application.analytics import get_anos_options, get_dados_setores_macro, get_dados_setor_temporal
 from app.models import Event
 from app.services.dashboard_summaries import summarize_setores_overview, summarize_setor_temporal
+from app.services.management_insights import render_management_insight
 
 
 df_setores = get_dados_setores_macro()
@@ -83,6 +84,7 @@ layout = dmc.Container([
         mb="md",
     ),
     dmc.Card(dcc.Markdown(id="resumo-setores-overview"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
+    html.Div(id="insight-setores-overview-gerencial"),
     dmc.Title("Drill-Down: Analise Temporal por Setor", order=3, mb="md"),
     dmc.Alert("Compare o desempenho mensal de um setor e observe possivel influencia de eventos sazonais.", color="gray", variant="light", mb="md"),
     dmc.Grid(
@@ -101,25 +103,28 @@ layout = dmc.Container([
         p="md",
         mb="md",
     ),
+    html.Div(id="insight-setor-temporal-gerencial"),
 ], fluid=True)
 
 
 @callback(
-    [Output("grafico-relacao-setor", "figure"), Output("grafico-media-setor", "figure"), Output("grafico-contagem-setor", "figure"), Output("resumo-setores-overview", "children")],
+    [Output("grafico-relacao-setor", "figure"), Output("grafico-media-setor", "figure"), Output("grafico-contagem-setor", "figure"), Output("resumo-setores-overview", "children"), Output("insight-setores-overview-gerencial", "children")],
     [Input("mantine-provider", "forceColorScheme")],
 )
 def update_overview_graphs_theme(theme):
     template = "plotly_dark" if theme == "dark" else "plotly_white"
+    summary = summarize_setores_overview(df_setores)
     return (
         fig_relacao_peso_volume(df_setores, template),
         fig_media_por_setor(df_setores, template),
         fig_contagem_por_setor(df_setores, template),
-        summarize_setores_overview(df_setores),
+        summary,
+        render_management_insight(summary, "a comparacao entre quantidade e peso medio ajuda a separar setores com grande demanda operacional daqueles com maior carga media por viagem"),
     )
 
 
 @callback(
-    [Output("grafico-media-setor-temporal", "figure"), Output("lista-eventos-setor", "children"), Output("resumo-setor-temporal", "children")],
+    [Output("grafico-media-setor-temporal", "figure"), Output("lista-eventos-setor", "children"), Output("resumo-setor-temporal", "children"), Output("insight-setor-temporal-gerencial", "children")],
     [Input("filtro-setor-temporal", "value"), Input("filtro-ano-temporal", "value"), Input("mantine-provider", "forceColorScheme")],
 )
 def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
@@ -127,7 +132,8 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
     if not setor_selecionado or not ano_selecionado:
         fig_vazia = px.line(title="Selecione um setor e um ano.", template=template)
         fig_vazia.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        return fig_vazia, "", "### Resumo analitico\n- Selecione um setor e um ano para visualizar a serie."
+        summary = "### Resumo analitico\n- Selecione um setor e um ano para visualizar a serie."
+        return fig_vazia, "", summary, render_management_insight(summary, "a leitura temporal por setor depende da comparacao entre meses para diferenciar variacao natural de mudanca operacional")
 
     df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
     meses_map = {1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"}
@@ -157,4 +163,5 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
     except Exception:
         events_html = []
 
-    return fig, events_html, summarize_setor_temporal(df, setor_selecionado, ano_selecionado)
+    summary = summarize_setor_temporal(df, setor_selecionado, ano_selecionado)
+    return fig, events_html, summary, render_management_insight(summary, f"a serie temporal do setor {setor_selecionado} relaciona meses de pico, vales e possiveis eventos operacionais para apoiar redistribuicao de recursos")

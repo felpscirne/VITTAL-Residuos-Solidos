@@ -16,6 +16,7 @@ from app.services.dashboard_summaries import (
     summarize_produto_fornecedores,
     summarize_setor_produtos,
 )
+from app.services.management_insights import render_management_insight
 
 
 df_produtos = get_produtos_resumo()
@@ -61,6 +62,7 @@ layout = dmc.Container([
     ),
     dmc.Card(dcc.Graph(id="grafico-contagem-produtos"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
     dmc.Card(dcc.Markdown(id="resumo-produtos"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
+    html.Div(id="insight-produtos-gerencial"),
     dmc.Title("Drill-Down: Fornecedores por Produto", order=3, mb="md"),
     dmc.Alert("Ao selecionar um produto, veja quem movimenta ele.", color="ifsc-green", variant="light", mb="md"),
     dmc.Grid(
@@ -80,6 +82,7 @@ layout = dmc.Container([
     ),
     dmc.Card(dcc.Graph(id="grafico-produto-fornecedores"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
     dmc.Card(dcc.Markdown(id="resumo-produto-fornecedores"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
+    html.Div(id="insight-produto-fornecedores-gerencial"),
     dmc.Title("Drill-Down: Produtos por Setor", order=3, mb="md"),
     dmc.Alert("Selecione um setor para ver o que e gerado la.", color="gray", variant="light", mb="md"),
     dmc.Grid(
@@ -99,21 +102,23 @@ layout = dmc.Container([
     ),
     dmc.Card(dcc.Graph(id="grafico-setor-produtos"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
     dmc.Card(dcc.Markdown(id="resumo-setor-produtos"), withBorder=True, shadow="sm", radius="md", p="md"),
+    html.Div(id="insight-setor-produtos-gerencial"),
 ], fluid=True, p=0)
 
 
 @callback(
-    [Output("grafico-contagem-produtos", "figure"), Output("resumo-produtos", "children")],
+    [Output("grafico-contagem-produtos", "figure"), Output("resumo-produtos", "children"), Output("insight-produtos-gerencial", "children")],
     [Input("mantine-provider", "forceColorScheme")],
 )
 def update_product_graph_theme(color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     fig = fig_contagem_produtos(df_produtos, template)
-    return fig, summarize_produtos_ranking(df_produtos.head(10))
+    summary = summarize_produtos_ranking(df_produtos.head(10))
+    return fig, summary, render_management_insight(summary, "o ranking mostra concentracao do mix de residuos e ajuda a decidir onde priorizar coleta, triagem e tratamento diferenciado")
 
 
 @callback(
-    [Output("grafico-produto-fornecedores", "figure"), Output("resumo-produto-fornecedores", "children")],
+    [Output("grafico-produto-fornecedores", "figure"), Output("resumo-produto-fornecedores", "children"), Output("insight-produto-fornecedores-gerencial", "children")],
     [Input("filtro-produto-para-fornecedor", "value"), Input("mantine-provider", "forceColorScheme")],
 )
 def update_prod_forn_graph(selected_product, color_scheme):
@@ -128,11 +133,12 @@ def update_prod_forn_graph(selected_product, color_scheme):
         template=template,
     )
     fig.update_layout(yaxis={"autorange": "reversed"}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    return fig, summarize_produto_fornecedores(df_drilldown, selected_product)
+    summary = summarize_produto_fornecedores(df_drilldown, selected_product)
+    return fig, summary, render_management_insight(summary, f"a relacao entre produto e fornecedor mostra dependencia operacional, concentracao de origem e oportunidades de auditoria direcionada para {selected_product}")
 
 
 @callback(
-    [Output("grafico-setor-produtos", "figure"), Output("resumo-setor-produtos", "children")],
+    [Output("grafico-setor-produtos", "figure"), Output("resumo-setor-produtos", "children"), Output("insight-setor-produtos-gerencial", "children")],
     [Input("filtro-setor-para-produto", "value"), Input("mantine-provider", "forceColorScheme")],
 )
 def update_setor_prod_graph(selected_setor, color_scheme):
@@ -147,4 +153,5 @@ def update_setor_prod_graph(selected_setor, color_scheme):
         template=template,
     )
     fig.update_layout(yaxis={"autorange": "reversed"}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    return fig, summarize_setor_produtos(df_drilldown, selected_setor)
+    summary = summarize_setor_produtos(df_drilldown, selected_setor)
+    return fig, summary, render_management_insight(summary, f"a composicao de produtos do setor {selected_setor} ajuda a ajustar rota, frequencia de atendimento e necessidade de segregacao operacional")

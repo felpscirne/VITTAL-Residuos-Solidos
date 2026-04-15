@@ -14,17 +14,21 @@ class SubprocessEtlRunnerAdapter:
             'color': 'gray',
         }
 
-    def _run_import_script(self):
+    def _run_import_script(self, initiated_by=None):
         self._status['is_running'] = True
         self._status['message'] = 'O script de importacao esta rodando... Isso pode levar alguns minutos.'
         self._status['color'] = 'blue'
 
         try:
+            env = os.environ.copy()
+            if initiated_by:
+                env['IMPORT_INITIATED_BY'] = initiated_by
             result = subprocess.run(
                 [sys.executable, self._script_name],
                 capture_output=True,
                 text=True,
                 cwd=os.getcwd(),
+                env=env,
             )
 
             if result.returncode == 0:
@@ -39,11 +43,11 @@ class SubprocessEtlRunnerAdapter:
         finally:
             self._status['is_running'] = False
 
-    def start_etl_async(self):
+    def start_etl_async(self, initiated_by=None):
         if self._status['is_running']:
             return False
 
-        thread = threading.Thread(target=self._run_import_script, daemon=True)
+        thread = threading.Thread(target=self._run_import_script, kwargs={'initiated_by': initiated_by}, daemon=True)
         thread.start()
         return True
 

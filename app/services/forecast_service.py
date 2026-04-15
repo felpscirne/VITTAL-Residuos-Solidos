@@ -468,26 +468,88 @@ def _attach_weather_regressors(series_df: pd.DataFrame, periods: int) -> tuple[p
     return model_df, future_regressors, weather_status, ["temp_mean", "precip_sum"]
 
 
-def _build_prophet_model(interval_width: float, holiday_df: pd.DataFrame, use_weather: bool, observations: int) -> Prophet:
-    yearly_seasonality = observations >= 18
+def _default_model_config(observations: int, use_weather: bool) -> dict[str, Any]:
+    return {
+        "config_name": "padrao",
+        "changepoint_prior_scale": 0.03,
+        "seasonality_prior_scale": 5.0,
+        "holidays_prior_scale": 3.0,
+        "yearly_seasonality": observations >= 18,
+        "use_weather": use_weather,
+    }
+
+
+def _candidate_model_configs(observations: int, use_weather: bool) -> list[dict[str, Any]]:
+    base = _default_model_config(observations, use_weather)
+    candidates = [
+        base,
+        {
+            **base,
+            "config_name": "conservador",
+            "changepoint_prior_scale": 0.01,
+            "seasonality_prior_scale": 3.0,
+            "holidays_prior_scale": 2.0,
+        },
+        {
+            **base,
+            "config_name": "equilibrado",
+            "changepoint_prior_scale": 0.05,
+            "seasonality_prior_scale": 7.0,
+            "holidays_prior_scale": 4.0,
+        },
+        {
+            **base,
+            "config_name": "sensivel",
+            "changepoint_prior_scale": 0.08,
+            "seasonality_prior_scale": 8.0,
+            "holidays_prior_scale": 5.0,
+        },
+    ]
+    if observations < 12:
+        for candidate in candidates:
+            candidate["yearly_seasonality"] = False
+    return candidates
+
+
+def _build_prophet_model(
+    interval_width: float,
+    holiday_df: pd.DataFrame,
+    use_weather: bool,
+    observations: int,
+    model_config: dict[str, Any] | None = None,
+) -> Prophet:
+    config = model_config or _default_model_config(observations, use_weather)
+    yearly_seasonality = bool(config.get("yearly_seasonality", observations >= 18))
+    effective_use_weather = bool(config.get("use_weather", use_weather))
     n_changepoints = min(max(observations - 2, 0), 6)
     model = Prophet(
         yearly_seasonality=yearly_seasonality,
         weekly_seasonality=False,
         daily_seasonality=False,
         seasonality_mode="additive",
-        changepoint_prior_scale=0.03,
-        seasonality_prior_scale=5.0,
-        holidays_prior_scale=3.0,
+        changepoint_prior_scale=float(config.get("changepoint_prior_scale", 0.03)),
+        seasonality_prior_scale=float(config.get("seasonality_prior_scale", 5.0)),
+        holidays_prior_scale=float(config.get("holidays_prior_scale", 3.0)),
         n_changepoints=n_changepoints,
         interval_width=interval_width,
         holidays=holiday_df,
         stan_backend="CMDSTANPY",
     )
-    if use_weather:
+    if effective_use_weather:
         model.add_regressor("temp_mean", standardize=True)
         model.add_regressor("precip_sum", standardize=True)
     return model
+
+
+def _score_validation_result(validation_metrics: dict[str, float]) -> float:
+    mae = float(validation_metrics.get("retrospective_mae", 0.0))
+    rmse = float(validation_metrics.get("retrospective_rmse", 0.0))
+    coverage = float(validation_metrics.get("retrospective_interval_coverage", 0.0))
+    periods = int(validation_metrics.get("retrospective_periods", 0))
+    if periods <= 0:
+        return float("inf")
+    coverage_penalty = abs(coverage - 0.8) * max(mae, 1.0)
+    return mae + (0.35 * rmse) + coverage_penalty
 
 
 def _run_retrospective_validation(
@@ -497,6 +559,7 @@ def _run_retrospective_validation(
     use_weather: bool,
     periods: int,
     cadence: str,
+    model_config: dict[str, Any] | None = None,
 ) -> dict[str, float]:
     if len(fit_df) < 8:
         return {
@@ -522,6 +585,7 @@ def _run_retrospective_validation(
         holiday_df=holiday_df,
         use_weather=use_weather,
         observations=len(train_df),
+        model_config=model_config,
     )
     model.fit(train_df)
 
@@ -565,6 +629,56 @@ def _run_retrospective_validation(
     }
 
 
+def _select_best_model_config(
+    fit_df: pd.DataFrame,
+    holiday_df: pd.DataFrame,
+    interval_width: float,
+    use_weather: bool,
+    periods: int,
+    cadence: str,
+) -> tuple[dict[str, Any], dict[str, float], list[dict[str, Any]]]:
+    candidates = _candidate_model_configs(len(fit_df), use_weather)
+    evaluations = []
+    best_config = candidates[0]
+    best_metrics = {
+        "retrospective_mae": 0.0,
+        "retrospective_rmse": 0.0,
+        "retrospective_periods": 0,
+        "retrospective_interval_coverage": 0.0,
+    }
+    best_score = float("inf")
+
+    for candidate in candidates:
+        try:
+            validation_metrics = _run_retrospective_validation(
+                fit_df=fit_df,
+                holiday_df=holiday_df,
+                interval_width=interval_width,
+                use_weather=bool(candidate.get("use_weather", use_weather)),
+                periods=periods,
+                cadence=cadence,
+                model_config=candidate,
+            )
+            score = _score_validation_result(validation_metrics)
+            evaluations.append(
+                {
+                    "config_name": candidate.get("config_name", "configuracao"),
+                    "score": score,
+                    "mae": float(validation_metrics.get("retrospective_mae", 0.0)),
+                    "rmse": float(validation_metrics.get("retrospective_rmse", 0.0)),
+                    "coverage": float(validation_metrics.get("retrospective_interval_coverage", 0.0)),
+                }
+            )
+            if score < best_score:
+                best_score = score
+                best_config = candidate
+                best_metrics = validation_metrics
+        except Exception:
+            continue
+
+    return best_config, best_metrics, evaluations
+
+
 def build_monthly_forecast(
     monthly_df: pd.DataFrame,
     periods: int = 4,
@@ -601,11 +715,30 @@ def build_monthly_forecast(
     use_weather = all(feature in model_df.columns and model_df[feature].notna().any() for feature in weather_features)
 
     try:
+        fit_df = model_df.copy()
+        fit_df["y"] = fit_df["y_model"] if "y_model" in fit_df.columns else fit_df["y"]
+        if use_weather:
+            for regressor in weather_features:
+                fit_df[regressor] = pd.to_numeric(fit_df[regressor], errors="coerce")
+                fit_df[regressor] = fit_df[regressor].interpolate(method="linear", limit_direction="both")
+                fit_df[regressor] = fit_df[regressor].fillna(fit_df[regressor].mean())
+        fit_df = fit_df.dropna(subset=["ds", "y"]).copy()
+
+        selected_config, retrospective_metrics, calibration_runs = _select_best_model_config(
+            fit_df=fit_df,
+            holiday_df=holiday_df,
+            interval_width=interval_width,
+            use_weather=use_weather,
+            periods=periods,
+            cadence=cadence,
+        )
+
         model = _build_prophet_model(
             interval_width=interval_width,
             holiday_df=holiday_df,
-            use_weather=use_weather,
+            use_weather=bool(selected_config.get("use_weather", use_weather)),
             observations=len(series_df),
+            model_config=selected_config,
         )
     except Exception as exc:
         result = _empty_result(
@@ -614,15 +747,6 @@ def build_monthly_forecast(
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
-
-    fit_df = model_df.copy()
-    fit_df["y"] = fit_df["y_model"] if "y_model" in fit_df.columns else fit_df["y"]
-    if use_weather:
-        for regressor in weather_features:
-            fit_df[regressor] = pd.to_numeric(fit_df[regressor], errors="coerce")
-            fit_df[regressor] = fit_df[regressor].interpolate(method="linear", limit_direction="both")
-            fit_df[regressor] = fit_df[regressor].fillna(fit_df[regressor].mean())
-    fit_df = fit_df.dropna(subset=["ds", "y"]).copy()
 
     try:
         model.fit(fit_df)
@@ -635,7 +759,8 @@ def build_monthly_forecast(
         return result
 
     future = pd.DataFrame({"ds": fit_df["ds"].tolist() + _generate_future_dates(fit_df["ds"].max(), periods, cadence)})
-    if use_weather:
+    effective_use_weather = bool(selected_config.get("use_weather", use_weather))
+    if effective_use_weather:
         future = future.merge(fit_df[["ds", *weather_features]], on="ds", how="left")
         if not future_regressors.empty:
             for regressor in weather_features:
@@ -661,14 +786,6 @@ def build_monthly_forecast(
     forecast_view["yhat_lower"] = forecast_view["yhat_lower"].clip(lower=0)
     forecast_view["yhat_upper"] = forecast_view[["yhat_upper", "yhat"]].max(axis=1)
     history = series_df.merge(forecast_view[["ds", "yhat"]], on="ds", how="left")
-    retrospective_metrics = _run_retrospective_validation(
-        fit_df=fit_df,
-        holiday_df=holiday_df,
-        interval_width=interval_width,
-        use_weather=use_weather,
-        periods=periods,
-        cadence=cadence,
-    )
 
     mae = float((history["y"] - history["yhat"]).abs().mean())
     rmse = float(math.sqrt(((history["y"] - history["yhat"]) ** 2).mean()))
@@ -691,6 +808,13 @@ def build_monthly_forecast(
             "forecast_periods": int(periods),
             "confidence": float(interval_width),
             "signal_smoothing": "rolling_median_ewma" if len(series_df) >= 6 else "none",
+            "auto_recalibration_enabled": True,
+            "selected_model_config": selected_config.get("config_name", "padrao"),
+            "selected_changepoint_prior_scale": float(selected_config.get("changepoint_prior_scale", 0.03)),
+            "selected_seasonality_prior_scale": float(selected_config.get("seasonality_prior_scale", 5.0)),
+            "selected_holidays_prior_scale": float(selected_config.get("holidays_prior_scale", 3.0)),
+            "selected_yearly_seasonality": bool(selected_config.get("yearly_seasonality", len(series_df) >= 18)),
+            "calibration_runs": calibration_runs,
             "cadence_label": cadence_label,
             **retrospective_metrics,
             **gap_info,
@@ -700,8 +824,8 @@ def build_monthly_forecast(
             "sources": RIO_GRANDE_PUBLIC_CONTEXT["sources"],
             "weather_status": weather_status,
             "holiday_status": holiday_status,
-            "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(weather_features if use_weather else [])],
-            "insights": _build_external_factor_insights(model_df, holiday_df, weather_features if use_weather else []),
+            "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(weather_features if effective_use_weather else [])],
+            "insights": _build_external_factor_insights(model_df, holiday_df, weather_features if effective_use_weather else []),
         },
     }
 
@@ -717,6 +841,7 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
     cadence_label = metrics.get("cadence_label", "periodos")
     cobertura_empirica = metrics.get("retrospective_interval_coverage", 0.0) * 100
     smoothing_label = SMOOTHING_LABELS.get(metrics.get("signal_smoothing", "none"), metrics.get("signal_smoothing", "none"))
+    recalibration_status = "ativa" if metrics.get("auto_recalibration_enabled") else "inativa"
     return (
         "### Resumo preditivo\n"
         f"- Observacoes historicas: {metrics['observations']}\n"
@@ -724,7 +849,11 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
         f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**\n"
         f"- Periodos ausentes tratados antes do ajuste: {metrics.get('missing_months_filled', 0)}\n"
         f"- Estabilizacao da serie para treino: {smoothing_label}\n"
-
+        f"- Auto recalibracao historica: **{recalibration_status}**\n"
+        f"- Configuracao selecionada pelo historico: **{metrics.get('selected_model_config', 'padrao')}**\n"
+        f"- Changepoint prior scale: **{metrics.get('selected_changepoint_prior_scale', 0.03):.2f}** | "
+        f"Seasonality prior scale: **{metrics.get('selected_seasonality_prior_scale', 5.0):.2f}** | "
+        f"Holidays prior scale: **{metrics.get('selected_holidays_prior_scale', 3.0):.2f}**\n"
         f"- Erro medio absoluto (MAE): {metrics['mae']:.2f}\n"
         f"- Raiz do erro quadratico medio (RMSE): {metrics['rmse']:.2f}\n"
         f"- Validacao retrospectiva ({metrics.get('retrospective_periods', 0)} periodos): MAE {metrics.get('retrospective_mae', 0.0):.2f} | RMSE {metrics.get('retrospective_rmse', 0.0):.2f}\n"

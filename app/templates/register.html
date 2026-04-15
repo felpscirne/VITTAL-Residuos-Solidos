@@ -3,20 +3,19 @@
 {% block content %}
 <div class="card shadow-sm">
     <div class="card-body p-4">
-        <h3 class="card-title text-center mb-4">Registrar Nova Conta</h3>
+        <h3 class="card-title text-center mb-4">Registrar nova conta</h3>
 
         <form method="POST" action="{{ url_for('auth.register') }}">
-
             <div class="mb-3">
-                <label for="name" class="form-label">Nome Completo</label>
+                <label for="name" class="form-label">Nome completo</label>
                 <input type="text" class="form-control" id="name" name="name" required>
             </div>
 
             <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
+                <label for="email" class="form-label">E-mail</label>
                 <input type="email" class="form-control" id="email" name="email" required>
                 <div class="form-text">
-                    Se usar um email institucional (.edu, .ifrs.edu.br), você receberá acesso de Estudante.
+                    Se usar um e-mail institucional, o cadastro será identificado como estudantil.
                 </div>
             </div>
 
@@ -25,18 +24,17 @@
                 <input type="password" class="form-control" id="password" name="password" required>
             </div>
 
-            <hr>
             <div class="mb-3">
-                <label for="management_code" class="form-label">Código de Gestão (Opcional)</label>
-                <input type="text" class="form-control" id="management_code" name="management_code">
+                <label for="access_code" class="form-label">Código de acesso (opcional)</label>
+                <input type="text" class="form-control" id="access_code" name="access_code">
                 <div class="form-text">
-                    Preencha apenas se você for um gestor e possuir um código de acesso.
+                    Use o código de gestão ou de operador, se aplicável.
                 </div>
             </div>
-            <div class="d-grid mt-4">
-                <button type="submit" class="btn btn-primary">Criar Conta</button>
-            </div>
 
+            <div class="d-grid mt-4">
+                <button type="submit" class="btn btn-primary">Criar conta</button>
+            </div>
         </form>
 
         <hr>
@@ -45,7 +43,6 @@
             <p class="mb-0">Já tem uma conta?</p>
             <a href="{{ url_for('auth.login') }}">Faça login aqui</a>
         </div>
-
     </div>
 </div>
 {% endblock %}

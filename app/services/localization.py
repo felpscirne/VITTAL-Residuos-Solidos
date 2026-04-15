@@ -2,16 +2,16 @@ ROLE_LABELS = {
     "anonymous": "Sem login",
     "student": "Estudantil",
     "operator": "Operador",
-    "management": "Gestao",
+    "management": "Gestão",
     "superadmin": "Superadministrador",
 }
 
 
 IMPORT_STATUS_LABELS = {
     "running": "Em andamento",
-    "success": "Concluida",
+    "success": "Concluída",
     "error": "Falhou",
-    "deleted": "Excluida",
+    "deleted": "Excluída",
 }
 
 
@@ -23,5 +23,5 @@ def get_role_label(role_name: str | None) -> str:
 
 def get_import_status_label(status: str | None) -> str:
     if not status:
-        return "Nao informado"
+        return "Não informado"
     return IMPORT_STATUS_LABELS.get(status, status.replace("_", " ").capitalize())

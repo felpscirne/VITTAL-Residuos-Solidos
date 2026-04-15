@@ -64,19 +64,19 @@ def register_global_callbacks(app):
             return dash.no_update
 
         if pathname not in page_map:
-            return html.H1("404: Pagina nao encontrada", className="text-center mt-5")
+            return html.H1("404: Página não encontrada", className="text-center mt-5")
 
         if current_user.is_authenticated:
             if pathname not in get_allowed_routes():
                 return dmc.Alert(
-                    "Voce nao possui permissao para acessar esta pagina.",
+                    "Você não possui permissão para acessar esta página.",
                     title="Acesso negado",
                     color="red",
                     variant="light",
                 )
         elif pathname not in public_routes:
             return dmc.Alert(
-                "Faca login com um perfil autorizado para acessar esta pagina.",
+                "Faça login com um perfil autorizado para acessar esta página.",
                 title="Acesso restrito",
                 color="yellow",
                 variant="light",
@@ -92,7 +92,7 @@ def register_global_callbacks(app):
         if pathname in ["/login", "/logout", "/register"]:
             return dash.no_update
 
-        display_name = "Usuario"
+        display_name = "Usuário"
         allowed_routes = get_allowed_routes()
 
         if current_user.is_authenticated:
@@ -112,37 +112,37 @@ def register_global_callbacks(app):
         links_gerais = []
         if current_user.is_authenticated:
             if "/" in allowed_routes:
-                links_gerais.append(get_link("Visao Geral", "/", "radix-icons:dashboard"))
+                links_gerais.append(get_link("Visão Geral", "/", "radix-icons:dashboard"))
             if "/estudo-ifescs" in allowed_routes:
                 links_gerais.append(get_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader"))
             if "/analise-produtos" in allowed_routes:
-                links_gerais.append(get_link("Analise de Produtos", "/analise-produtos", "radix-icons:cube"))
+                links_gerais.append(get_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube"))
             if "/fluxo-de-caixa" in allowed_routes:
                 links_gerais.append(get_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart"))
             if "/visualizar-eventos" in allowed_routes:
                 links_gerais.append(get_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell"))
         else:
-            links_gerais.append(get_link("Visao Geral", "/", "radix-icons:dashboard"))
+            links_gerais.append(get_link("Visão Geral", "/", "radix-icons:dashboard"))
             links_gerais.append(get_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader"))
-            links_gerais.append(get_link("Analise de Produtos", "/analise-produtos", "radix-icons:cube"))
+            links_gerais.append(get_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube"))
             links_gerais.append(get_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart"))
             links_gerais.append(get_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell"))
 
         links_protegidos = []
         if "/analise-setores" in allowed_routes:
-            links_protegidos.append(get_link("Analise de Setores", "/analise-setores", "radix-icons:pie-chart"))
+            links_protegidos.append(get_link("Análise de Setores", "/analise-setores", "radix-icons:pie-chart"))
         if "/analise-empresas" in allowed_routes:
-            links_protegidos.append(get_link("Analise de Empresas", "/analise-empresas", "radix-icons:backpack"))
+            links_protegidos.append(get_link("Análise de Empresas", "/analise-empresas", "radix-icons:backpack"))
         if "/analise-horarios" in allowed_routes:
-            links_protegidos.append(get_link("Analise de Horarios", "/analise-horarios", "radix-icons:clock"))
+            links_protegidos.append(get_link("Análise de Horários", "/analise-horarios", "radix-icons:clock"))
         if "/analise-frotas" in allowed_routes:
-            links_protegidos.append(get_link("Analise de Frota", "/analise-frotas", "radix-icons:rocket"))
+            links_protegidos.append(get_link("Análise de Frota", "/analise-frotas", "radix-icons:rocket"))
         if "/registros" in allowed_routes:
             links_protegidos.append(get_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass"))
 
         links_gestao = []
         if "/previsoes" in allowed_routes:
-            links_gestao.append(get_link("Previsoes", "/previsoes", "radix-icons:activity-log"))
+            links_gestao.append(get_link("Previsões", "/previsoes", "radix-icons:activity-log"))
         if "/auditoria-peso" in allowed_routes:
             links_gestao.append(get_link("Auditoria de Peso", "/auditoria-peso", "radix-icons:clipboard"))
         if "/gerenciar-eventos" in allowed_routes:
@@ -150,7 +150,7 @@ def register_global_callbacks(app):
         if "/gerenciar-arquivos" in allowed_routes:
             links_gestao.append(get_link("Gerenciar Arquivos", "/gerenciar-arquivos", "radix-icons:file"))
         if "/gerenciar-permissoes" in allowed_routes:
-            links_gestao.append(get_link("Gerenciar Permissoes", "/gerenciar-permissoes", "radix-icons:lock-closed"))
+            links_gestao.append(get_link("Gerenciar Permissões", "/gerenciar-permissoes", "radix-icons:lock-closed"))
 
         links_login = []
         if current_user.is_authenticated:
@@ -179,14 +179,14 @@ def register_global_callbacks(app):
 
         if links_protegidos:
             sidebar_children.extend([
-                dmc.Text("Analises", size="xs", fw=500, c="dimmed", mb="xs"),
+                dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
                 *links_protegidos,
                 dmc.Divider(my="sm"),
             ])
 
         if links_gestao:
             sidebar_children.extend([
-                dmc.Text("Gestao", size="xs", fw=500, c="dimmed", mb="xs"),
+                dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
                 *links_gestao,
                 dmc.Divider(my="sm"),
             ])

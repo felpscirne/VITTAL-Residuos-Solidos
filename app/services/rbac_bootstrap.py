@@ -8,37 +8,28 @@ from sqlalchemy import text
 from app.extensions import db
 
 PAGES_TO_SEED = {
-    "/": "Visao Geral do Painel",
+    "/": "Visão Geral do Painel",
     "/estudo-ifescs": "Ambiente de Estudo IFEsCS",
-    "/previsoes": "Previsoes com Prophet",
-    "/analise-produtos": "Analise de Produtos",
-    "/fluxo-de-caixa": "Fluxo de Caixa (Entrada vs Saida)",
-    "/analise-setores": "Analise de Setores",
-    "/analise-empresas": "Analise de Empresas",
-    "/analise-horarios": "Analise de Horarios",
+    "/previsoes": "Previsões com Prophet",
+    "/analise-produtos": "Análise de Produtos",
+    "/fluxo-de-caixa": "Fluxo de Caixa (Entrada vs Saída)",
+    "/analise-setores": "Análise de Setores",
+    "/analise-empresas": "Análise de Empresas",
+    "/analise-horarios": "Análise de Horários",
     "/analise-frotas": "Analise de Frota",
     "/registros": "Buscar Registros",
     "/auditoria-peso": "Auditoria de Peso",
     "/gerenciar-arquivos": "Gerenciar Arquivos (.ods)",
-    "/gerenciar-permissoes": "Gerenciar Permissoes de Acesso",
+    "/gerenciar-permissoes": "Gerenciar Permissões de Acesso",
     "/gerenciar-eventos": "Gerenciar Eventos",
     "/visualizar-eventos": "Quadro de Avisos e Eventos",
-}
-
-ROLE_MIGRATIONS = {
-    "sem_login": "anonymous",
-    "geral": "anonymous",
-    "general": "anonymous",
-    "estudantil": "student",
-    "operador": "operator",
-    "gestao": "management",
 }
 
 ROLE_DESCRIPTIONS = {
     "anonymous": "Sem login",
     "student": "Estudantil",
     "operator": "Operador",
-    "management": "Gestao",
+    "management": "Gestão",
     "superadmin": "Superadministrador",
 }
 
@@ -97,57 +88,6 @@ DEFAULT_ADMIN_USER = {
 def run_startup_migrations():
     db.create_all()
 
-    with db.engine.begin() as conn:
-        conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS role_id INTEGER'))
-        for old_name, new_name in ROLE_MIGRATIONS.items():
-            conn.execute(
-                text(
-                    """
-                    UPDATE role
-                    SET name = :new_name
-                    WHERE name = :old_name
-                    """
-                ),
-                {"old_name": old_name, "new_name": new_name},
-            )
-        conn.execute(
-            text(
-                """
-                UPDATE "user"
-                SET role_id = (
-                    SELECT id
-                    FROM role
-                    WHERE name = 'anonymous'
-                )
-                WHERE role_id = (
-                    SELECT id
-                    FROM role
-                    WHERE name = 'general'
-                )
-                """
-            )
-        )
-        conn.execute(
-            text(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1
-                        FROM information_schema.table_constraints
-                        WHERE constraint_name = 'user_role_id_fkey'
-                          AND table_name = 'user'
-                    ) THEN
-                        ALTER TABLE "user"
-                        ADD CONSTRAINT user_role_id_fkey
-                        FOREIGN KEY (role_id) REFERENCES role(id);
-                    END IF;
-                END $$;
-                """
-            )
-        )
-        
-
     role_upsert = text(
         """
         INSERT INTO role (name, description)
@@ -205,6 +145,19 @@ def run_startup_migrations():
         """
     )
 
+    user_admin_sync = text(
+        """
+        UPDATE "user"
+        SET
+            name = :name,
+            password = :password,
+            active = :active,
+            confirmed_at = COALESCE(confirmed_at, :confirmed_at),
+            role_id = :role_id
+        WHERE email = :email
+        """
+    )
+
     with db.session.begin():
         for role_name in ROLES_TO_SEED:
             db.session.execute(
@@ -224,32 +177,6 @@ def run_startup_migrations():
                     permission_upsert,
                     {"role_name": role_name, "route": route},
                 )
-
-        roles_users_exists = db.session.execute(
-            text(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                      AND table_name = 'roles_users'
-                )
-                """
-            )
-        ).scalar()
-
-        if roles_users_exists:
-            db.session.execute(
-                text(
-                    """
-                    UPDATE "user" u
-                    SET role_id = ru.role_id
-                    FROM roles_users ru
-                    WHERE u.id = ru.user_id
-                      AND u.role_id IS NULL
-                    """
-                )
-            )
 
         admin_password = hash_password(DEFAULT_ADMIN_USER["password"])
         admin_unique = str(uuid4())
@@ -285,9 +212,16 @@ def run_startup_migrations():
                 "role_name": DEFAULT_ADMIN_USER["role"],
             },
         )
-
-    with db.engine.begin() as conn:
-        conn.execute(text("DELETE FROM role WHERE name = 'general'"))
-        conn.execute(text('DROP TABLE IF EXISTS roles_users'))
+        db.session.execute(
+            user_admin_sync,
+            {
+                "name": DEFAULT_ADMIN_USER["name"],
+                "email": DEFAULT_ADMIN_USER["email"],
+                "password": admin_password,
+                "active": True,
+                "confirmed_at": datetime.utcnow(),
+                "role_id": admin_role_id,
+            },
+        )
 
     return {"roles": len(ROLES_TO_SEED), "pages": len(PAGES_TO_SEED), "admin_id": admin_id}

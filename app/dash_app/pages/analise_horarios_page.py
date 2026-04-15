@@ -38,10 +38,10 @@ def create_heatmap_graph(df_grouped, template):
 
 
 layout = html.Div([
-    dmc.Title("Analise de Horarios de Pico", order=2),
-    dmc.Text('A analise mostra os pontos quentes da operacao da balanca ao cruzar dia da semana e hora.', c="dimmed", size="sm"),
+    dmc.Title("Análise de Horários de Pico", order=2),
+    dmc.Text('A análise mostra os pontos quentes da operação da balança ao cruzar dia da semana e hora.', c="dimmed", size="sm"),
     dmc.Divider(variant="solid", my="md"),
-    dmc.Alert("Identifique gargalos, picos de operacao e janelas de menor carga.", title="O que este grafico responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:fire"), mb="md"),
+    dmc.Alert("Identifique gargalos, picos de operação e janelas de menor carga.", title="O que este gráfico responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:fire"), mb="md"),
     dmc.Grid(
         gutter="md",
         children=[
@@ -69,10 +69,10 @@ def update_heatmap_graph(pathname, ano_val, mes_val, color_scheme):
     if df.empty:
         fig = px.density_heatmap(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = summarize_heatmap(df)
-        return fig, summary, render_management_insight(summary, "a distribuicao por dia e hora ajuda a decidir escala, reforco operacional e janelas de atendimento")
+    return fig, summary, render_management_insight(summary)
     df_grouped = df.groupby(["dia_semana", "hora_do_dia"])["numero_de_registros"].sum().reset_index()
     summary = summarize_heatmap(df_grouped)
-    return create_heatmap_graph(df_grouped, template), summary, render_management_insight(summary, "os picos do heatmap relacionam calendario operacional e carga horaria, apoiando redistribuicao de equipe e balanca")
+    return create_heatmap_graph(df_grouped, template), summary, render_management_insight(summary)
 
 
 @callback([Output("filtro-ano-heatmap", "data"), Output("filtro-ano-heatmap", "value")], Input("url", "pathname"))

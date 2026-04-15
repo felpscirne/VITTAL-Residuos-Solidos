@@ -38,17 +38,17 @@ def fig_contagem_empresas(df, template):
 
 
 layout = html.Div([
-    dmc.Title("Analise de Empresas e Entidades", order=2),
-    dmc.Text("Compare empresas/entidades ou analise a tendencia de uma especifica ao longo do tempo.", c="dimmed", size="sm"),
+    dmc.Title("Análise de Empresas e Entidades", order=2),
+    dmc.Text("Compare empresas/entidades ou analise a tendência de uma específica ao longo do tempo.", c="dimmed", size="sm"),
     dmc.Divider(variant="solid", my="md"),
-    dmc.Title("Visao Geral: Ranking de Empresas", order=3, my="sm"),
-    dmc.Alert("Quais entidades mais usam o sistema de pesagem e concentram o fluxo registrado?", title="O que este grafico responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="radix-icons:info-circled"), mb="md"),
+    dmc.Title("Visão Geral: Ranking de Empresas", order=3, my="sm"),
+    dmc.Alert("Quais entidades mais usam o sistema de pesagem e concentram o fluxo registrado?", title="O que este gráfico responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="radix-icons:info-circled"), mb="md"),
     dmc.Card([dcc.Graph(id="grafico-contagem-empresas")], withBorder=True, shadow="sm", radius="md", mb="md"),
     dmc.Card(dcc.Markdown(id="resumo-empresas-ranking"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
     html.Div(id="insight-empresas-ranking-gerencial"),
-    dmc.Divider(label="Analise Temporal", labelPosition="center", my="xl"),
-    dmc.Title("Drill-Down: Analise Mensal por Empresa", order=3, my="sm"),
-    dmc.Alert("Acompanhe volume mensal e media de peso para avaliar carga operacional e perfil de atendimento.", title="O que esta analise responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:statistic-up"), mb="md"),
+    dmc.Divider(label="Análise Temporal", labelPosition="center", my="xl"),
+    dmc.Title("Drill-Down: Análise Mensal por Empresa", order=3, my="sm"),
+    dmc.Alert("Acompanhe volume mensal e média de peso para avaliar carga operacional e perfil de atendimento.", title="O que esta análise responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:statistic-up"), mb="md"),
     dmc.SimpleGrid(
         cols={"base": 1, "sm": 2},
         spacing="md",
@@ -100,9 +100,9 @@ def update_empresas_main_graph(pathname, color_scheme):
     if df.empty:
         fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = "### Resumo analitico\n- Nao ha dados de empresas disponiveis."
-        return fig, summary, render_management_insight(summary, "a concentracao entre entidades ajuda a identificar dependencias institucionais e prioridades de articulacao")
+        return fig, summary, render_management_insight(summary)
     summary = summarize_empresas_ranking(df.head(10))
-    return fig_contagem_empresas(df, template), summary, render_management_insight(summary, "o ranking relaciona volume de registros e concentracao de entidades, apoiando negociacao, auditoria e planejamento institucional")
+    return fig_contagem_empresas(df, template), summary, render_management_insight(summary)
 
 
 @callback(
@@ -114,7 +114,7 @@ def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     if not ano_selecionado:
         empty_fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", title="Aguardando selecao de ano...")
         summary = "### Resumo analitico\n- Selecione um ano para visualizar a serie."
-        return empty_fig, empty_fig, summary, render_management_insight(summary, "a comparacao mensal entre volume e peso medio depende da selecao temporal adequada")
+        return empty_fig, empty_fig, summary, render_management_insight(summary)
 
     base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
     params = {"ano": ano_selecionado}
@@ -134,4 +134,4 @@ def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     fig2.update_layout(yaxis_title="Media de Peso Entrada (kg)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     summary = summarize_empresas_temporal(df1[["mes_nome", "qtde"]], df2[["mes_nome", "media"]], empresa_selecionada, ano_selecionado)
-    return fig1, fig2, summary, render_management_insight(summary, f"a relacao entre quantidade mensal e peso medio de {empresa_selecionada} ajuda a distinguir aumento de demanda de mudanca no perfil de carga")
+    return fig1, fig2, summary, render_management_insight(summary)

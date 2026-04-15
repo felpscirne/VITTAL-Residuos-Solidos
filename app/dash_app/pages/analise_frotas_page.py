@@ -49,10 +49,10 @@ def create_frota_ranking_graph(df, template):
 
 
 layout = html.Div([
-    dmc.Title("Analise de Eficiencia da Frota", order=2),
-    dmc.Text("Identifique veiculos mais e menos eficientes da operacao de coleta.", c="dimmed", size="sm"),
+    dmc.Title("Análise de Eficiência da Frota", order=2),
+    dmc.Text("Identifique veículos mais e menos eficientes da operação de coleta.", c="dimmed", size="sm"),
     dmc.Divider(variant="solid", my="md"),
-    dmc.Alert("Placas com muitas viagens e baixo peso medio merecem atencao operacional.", title="Dica de analise", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:light-bulb"), mb="md"),
+    dmc.Alert("Placas com muitas viagens e baixo peso médio merecem atenção operacional.", title="Dica de análise", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:light-bulb"), mb="md"),
     dmc.Card(
         [
             dmc.Grid(
@@ -101,6 +101,6 @@ def update_frota_graphs(pathname, entidade, min_viagens, color_scheme):
     if df.empty:
         empty_fig = px.scatter(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = summarize_frota(df)
-        return empty_fig, empty_fig, f"Filtrar por N minimo de viagens: {min_viagens}", summary, render_management_insight(summary, "a leitura da frota depende de relacionar frequencia de viagens e peso medio para detectar ineficiencia operacional")
+        return empty_fig, empty_fig, f"Filtrar por N minimo de viagens: {min_viagens}", summary, render_management_insight(summary)
     summary = summarize_frota(df)
-    return create_frota_scatter_graph(df, template), create_frota_ranking_graph(df, template), f"Filtrar por N minimo de viagens: {min_viagens}", summary, render_management_insight(summary, "a relacao entre numero de viagens e peso medio indica uso eficiente ou disperso da frota e ajuda a revisar rota, manutencao e alocacao")
+    return create_frota_scatter_graph(df, template), create_frota_ranking_graph(df, template), f"Filtrar por N minimo de viagens: {min_viagens}", summary, render_management_insight(summary)

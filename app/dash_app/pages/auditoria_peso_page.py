@@ -94,4 +94,4 @@ def update_audit_table(selected_entidade, min_discrepancia):
         {"if": {"column_id": "diferenca_percentual", "filter_query": f"{{diferenca_percentual}} < -{min_discrepancia}"}, "backgroundColor": "#fa5252", "color": "white"},
     ]
     summary = summarize_auditoria(df_filtered, min_discrepancia, entidade_label)
-    return df_filtered.to_dict("records"), [{"name": i, "id": i} for i in df_filtered.columns], styles, f"Limite de discrepancia (%): {min_discrepancia}%", summary, render_management_insight(summary, "a relacao entre peso aferido e nota fiscal ajuda a priorizar auditoria, verificar falhas documentais e identificar risco de inconsistencias sistemicas")
+    return df_filtered.to_dict("records"), [{"name": i, "id": i} for i in df_filtered.columns], styles, f"Limite de discrepancia (%): {min_discrepancia}%", summary, render_management_insight(summary)

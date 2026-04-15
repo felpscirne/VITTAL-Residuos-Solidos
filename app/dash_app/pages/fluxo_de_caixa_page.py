@@ -64,11 +64,11 @@ def create_micro_fluxo_graph(df, setor_selecionado, template):
 
 
 layout = html.Div([
-    dmc.Title("Analise de Fluxo (Entrada vs. Saida)", order=2),
-    dmc.Text("Compare o volume de entrada por setores com o volume de saida registrado em Candiota.", c="dimmed", size="sm"),
+    dmc.Title("Análise de Fluxo (Entrada vs. Saída)", order=2),
+    dmc.Text("Compare o volume de entrada por setores com o volume de saída registrado em Candiota.", c="dimmed", size="sm"),
     dmc.Divider(variant="solid", my="md"),
-    dmc.Alert("Observe equilibrio entre o que entra no sistema e o que segue para destino final.", title="O que esta analise responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:info"), mb="md"),
-    dmc.Text("Visao Geral do Balanco Mensal", size="lg", fw=500, mb="sm"),
+    dmc.Alert("Observe equilíbrio entre o que entra no sistema e o que segue para destino final.", title="O que esta análise responde?", color="ifsc-green", variant="light", icon=DashIconify(icon="akar-icons:info"), mb="md"),
+    dmc.Text("Visão Geral do Balanço Mensal", size="lg", fw=500, mb="sm"),
     dmc.Card(children=[dcc.Graph(id="grafico-fluxo-candiota")], withBorder=True, shadow="sm", radius="md", mb="md"),
     dmc.Card(
         children=[
@@ -91,7 +91,7 @@ layout = html.Div([
     ),
     dmc.Card(dcc.Markdown(id="resumo-fluxo-balanco"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
     html.Div(id="insight-fluxo-balanco-gerencial"),
-    dmc.Text("Analise Setorial Detalhada (vs. Candiota)", size="lg", fw=500, mb="sm"),
+    dmc.Text("Análise Setorial Detalhada (vs. Candiota)", size="lg", fw=500, mb="sm"),
     dmc.Card(
         children=[
             dmc.Select(label="Selecione um Setor para comparar", id="select-setor-micro", data=[], value=None, mb="md"),
@@ -129,9 +129,9 @@ def update_macro_graph(pathname, color_scheme):
     if df.empty:
         fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = summarize_fluxo_macro(df)
-        return fig, summary, render_management_insight(summary, "o balanco entre entradas e saidas mostra acumulacao, drenagem e possiveis desvios persistentes do fluxo operacional")
+    return fig, summary, render_management_insight(summary)
     summary = summarize_fluxo_macro(df)
-    return create_macro_fluxo_graph(df, template), summary, render_management_insight(summary, "a relacao entre entradas e saidas apoia decisao sobre capacidade, ritmo de escoamento e verificacao de acumulacao temporaria")
+    return create_macro_fluxo_graph(df, template), summary, render_management_insight(summary)
 
 
 @callback([Output("grafico-setor-vs-candiota", "figure"), Output("kpi-setor-participacao", "children"), Output("resumo-fluxo-setor", "children"), Output("insight-fluxo-setor-gerencial", "children")], [Input("select-setor-micro", "value"), Input("mantine-provider", "forceColorScheme")])
@@ -140,15 +140,15 @@ def update_micro_graph(setor_selecionado, color_scheme):
     if not setor_selecionado:
         fig = px.line(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", title="Selecione um setor para visualizar")
         summary = "### Resumo analitico\n- Selecione um setor para ver a participacao relativa."
-        return fig, dmc.Text("Selecione um setor.", c="dimmed"), summary, render_management_insight(summary, "a participacao relativa do setor depende da comparacao com o total de saida consolidado")
+        return fig, dmc.Text("Selecione um setor.", c="dimmed"), summary, render_management_insight(summary)
     df = load_fluxo_micro_data()
     if df.empty:
         fig = px.line(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = "### Resumo analitico\n- Nao ha dados de fluxo disponiveis."
-        return fig, dmc.Text("Sem dados.", c="dimmed"), summary, render_management_insight(summary, "sem dados nao e possivel estimar participacao setorial no fluxo consolidado")
+        return fig, dmc.Text("Sem dados.", c="dimmed"), summary, render_management_insight(summary)
     total_saida = df[df["setor"] == "CANDIOTA"]["peso_kg"].sum()
     total_setor = df[df["setor"] == setor_selecionado]["peso_kg"].sum()
     pct = (total_setor / total_saida * 100) if total_saida > 0 else 0
     kpi = dmc.Stack([dmc.Text("Participacao no Total de Saida", size="xs", c="dimmed", tt="uppercase"), dmc.Text(f"{pct:.1f}%", fw=700, size="xl"), dmc.Text(f"{total_setor:,.0f} kg de {total_saida:,.0f} kg", size="sm", c="dimmed")])
     summary = summarize_fluxo_setor(total_setor, total_saida, pct, setor_selecionado)
-    return create_micro_fluxo_graph(df, setor_selecionado, template), kpi, summary, render_management_insight(summary, f"a comparacao entre {setor_selecionado} e Candiota mostra a contribuicao relativa do setor e apoia redimensionamento operacional")
+    return create_micro_fluxo_graph(df, setor_selecionado, template), kpi, summary, render_management_insight(summary)

@@ -102,11 +102,25 @@ tipo_residuo_inicial = tipos_residuo_options[0]["value"] if tipos_residuo_option
 
 layout = dmc.Container(
     [
-        dmc.Title("Previsoes com Prophet", order=2, mb="xs"),
+        dmc.Title("Previsões com Prophet", order=2, mb="xs"),
         dmc.Text(
-            "Modulo gerencial para previsao quinzenal de residuos, apoio logistico e planejamento orcamentario com dados publicos de Rio Grande - RS.",
+            "Módulo gerencial para projeção quinzenal de resíduos, apoio logístico e planejamento com leitura conjunta do histórico, do clima e dos feriados públicos de Rio Grande - RS.",
             c="dimmed",
             mb="lg",
+        ),
+        dmc.Alert(
+            [
+                dmc.Text("Como ler esta página", fw=700, mb=4),
+                dmc.Text(
+                    "A linha principal mostra o comportamento histórico e a continuação prevista. "
+                    "A faixa ao redor da previsão representa a variação esperada a partir do erro recente do próprio modelo, "
+                    "e o resumo abaixo explica o que está sendo projetado e quão estável foi esse comportamento no histórico.",
+                    size="sm",
+                ),
+            ],
+            color="ifsc-green",
+            variant="light",
+            mb="md",
         ),
         dmc.SimpleGrid(
             cols={"base": 1, "lg": 4},
@@ -115,7 +129,7 @@ layout = dmc.Container(
             children=[
                 dmc.Select(
                     id="previsao-horizonte-select",
-                    label="Horizonte de previsao",
+                    label="Horizonte de previsão",
                     data=HORIZON_OPTIONS,
                     value=4,
                     allowDeselect=False,
@@ -129,14 +143,14 @@ layout = dmc.Container(
                 ),
                 dmc.Select(
                     id="previsao-tipo-residuo-select",
-                    label="Tipo de residuo",
+                    label="Tipo de resíduo",
                     data=tipos_residuo_options,
                     value=tipo_residuo_inicial,
                     allowDeselect=False,
                 ),
                 dmc.Card(
                     [
-                        dmc.Text("Recorte geografico", fw=700, mb=4),
+                        dmc.Text("Recorte geográfico", fw=700, mb=4),
                         dmc.Text(
                             f"{RIO_GRANDE_PUBLIC_CONTEXT['city']} - {RIO_GRANDE_PUBLIC_CONTEXT['state']}, "
                             f"Brasil ({RIO_GRANDE_PUBLIC_CONTEXT['latitude']}, {RIO_GRANDE_PUBLIC_CONTEXT['longitude']})",
@@ -152,7 +166,7 @@ layout = dmc.Container(
         ),
         dmc.Card(
             [
-                dmc.Title("Fontes publicas consideradas", order=4, mb="sm"),
+                dmc.Title("Fontes públicas consideradas", order=4, mb="sm"),
                 dcc.Markdown(
                     id="previsao-public-data-summary",
                     link_target="_blank",
@@ -210,7 +224,7 @@ layout = dmc.Container(
                     [
                         dmc.Select(
                             id="previsao-setor-select",
-                            label="Setor para previsao especifica",
+                            label="Setor para previsão específica",
                             data=setores_options,
                             value=setor_inicial,
                             searchable=True,
@@ -260,7 +274,7 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
     tipo_residuo = tipo_residuo or "todos"
     tipo_label = next(
         (opt["label"] for opt in tipos_residuo_options if opt["value"] == tipo_residuo),
-        "Todos os residuos",
+        "Todos os resíduos",
     )
 
     total_result = get_volume_mensal_forecast(
@@ -291,28 +305,28 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
     return (
         _forecast_figure(
             total_result,
-            f"Previsao do Volume Total - {tipo_label}",
+            f"Previsão do volume total - {tipo_label}",
             template_name,
             interval_label,
         ),
         build_forecast_summary_markdown(total_result),
         _forecast_figure(
             entradas_result,
-            f"Previsao das Entradas - {tipo_label}",
+            f"Previsão das entradas - {tipo_label}",
             template_name,
             interval_label,
         ),
         build_forecast_summary_markdown(entradas_result),
         _forecast_figure(
             saidas_result,
-            f"Previsao das Saidas para Candiota - {tipo_label}",
+            f"Previsão das saídas para Candiota - {tipo_label}",
             template_name,
             interval_label,
         ),
         build_forecast_summary_markdown(saidas_result),
         _forecast_figure(
             setor_result,
-            f"Previsao do Setor: {setor or 'N/D'} - {tipo_label}",
+            f"Previsão do setor: {setor or 'N/D'} - {tipo_label}",
             template_name,
             interval_label,
         ),

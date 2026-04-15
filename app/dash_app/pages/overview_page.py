@@ -41,9 +41,9 @@ def create_kpi_card(title, value, icon, color):
 
 layout = dmc.Container(
     [
-        dmc.Title("Visao Geral do Dashboard", order=2, mb="xs"),
+        dmc.Title("Visão Geral do Dashboard", order=2, mb="xs"),
         dmc.Text(
-            "Resumo operacional e previsao temporal do volume de residuos com foco em planejamento.",
+            "Resumo operacional e previsão temporal do volume de resíduos com foco em planejamento.",
             c="dimmed",
             mb="lg",
         ),
@@ -51,11 +51,11 @@ layout = dmc.Container(
             children=[
                 dmc.Title("Indicadores operacionais", order=5, mb="xs"),
                 dmc.Text(
-                    "Esta tela apresenta apenas indicadores consolidados e historicos gerais. "
-                    "As previsoes ficam em modulo separado com permissao de gestao."
+                    "Esta tela apresenta apenas indicadores consolidados e históricos gerais. "
+                    "As previsões ficam em módulo separado com permissão de gestão."
                 ),
             ],
-            title="Visao publica e institucional",
+            title="Visão pública e institucional",
             color="ifsc-green",
             icon=DashIconify(icon="radix-icons:bar-chart"),
             mb="xl",
@@ -213,8 +213,5 @@ def update_overview_graphs(color_scheme):
         fig_mensal,
         fig_ano,
         fig_produtos,
-        render_management_insight(
-            overview_summary,
-            "os KPIs sintetizam a escala da operacao, enquanto os graficos mostram como esse volume se distribui no tempo e entre os produtos mais recorrentes",
-        ),
+        render_management_insight(overview_summary),
     )

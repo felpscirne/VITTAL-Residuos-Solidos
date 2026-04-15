@@ -47,26 +47,26 @@ def fig_contagem_por_setor(df, template):
 
 
 layout = dmc.Container([
-    dmc.Title("Analise de Setores", order=2),
-    dmc.Text("Compare todos os setores entre si ou analise a tendencia de um setor especifico ao longo do tempo.", c="dimmed", mb="lg"),
+    dmc.Title("Análise de Setores", order=2),
+    dmc.Text("Compare todos os setores entre si ou analise a tendência de um setor específico ao longo do tempo.", c="dimmed", mb="lg"),
     dmc.Divider(mb="lg"),
-    dmc.Title("Visao Geral: Comparativo entre Setores", order=3, mb="md"),
+    dmc.Title("Visão Geral: Comparativo entre Setores", order=3, mb="md"),
     dmc.Tabs(
         [
             dmc.TabsList([
-                dmc.TabsTab("Matriz de Relacao", value="relacao", leftSection=DashIconify(icon="radix-icons:mix")),
+                dmc.TabsTab("Matriz de Relação", value="relacao", leftSection=DashIconify(icon="radix-icons:mix")),
                 dmc.TabsTab("Rankings Individuais", value="individual", leftSection=DashIconify(icon="radix-icons:bar-chart")),
             ]),
             dmc.TabsPanel(
                 [
-                    dmc.Alert("Este grafico cruza numero de viagens com peso medio para identificar setores fora da curva.", title="Ajuda analitica", color="blue", variant="light", mt="md", mb="md"),
+                    dmc.Alert("Este gráfico cruza número de viagens com peso médio para identificar setores fora da curva.", title="Ajuda analítica", color="blue", variant="light", mt="md", mb="md"),
                     dmc.Card(dcc.Graph(id="grafico-relacao-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
                 ],
                 value="relacao",
             ),
             dmc.TabsPanel(
                 [
-                    dmc.Alert("Observe setores com maior peso medio e setores com maior demanda operacional.", title="Ajuda analitica", color="blue", variant="light", mt="md", mb="md"),
+                    dmc.Alert("Observe setores com maior peso médio e setores com maior demanda operacional.", title="Ajuda analítica", color="blue", variant="light", mt="md", mb="md"),
                     dmc.SimpleGrid(
                         cols={"base": 1, "lg": 2},
                         spacing="md",
@@ -85,8 +85,8 @@ layout = dmc.Container([
     ),
     dmc.Card(dcc.Markdown(id="resumo-setores-overview"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
     html.Div(id="insight-setores-overview-gerencial"),
-    dmc.Title("Drill-Down: Analise Temporal por Setor", order=3, mb="md"),
-    dmc.Alert("Compare o desempenho mensal de um setor e observe possivel influencia de eventos sazonais.", color="gray", variant="light", mb="md"),
+    dmc.Title("Drill-Down: Análise Temporal por Setor", order=3, mb="md"),
+    dmc.Alert("Compare o desempenho mensal de um setor e observe possível influência de eventos sazonais.", color="gray", variant="light", mb="md"),
     dmc.Grid(
         gutter="md",
         mb="md",
@@ -119,7 +119,7 @@ def update_overview_graphs_theme(theme):
         fig_media_por_setor(df_setores, template),
         fig_contagem_por_setor(df_setores, template),
         summary,
-        render_management_insight(summary, "a comparacao entre quantidade e peso medio ajuda a separar setores com grande demanda operacional daqueles com maior carga media por viagem"),
+        render_management_insight(summary),
     )
 
 
@@ -133,7 +133,7 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
         fig_vazia = px.line(title="Selecione um setor e um ano.", template=template)
         fig_vazia.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = "### Resumo analitico\n- Selecione um setor e um ano para visualizar a serie."
-        return fig_vazia, "", summary, render_management_insight(summary, "a leitura temporal por setor depende da comparacao entre meses para diferenciar variacao natural de mudanca operacional")
+    return fig_vazia, "", summary, render_management_insight(summary)
 
     df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
     meses_map = {1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"}
@@ -164,4 +164,4 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
         events_html = []
 
     summary = summarize_setor_temporal(df, setor_selecionado, ano_selecionado)
-    return fig, events_html, summary, render_management_insight(summary, f"a serie temporal do setor {setor_selecionado} relaciona meses de pico, vales e possiveis eventos operacionais para apoiar redistribuicao de recursos")
+    return fig, events_html, summary, render_management_insight(summary)

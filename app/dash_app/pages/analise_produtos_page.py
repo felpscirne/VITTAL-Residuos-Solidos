@@ -45,14 +45,14 @@ def fig_contagem_produtos(df, template):
 
 
 layout = dmc.Container([
-    dmc.Title("Analise de Produtos", order=2),
-    dmc.Text("Ranking geral dos tipos de residuos e analises cruzadas por fornecedor e setor.", c="dimmed", mb="lg"),
+    dmc.Title("Análise de Produtos", order=2),
+    dmc.Text("Ranking geral dos tipos de resíduos e análises cruzadas por fornecedor e setor.", c="dimmed", mb="lg"),
     dmc.Divider(mb="lg"),
-    dmc.Title("Visao Geral: Ranking de Produtos", order=3, mb="md"),
+    dmc.Title("Visão Geral: Ranking de Produtos", order=3, mb="md"),
     dmc.Alert(
         children=[
             dmc.Title("Contexto", order=5),
-            dmc.Text("Identifique os residuos mais comuns e os mais raros para priorizar a gestao."),
+            dmc.Text("Identifique os resíduos mais comuns e os mais raros para priorizar a gestão."),
         ],
         title="O que este grafico responde?",
         color="ifsc-green",
@@ -114,7 +114,7 @@ def update_product_graph_theme(color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     fig = fig_contagem_produtos(df_produtos, template)
     summary = summarize_produtos_ranking(df_produtos.head(10))
-    return fig, summary, render_management_insight(summary, "o ranking mostra concentracao do mix de residuos e ajuda a decidir onde priorizar coleta, triagem e tratamento diferenciado")
+    return fig, summary, render_management_insight(summary)
 
 
 @callback(
@@ -134,7 +134,7 @@ def update_prod_forn_graph(selected_product, color_scheme):
     )
     fig.update_layout(yaxis={"autorange": "reversed"}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     summary = summarize_produto_fornecedores(df_drilldown, selected_product)
-    return fig, summary, render_management_insight(summary, f"a relacao entre produto e fornecedor mostra dependencia operacional, concentracao de origem e oportunidades de auditoria direcionada para {selected_product}")
+    return fig, summary, render_management_insight(summary)
 
 
 @callback(
@@ -154,4 +154,4 @@ def update_setor_prod_graph(selected_setor, color_scheme):
     )
     fig.update_layout(yaxis={"autorange": "reversed"}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     summary = summarize_setor_produtos(df_drilldown, selected_setor)
-    return fig, summary, render_management_insight(summary, f"a composicao de produtos do setor {selected_setor} ajuda a ajustar rota, frequencia de atendimento e necessidade de segregacao operacional")
+    return fig, summary, render_management_insight(summary)

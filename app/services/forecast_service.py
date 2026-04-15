@@ -29,33 +29,40 @@ RIO_GRANDE_PUBLIC_CONTEXT = {
             "name": "Open-Meteo Historical Weather API",
             "url": "https://open-meteo.com/en/docs/historical-weather-api",
             "kind": "clima_historico",
-            "description": "Temperatura media diaria e precipitacao diaria para Rio Grande - RS.",
+            "description": "Temperatura média diária e precipitação diária para Rio Grande - RS.",
         },
         {
             "name": "Feriados.com.br - Rio Grande/RS",
             "url": "https://feriados.com.br/RS/Rio%20Grande",
             "kind": "feriados_municipais_estaduais_federais",
-            "description": "Calendario publico com feriados municipais, estaduais e federais de Rio Grande - RS.",
+            "description": "Calendário público com feriados municipais, estaduais e federais de Rio Grande - RS.",
         },
         {
             "name": "Wikidata - Rio Grande (Q869571)",
             "url": "https://www.wikidata.org/wiki/Q869571",
             "kind": "localizacao",
-            "description": "Coordenadas publicas do municipio de Rio Grande - RS.",
+            "description": "Coordenadas públicas do município de Rio Grande - RS.",
         },
     ],
 }
 
 FEATURE_LABELS = {
-    "serie_historica_interna": "Historico operacional",
-    "feriados_publicos_rio_grande_rs": "Feriados publicos de Rio Grande e do Brasil",
-    "temp_mean": "Temperatura media",
-    "precip_sum": "Precipitacao acumulada",
+    "serie_historica_interna": "Histórico operacional",
+    "feriados_publicos_rio_grande_rs": "Feriados públicos de Rio Grande e do Brasil",
+    "temp_mean": "Temperatura média",
+    "precip_sum": "Precipitação acumulada",
 }
 
 SMOOTHING_LABELS = {
-    "rolling_median_ewma": "Media Movel Exponencialmente Ponderada",
-    "none": "Sem estabilizacao adicional",
+    "rolling_median_ewma": "Média Móvel Exponencialmente Ponderada",
+    "none": "Sem estabilização adicional",
+}
+
+MODEL_CONFIG_LABELS = {
+    "padrao": "Padrão",
+    "conservador": "Mais conservadora",
+    "equilibrado": "Equilibrada",
+    "sensivel": "Mais sensível a mudanças",
 }
 
 
@@ -394,15 +401,15 @@ def _describe_correlation(label: str, corr: float | None) -> str | None:
         return None
     abs_corr = abs(corr)
     if abs_corr < 0.15:
-        strength = "relacao pouco evidente"
+        strength = "relação pouco evidente"
     elif abs_corr < 0.35:
-        strength = "relacao discreta"
+        strength = "relação discreta"
     elif abs_corr < 0.60:
-        strength = "relacao moderada"
+        strength = "relação moderada"
     else:
-        strength = "relacao forte"
+        strength = "relação forte"
     direction = "positiva" if corr >= 0 else "negativa"
-    return f"{label}: {strength} ({direction}, correlacao aproximada de {corr:.2f})"
+    return f"{label}: {strength} ({direction}, correlação aproximada de {corr:.2f})"
 
 
 def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataFrame, weather_features: list[str]) -> list[str]:
@@ -419,12 +426,12 @@ def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataF
     insights = []
 
     if "temp_mean" in weather_features and "temp_mean" in enriched.columns:
-        temp_text = _describe_correlation("Temperatura media", _safe_corr(enriched["y"], enriched["temp_mean"]))
+        temp_text = _describe_correlation("Temperatura média", _safe_corr(enriched["y"], enriched["temp_mean"]))
         if temp_text:
             insights.append(temp_text)
 
     if "precip_sum" in weather_features and "precip_sum" in enriched.columns:
-        precip_text = _describe_correlation("Precipitacao acumulada", _safe_corr(enriched["y"], enriched["precip_sum"]))
+        precip_text = _describe_correlation("Precipitação acumulada", _safe_corr(enriched["y"], enriched["precip_sum"]))
         if precip_text:
             insights.append(precip_text)
 
@@ -440,12 +447,12 @@ def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataF
                 regular_mean = float(regular_slice["y"].mean())
                 diff_pct = ((holiday_mean - regular_mean) / regular_mean * 100) if regular_mean else 0.0
                 if abs(diff_pct) < 5:
-                    holiday_desc = "sem diferenca relevante frente aos demais periodos"
+                    holiday_desc = "sem diferença relevante frente aos demais períodos"
                 elif diff_pct > 0:
-                    holiday_desc = f"volumes historicamente acima da media em cerca de {abs(diff_pct):.1f}%"
+                    holiday_desc = f"volumes historicamente acima da média em cerca de {abs(diff_pct):.1f}%"
                 else:
-                    holiday_desc = f"volumes historicamente abaixo da media em cerca de {abs(diff_pct):.1f}%"
-                insights.append(f"Feriados publicos: {holiday_desc}")
+                    holiday_desc = f"volumes historicamente abaixo da média em cerca de {abs(diff_pct):.1f}%"
+                insights.append(f"Feriados públicos: {holiday_desc}")
 
     return insights
 
@@ -552,6 +559,40 @@ def _score_validation_result(validation_metrics: dict[str, float]) -> float:
     return mae + (0.35 * rmse) + coverage_penalty
 
 
+def _compute_empirical_interval_margin(
+    actual: pd.Series,
+    predicted: pd.Series,
+    interval_width: float,
+) -> float:
+    comparison = pd.DataFrame(
+        {
+            "actual": pd.to_numeric(actual, errors="coerce"),
+            "predicted": pd.to_numeric(predicted, errors="coerce"),
+        }
+    ).dropna()
+    if comparison.empty:
+        return 0.0
+
+    absolute_error = (comparison["actual"] - comparison["predicted"]).abs()
+    quantile = min(max(float(interval_width), 0.5), 0.99)
+    margin = float(absolute_error.quantile(quantile))
+    if not math.isfinite(margin):
+        return 0.0
+    return max(margin, float(absolute_error.median()))
+
+
+def _apply_empirical_interval_calibration(
+    forecast_df: pd.DataFrame,
+    calibration_margin: float,
+) -> pd.DataFrame:
+    calibrated = forecast_df.copy()
+    raw_half_width = ((calibrated["yhat_upper"] - calibrated["yhat_lower"]) / 2).fillna(0)
+    effective_half_width = raw_half_width.clip(lower=float(max(calibration_margin, 0.0)))
+    calibrated["yhat_lower"] = (calibrated["yhat"] - effective_half_width).clip(lower=0)
+    calibrated["yhat_upper"] = calibrated["yhat"] + effective_half_width
+    return calibrated
+
+
 def _run_retrospective_validation(
     fit_df: pd.DataFrame,
     holiday_df: pd.DataFrame,
@@ -615,17 +656,39 @@ def _run_retrospective_validation(
 
     mae = float((comparison["y"] - comparison["yhat"]).abs().mean())
     rmse = float(math.sqrt(((comparison["y"] - comparison["yhat"]) ** 2).mean()))
-    coverage = float(
+    raw_coverage = float(
         (
             (comparison["y"] >= comparison["yhat_lower"]) &
             (comparison["y"] <= comparison["yhat_upper"])
         ).mean()
+    )
+    calibration_margin = _compute_empirical_interval_margin(
+        actual=comparison["y"],
+        predicted=comparison["yhat"],
+        interval_width=interval_width,
+    )
+    adjusted_lower = (comparison["yhat"] - calibration_margin).clip(lower=0)
+    adjusted_upper = comparison["yhat"] + calibration_margin
+    coverage = float(
+        (
+            (comparison["y"] >= adjusted_lower) &
+            (comparison["y"] <= adjusted_upper)
+        ).mean()
+    )
+    covered_periods = int(
+        (
+            (comparison["y"] >= adjusted_lower) &
+            (comparison["y"] <= adjusted_upper)
+        ).sum()
     )
     return {
         "retrospective_mae": mae,
         "retrospective_rmse": rmse,
         "retrospective_periods": int(len(comparison)),
         "retrospective_interval_coverage": coverage,
+        "retrospective_raw_interval_coverage": raw_coverage,
+        "retrospective_interval_margin": float(calibration_margin),
+        "retrospective_covered_periods": covered_periods,
     }
 
 
@@ -686,11 +749,11 @@ def build_monthly_forecast(
     cadence: str = "quinzenal",
 ) -> dict[str, Any]:
     if monthly_df is None or monthly_df.empty:
-        return _empty_result("no_data", "Nao ha dados suficientes para gerar previsao.")
+        return _empty_result("no_data", "Não há dados suficientes para gerar previsão.")
 
     required_columns = {"ds", "y"}
     if not required_columns.issubset(monthly_df.columns):
-        return _empty_result("invalid_data", "A serie temporal precisa conter as colunas ds e y.")
+        return _empty_result("invalid_data", "A série temporal precisa conter as colunas ds e y.")
 
     series_df, gap_info = _regularize_series(monthly_df, cadence)
     series_df = series_df.dropna(subset=["ds", "y"]).sort_values("ds")
@@ -698,14 +761,14 @@ def build_monthly_forecast(
     cadence_label = "quinzenas" if cadence == "quinzenal" else "meses"
 
     if len(series_df) < 3:
-        result = _empty_result("insufficient_data", "Sao necessarios pelo menos 3 pontos mensais para calcular a previsao.")
+        result = _empty_result("insufficient_data", "São necessários pelo menos 3 pontos mensais para calcular a previsão.")
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
 
     if Prophet is None:
         result = _empty_result(
             "unavailable",
-            f"O modulo de previsao nao esta disponivel neste ambiente no momento. {PROPHET_IMPORT_ERROR or ''}".strip(),
+            f"O módulo de previsão não está disponível neste ambiente no momento. {PROPHET_IMPORT_ERROR or ''}".strip(),
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
@@ -743,7 +806,7 @@ def build_monthly_forecast(
     except Exception as exc:
         result = _empty_result(
             "unavailable",
-            f"O ambiente atual nao conseguiu inicializar o Prophet para esta previsao. {exc}",
+            f"O ambiente atual não conseguiu inicializar o Prophet para esta previsão. {exc}",
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
@@ -753,7 +816,7 @@ def build_monthly_forecast(
     except Exception as exc:
         result = _empty_result(
             "unavailable",
-            f"O ambiente atual nao conseguiu ajustar o modelo Prophet com seguranca. {exc}",
+            f"O ambiente atual não conseguiu ajustar o modelo Prophet com segurança. {exc}",
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
@@ -775,7 +838,7 @@ def build_monthly_forecast(
     except Exception as exc:
         result = _empty_result(
             "unavailable",
-            f"O ambiente atual nao conseguiu gerar a previsao com Prophet. {exc}",
+            f"O ambiente atual não conseguiu gerar a previsão com Prophet. {exc}",
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
@@ -795,9 +858,12 @@ def build_monthly_forecast(
 
     return {
         "status": "ok",
-        "message": "Previsao gerada com Prophet.",
+        "message": "Previsão gerada com Prophet.",
         "history": history,
-        "forecast": forecast_view,
+        "forecast": _apply_empirical_interval_calibration(
+            forecast_view,
+            retrospective_metrics.get("retrospective_interval_margin", 0.0),
+        ),
         "metrics": {
             "mae": mae,
             "rmse": rmse,
@@ -833,35 +899,43 @@ def build_monthly_forecast(
 def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
     status = result.get("status")
     if status != "ok":
-        return "### Previsao temporal\n" f"- Status: {status}\n" f"- Observacao: {result.get('message', 'Nao foi possivel gerar a previsao.')}"
+        return "### Previsão temporal\n" f"- Status: {status}\n" f"- Observação: {result.get('message', 'Não foi possível gerar a previsão.')}"
 
     metrics = result["metrics"]
     direction = "crescimento" if metrics["trend_pct"] >= 0 else "queda"
     intervalo_nominal = int(metrics["confidence"] * 100)
-    cadence_label = metrics.get("cadence_label", "periodos")
+    cadence_label = metrics.get("cadence_label", "períodos")
     cobertura_empirica = metrics.get("retrospective_interval_coverage", 0.0) * 100
+    cobertura_original = metrics.get("retrospective_raw_interval_coverage", 0.0) * 100
     smoothing_label = SMOOTHING_LABELS.get(metrics.get("signal_smoothing", "none"), metrics.get("signal_smoothing", "none"))
     recalibration_status = "ativa" if metrics.get("auto_recalibration_enabled") else "inativa"
+    selected_model_label = MODEL_CONFIG_LABELS.get(
+        metrics.get("selected_model_config", "padrao"),
+        metrics.get("selected_model_config", "padrao"),
+    )
+    retrospective_periods = metrics.get("retrospective_periods", 0)
+    covered_periods = metrics.get("retrospective_covered_periods", 0)
+    calibration_margin = metrics.get("retrospective_interval_margin", 0.0)
     return (
         "### Resumo preditivo\n"
-        f"- Observacoes historicas: {metrics['observations']}\n"
-        f"- Horizonte de previsao: {metrics['forecast_periods']} {cadence_label}\n"
-        f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**\n"
-        f"- Periodos ausentes tratados antes do ajuste: {metrics.get('missing_months_filled', 0)}\n"
-        f"- Estabilizacao da serie para treino: {smoothing_label}\n"
-        f"- Auto recalibracao historica: **{recalibration_status}**\n"
-        f"- Configuracao selecionada pelo historico: **{metrics.get('selected_model_config', 'padrao')}**\n"
-        f"- Changepoint prior scale: **{metrics.get('selected_changepoint_prior_scale', 0.03):.2f}** | "
-        f"Seasonality prior scale: **{metrics.get('selected_seasonality_prior_scale', 5.0):.2f}** | "
-        f"Holidays prior scale: **{metrics.get('selected_holidays_prior_scale', 3.0):.2f}**\n"
-        f"- Erro medio absoluto (MAE): {metrics['mae']:.2f}\n"
-        f"- Raiz do erro quadratico medio (RMSE): {metrics['rmse']:.2f}\n"
-        f"- Validacao retrospectiva ({metrics.get('retrospective_periods', 0)} periodos): MAE {metrics.get('retrospective_mae', 0.0):.2f} | RMSE {metrics.get('retrospective_rmse', 0.0):.2f}\n"
-        f"- Cobertura empirica do intervalo na validacao: {cobertura_empirica:.2f}%\n"
-        f"- Ultimo volume observado: {metrics['last_actual']:.2f} kg\n"
-        f"- Volume previsto no fim do horizonte: {metrics['last_forecast']:.2f} kg\n"
-        f"- Tendencia estimada: {direction} de {abs(metrics['trend_pct']):.2f}% no horizonte projetado\n"
-        "- Interpretacao: o percentual nominal do intervalo e a cobertura empirica observada nao sao necessariamente iguais; a validacao retrospectiva indica quao bem o intervalo cobriu os valores reais recentes."
+        f"- Série histórica utilizada: **{metrics['observations']} observações**.\n"
+        f"- Horizonte projetado: **{metrics['forecast_periods']} {cadence_label}**.\n"
+        f"- Períodos ausentes tratados antes do ajuste: **{metrics.get('missing_months_filled', 0)}**.\n"
+        f"- Estabilização usada no treino: **{smoothing_label}**.\n"
+        f"- Autoajuste histórico: **{recalibration_status}**.\n"
+        f"- Configuração escolhida com base no histórico recente: **{selected_model_label}**.\n"
+        f"- Erro médio absoluto da série agregada: **{metrics['mae']:.2f} kg por quinzena**.\n"
+        f"- Erro quadrático médio da série agregada: **{metrics['rmse']:.2f} kg por quinzena**.\n"
+        f"- Validação retrospectiva: **{retrospective_periods} períodos** comparados com dados já conhecidos.\n"
+        f"- Erro médio na validação retrospectiva: **{metrics.get('retrospective_mae', 0.0):.2f} kg por quinzena**.\n"
+        f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**.\n"
+        f"- Cobertura do intervalo original na validação: **{cobertura_original:.2f}%**.\n"
+        f"- Cobertura empírica após recalibração: **{cobertura_empirica:.2f}%** ({covered_periods} de {retrospective_periods} períodos ficaram dentro do intervalo).\n"
+        f"- Margem adicional aplicada ao intervalo com base no erro histórico: **±{calibration_margin:.2f} kg**.\n"
+        f"- Último volume observado: **{metrics['last_actual']:.2f} kg**.\n"
+        f"- Volume previsto no fim do horizonte: **{metrics['last_forecast']:.2f} kg**.\n"
+        f"- Tendência estimada para o horizonte projetado: **{direction} de {abs(metrics['trend_pct']):.2f}%**.\n"
+        "- Como interpretar: o intervalo exibido é ajustado com base no erro recente da própria previsão para representar melhor a variação observada no histórico."
     )
 
 
@@ -876,20 +950,20 @@ def build_public_data_markdown(result: dict[str, Any]) -> str:
     feature_labels = [FEATURE_LABELS.get(feature, feature) for feature in features_used]
 
     lines = [
-        "### Dados publicos usados no modelo",
-        f"- Localizacao de referencia: **{location['city']} - {location['state']}**, coordenadas aproximadas **{location['latitude']}, {location['longitude']}**.",
-        f"- Status do clima publico: **{weather_status}**.",
-        f"- Status dos feriados publicos: **{holiday_status}**.",
-        f"- Variaveis externas usadas: **{', '.join(feature_labels) if feature_labels else 'nenhuma'}**.",
-        f"- Periodos ausentes tratados na serie: **{result.get('metrics', {}).get('missing_months_filled', 0)}**.",
-        "- Classificacao do tipo de residuo: derivada internamente a partir do campo `produto`, com categorias operacionais como domiciliar, hospitalar e reciclavel.",
+        "### Fatores externos considerados",
+        f"- Localização de referência: **{location['city']} - {location['state']}**, coordenadas aproximadas **{location['latitude']}, {location['longitude']}**.",
+        f"- Situação da base pública de clima: **{weather_status}**.",
+        f"- Situação da base pública de feriados: **{holiday_status}**.",
+        f"- Informações externas usadas na previsão: **{', '.join(feature_labels) if feature_labels else 'nenhuma'}**.",
+        f"- Períodos ausentes tratados na série: **{result.get('metrics', {}).get('missing_months_filled', 0)}**.",
+        "- Classificação do tipo de resíduo: derivada internamente a partir do campo `produto`, com categorias operacionais como domiciliar, hospitalar e reciclável.",
     ]
     if insights:
-        lines.append("- Indicios observados na serie:")
+        lines.append("- Indícios observados na série:")
         for insight in insights:
             lines.append(f"  - {insight}.")
-        lines.append("- Observacao metodologica: esses indicios expressam associacoes observadas na serie historica e devem apoiar investigacao gerencial, nao serem tratados isoladamente como causalidade comprovada.")
-    lines.append("- Fontes:")
+        lines.append("- Observação metodológica: esses indícios mostram associações observadas na série histórica. Eles ajudam a investigação gerencial, mas não devem ser tratados isoladamente como causalidade comprovada.")
+    lines.append("- Fontes públicas consultadas:")
     for source in sources:
         lines.append(f"  - [{source['name']}]({source['url']}): {source['description']}")
     return "\n".join(lines)

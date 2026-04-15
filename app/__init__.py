@@ -63,21 +63,26 @@ def create_app():
     def user_registered_sighandler(app, user, confirm_token, form_data, **kwargs):
         
         user.name = form_data.get('name')
+        user.email = (user.email or '').strip().lower()
         
         
-        management_code = form_data.get('management_code')
-        secret_code = os.getenv('MANAGEMENT_SECRET_CODE')
+        management_code = (form_data.get('management_code') or '').strip()
+        operator_code = (form_data.get('operator_code') or '').strip()
+        management_secret_code = os.getenv('MANAGEMENT_SECRET_CODE', '').strip()
+        operator_secret_code = os.getenv('OPERATOR_SECRET_CODE', '').strip()
         
-        role_name = 'general'
+        role_name = 'anonymous'
         
-        if management_code and secret_code and management_code == secret_code:
+        if management_code and management_secret_code and management_code == management_secret_code:
             role_name = 'management'
+        elif operator_code and operator_secret_code and operator_code == operator_secret_code:
+            role_name = 'operator'
         elif user.email.endswith(('.edu', '.edu.br', '.ifrs.edu.br')):
             role_name = 'student'
             
         role_obj = user_datastore.find_role(role_name)
         if not role_obj:
-             role_obj = user_datastore.find_role('general')
+             role_obj = user_datastore.find_role('anonymous')
         
         user.role_ref = role_obj
         db.session.commit()

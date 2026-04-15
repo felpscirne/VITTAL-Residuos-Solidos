@@ -1,6 +1,5 @@
 ROLE_LABELS = {
     "anonymous": "Sem login",
-    "general": "Geral",
     "student": "Estudantil",
     "operator": "Operador",
     "management": "Gestao",

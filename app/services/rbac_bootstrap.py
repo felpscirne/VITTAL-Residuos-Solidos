@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from uuid import uuid4
 
@@ -26,7 +27,8 @@ PAGES_TO_SEED = {
 
 ROLE_MIGRATIONS = {
     "sem_login": "anonymous",
-    "geral": "general",
+    "geral": "anonymous",
+    "general": "anonymous",
     "estudantil": "student",
     "operador": "operator",
     "gestao": "management",
@@ -34,18 +36,16 @@ ROLE_MIGRATIONS = {
 
 ROLE_DESCRIPTIONS = {
     "anonymous": "Sem login",
-    "general": "Geral",
     "student": "Estudantil",
     "operator": "Operador",
     "management": "Gestao",
     "superadmin": "Superadministrador",
 }
 
-ROLES_TO_SEED = ["anonymous", "general", "student", "operator", "management", "superadmin"]
+ROLES_TO_SEED = ["anonymous", "student", "operator", "management", "superadmin"]
 
 DEFAULT_PERMISSIONS = {
     "anonymous": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
-    "general": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
     "student": [
         "/",
         "/estudo-ifescs",
@@ -87,9 +87,9 @@ DEFAULT_PERMISSIONS = {
 }
 
 DEFAULT_ADMIN_USER = {
-    "email": "admin@sistema.com",
-    "name": "Super Administrador",
-    "password": "senha123",
+    "email": os.getenv("SUPERADMIN_EMAIL", "admin@sistema.com").strip(),
+    "name": os.getenv("SUPERADMIN_NAME", "Super Administrador").strip(),
+    "password": os.getenv("SUPERADMIN_PASSWORD", "admin123"),
     "role": "superadmin",
 }
 
@@ -110,6 +110,23 @@ def run_startup_migrations():
                 ),
                 {"old_name": old_name, "new_name": new_name},
             )
+        conn.execute(
+            text(
+                """
+                UPDATE "user"
+                SET role_id = (
+                    SELECT id
+                    FROM role
+                    WHERE name = 'anonymous'
+                )
+                WHERE role_id = (
+                    SELECT id
+                    FROM role
+                    WHERE name = 'general'
+                )
+                """
+            )
+        )
         conn.execute(
             text(
                 """
@@ -270,6 +287,7 @@ def run_startup_migrations():
         )
 
     with db.engine.begin() as conn:
+        conn.execute(text("DELETE FROM role WHERE name = 'general'"))
         conn.execute(text('DROP TABLE IF EXISTS roles_users'))
 
     return {"roles": len(ROLES_TO_SEED), "pages": len(PAGES_TO_SEED), "admin_id": admin_id}

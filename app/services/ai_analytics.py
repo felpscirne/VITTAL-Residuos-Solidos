@@ -136,41 +136,51 @@ def _build_risk_features(df: pd.DataFrame) -> pd.DataFrame:
 
 @cache.memoize(timeout=900)
 def get_audit_ai_analysis(selected_entidade: str = "todas", min_discrepancia: float = 5.0) -> dict[str, Any]:
-    if not SKLEARN_AVAILABLE:
-        return _unavailable_result(
-            "Os recursos de IA dependem de scikit-learn. Rebuild da aplicação necessário para ativá-los."
-        )
-
     df = _prepare_audit_dataframe(selected_entidade)
-    if df.empty or len(df) < 12:
+    if df.empty:
         return _unavailable_result("Ainda não há dados suficientes para treinar a detecção de anomalias e o risco operacional.")
 
     features = _build_risk_features(df)
-
-    anomaly_model = IsolationForest(
-        n_estimators=200,
-        contamination=min(0.12, max(0.03, 12 / len(df))),
-        random_state=42,
-    )
-    anomaly_model.fit(features)
-    anomaly_score = -anomaly_model.score_samples(features)
-    df["score_anomalia_ia"] = _normalize_0_100(pd.Series(anomaly_score, index=df.index)).round(1)
-    df["classificacao_anomalia_ia"] = df["score_anomalia_ia"].apply(_anomaly_band)
-
     target_threshold = max(float(min_discrepancia), 5.0)
-    target = (df["diferenca_percentual_abs"] >= target_threshold).astype(int)
-    if target.nunique() > 1:
-        risk_model = RandomForestClassifier(
-            n_estimators=180,
-            max_depth=6,
-            min_samples_leaf=4,
+
+    if SKLEARN_AVAILABLE and len(df) >= 12:
+        anomaly_model = IsolationForest(
+            n_estimators=200,
+            contamination=min(0.12, max(0.03, 12 / len(df))),
             random_state=42,
-            class_weight="balanced_subsample",
         )
-        risk_model.fit(features, target)
-        risk_probability = risk_model.predict_proba(features)[:, 1]
+        anomaly_model.fit(features)
+        anomaly_score = -anomaly_model.score_samples(features)
+        df["score_anomalia_ia"] = _normalize_0_100(pd.Series(anomaly_score, index=df.index)).round(1)
+        df["classificacao_anomalia_ia"] = df["score_anomalia_ia"].apply(_anomaly_band)
+
+        target = (df["diferenca_percentual_abs"] >= target_threshold).astype(int)
+        if target.nunique() > 1:
+            risk_model = RandomForestClassifier(
+                n_estimators=180,
+                max_depth=6,
+                min_samples_leaf=4,
+                random_state=42,
+                class_weight="balanced_subsample",
+            )
+            risk_model.fit(features, target)
+            risk_probability = risk_model.predict_proba(features)[:, 1]
+        else:
+            risk_probability = (df["score_anomalia_ia"] / 100.0).to_numpy()
     else:
-        risk_probability = (df["score_anomalia_ia"] / 100.0).to_numpy()
+        heuristic_anomaly = (
+            (_normalize_0_100(df["diferenca_percentual_abs"]) * 0.7)
+            + (_normalize_0_100(df["diferenca_kg"].abs()) * 0.3)
+        )
+        df["score_anomalia_ia"] = heuristic_anomaly.round(1)
+        df["classificacao_anomalia_ia"] = df["score_anomalia_ia"].apply(_anomaly_band)
+        risk_probability = (
+            (
+                (_normalize_0_100(df["diferenca_percentual_abs"]) * 0.5)
+                + (_normalize_0_100(df["diferenca_kg"].abs()) * 0.2)
+                + (_normalize_0_100(df["score_anomalia_ia"]) * 0.3)
+            ) / 100.0
+        ).clip(lower=0, upper=1).to_numpy()
 
     df["probabilidade_risco_operacional"] = (risk_probability * 100).round(1)
     df["classificacao_risco_operacional"] = (risk_probability.astype(float)).tolist()

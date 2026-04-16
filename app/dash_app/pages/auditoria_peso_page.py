@@ -1,10 +1,12 @@
 from dash import dcc, html, callback, dash_table
 from dash.dependencies import Input, Output
 import pandas as pd
+import plotly.express as px
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from app.application.analytics import engine
+from app.services.ai_analytics import get_audit_ai_analysis
 from app.services.dashboard_summaries import summarize_auditoria
 from app.services.management_insights import render_management_insight
 
@@ -44,6 +46,15 @@ layout = html.Div([
     ),
     dmc.Card(dcc.Markdown(id="resumo-auditoria"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
     html.Div(id="insight-auditoria-gerencial"),
+    dmc.SimpleGrid(
+        cols={"base": 1, "xl": 2},
+        spacing="md",
+        mb="md",
+        children=[
+            dmc.Card([dcc.Graph(id="grafico-ia-auditoria")], withBorder=True, shadow="sm", radius="md", p="md"),
+            dmc.Card(dcc.Markdown(id="resumo-ia-auditoria"), withBorder=True, shadow="sm", radius="md", p="md"),
+        ],
+    ),
     dmc.Card(
         children=[
             dmc.ScrollArea(
@@ -67,7 +78,16 @@ layout = html.Div([
 
 
 @callback(
-    [Output("tabela-auditoria", "data"), Output("tabela-auditoria", "columns"), Output("tabela-auditoria", "style_data_conditional"), Output("label-slider-auditoria", "children"), Output("resumo-auditoria", "children"), Output("insight-auditoria-gerencial", "children")],
+    [
+        Output("tabela-auditoria", "data"),
+        Output("tabela-auditoria", "columns"),
+        Output("tabela-auditoria", "style_data_conditional"),
+        Output("label-slider-auditoria", "children"),
+        Output("resumo-auditoria", "children"),
+        Output("insight-auditoria-gerencial", "children"),
+        Output("grafico-ia-auditoria", "figure"),
+        Output("resumo-ia-auditoria", "children"),
+    ],
     [Input("filtro-entidade-auditoria", "value"), Input("filtro-discrepancia-auditoria", "value")],
 )
 def update_audit_table(selected_entidade, min_discrepancia):
@@ -89,9 +109,62 @@ def update_audit_table(selected_entidade, min_discrepancia):
     df_audit["diferenca_kg"] = pd.to_numeric(df_audit["diferenca_kg"], errors="coerce").round(2)
     df_audit["diferenca_percentual"] = pd.to_numeric(df_audit["diferenca_percentual"], errors="coerce").round(2)
     df_filtered = df_audit[(df_audit["diferenca_percentual"] > min_discrepancia) | (df_audit["diferenca_percentual"] < -min_discrepancia)]
+    ai_result = get_audit_ai_analysis(selected_entidade, float(min_discrepancia))
+    ai_df = ai_result.get("data", pd.DataFrame())
+    if not ai_df.empty:
+        df_filtered = ai_df.copy()
+        df_filtered["probabilidade_risco_operacional"] = pd.to_numeric(
+            df_filtered["probabilidade_risco_operacional"], errors="coerce"
+        ).round(1)
+        chart_df = df_filtered.head(15).copy()
+        fig_ai = px.bar(
+            chart_df.sort_values("probabilidade_risco_operacional", ascending=True),
+            x="probabilidade_risco_operacional",
+            y="ticket",
+            color="classificacao_anomalia_ia",
+            orientation="h",
+            title="Prioridade de auditoria por IA",
+            labels={
+                "probabilidade_risco_operacional": "Probabilidade de risco (%)",
+                "ticket": "Ticket",
+                "classificacao_anomalia_ia": "Anomalia por IA",
+            },
+        )
+        fig_ai.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin={"l": 20, "r": 20, "t": 50, "b": 20},
+        )
+        ai_summary = ai_result.get("summary", "")
+    else:
+        fig_ai = px.bar(title="IA aplicada à auditoria")
+        fig_ai.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        fig_ai.add_annotation(
+            text=ai_result.get("message", "Ainda não há dados suficientes para a análise de IA."),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        ai_summary = ai_result.get("summary", ai_result.get("message", ""))
     styles = [
         {"if": {"column_id": "diferenca_percentual", "filter_query": f"{{diferenca_percentual}} > {min_discrepancia}"}, "backgroundColor": "#fa5252", "color": "white"},
         {"if": {"column_id": "diferenca_percentual", "filter_query": f"{{diferenca_percentual}} < -{min_discrepancia}"}, "backgroundColor": "#fa5252", "color": "white"},
+        {"if": {"column_id": "classificacao_risco_operacional", "filter_query": "{classificacao_risco_operacional} = 'Muito alto'"}, "backgroundColor": "#c92a2a", "color": "white"},
+        {"if": {"column_id": "classificacao_anomalia_ia", "filter_query": "{classificacao_anomalia_ia} = 'Muito anômalo'"}, "backgroundColor": "#862e9c", "color": "white"},
     ]
     summary = summarize_auditoria(df_filtered, min_discrepancia, entidade_label)
-    return df_filtered.to_dict("records"), [{"name": i, "id": i} for i in df_filtered.columns], styles, f"Limite de discrepancia (%): {min_discrepancia}%", summary, render_management_insight(summary)
+    return (
+        df_filtered.to_dict("records"),
+        [{"name": i, "id": i} for i in df_filtered.columns],
+        styles,
+        f"Limite de discrepancia (%): {min_discrepancia}%",
+        summary,
+        render_management_insight(summary),
+        fig_ai,
+        ai_summary,
+    )

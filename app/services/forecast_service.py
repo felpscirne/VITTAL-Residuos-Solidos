@@ -591,7 +591,16 @@ def _attach_external_regressors(
     return model_df, future_regressors, weather_status, regressor_columns
 
 
-def _default_model_config(observations: int, use_weather: bool) -> dict[str, Any]:
+def _default_model_config(observations: int, use_weather: bool, forecast_profile: str = "default") -> dict[str, Any]:
+    if forecast_profile == "setor":
+        return {
+            "config_name": "conservador",
+            "changepoint_prior_scale": 0.015,
+            "seasonality_prior_scale": 3.0,
+            "holidays_prior_scale": 2.0,
+            "yearly_seasonality": observations >= 24,
+            "use_weather": use_weather,
+        }
     return {
         "config_name": "padrao",
         "changepoint_prior_scale": 0.03,
@@ -602,8 +611,44 @@ def _default_model_config(observations: int, use_weather: bool) -> dict[str, Any
     }
 
 
-def _candidate_model_configs(observations: int, use_weather: bool) -> list[dict[str, Any]]:
-    base = _default_model_config(observations, use_weather)
+def _regressor_columns_for_profile(
+    regressor_columns: list[str],
+    observations: int,
+    forecast_profile: str,
+) -> list[str]:
+    if not regressor_columns:
+        return []
+    if forecast_profile == "setor":
+        if observations < 18:
+            return []
+        return [column for column in regressor_columns if column in {"holiday_window_days", "precip_sum", "rainy_days"}]
+    if observations < 10:
+        return []
+    return regressor_columns
+
+
+def _candidate_model_configs(
+    observations: int,
+    use_weather: bool,
+    forecast_profile: str = "default",
+) -> list[dict[str, Any]]:
+    base = _default_model_config(observations, use_weather, forecast_profile=forecast_profile)
+    if forecast_profile == "setor":
+        candidates = [
+            base,
+            {
+                **base,
+                "config_name": "padrao",
+                "changepoint_prior_scale": 0.02,
+                "seasonality_prior_scale": 4.0,
+                "holidays_prior_scale": 2.5,
+            },
+        ]
+        if observations < 24:
+            for candidate in candidates:
+                candidate["yearly_seasonality"] = False
+        return candidates
+
     candidates = [
         base,
         {
@@ -632,6 +677,47 @@ def _candidate_model_configs(observations: int, use_weather: bool) -> list[dict[
         for candidate in candidates:
             candidate["yearly_seasonality"] = False
     return candidates
+
+
+def _smooth_forecast_projection(
+    history_df: pd.DataFrame,
+    forecast_df: pd.DataFrame,
+    forecast_profile: str,
+) -> pd.DataFrame:
+    smoothed = forecast_df.copy()
+    if smoothed.empty or history_df.empty:
+        return smoothed
+
+    observed_end = pd.to_datetime(history_df["ds"], errors="coerce").max()
+    future_mask = pd.to_datetime(smoothed["ds"], errors="coerce") > observed_end
+    future_only = smoothed.loc[future_mask].copy()
+    if future_only.empty:
+        return smoothed
+
+    baseline = float(pd.to_numeric(history_df["y"].tail(min(4, len(history_df))), errors="coerce").mean())
+    baseline = baseline if math.isfinite(baseline) else 0.0
+    half_width = ((future_only["yhat_upper"] - future_only["yhat_lower"]) / 2).clip(lower=0).fillna(0)
+
+    alpha = 0.35 if forecast_profile == "setor" else 0.55
+    baseline_weight = 0.40 if forecast_profile == "setor" else 0.20
+    smoothed_yhat = future_only["yhat"].ewm(alpha=alpha, adjust=False).mean()
+    anchored_yhat = ((smoothed_yhat * (1 - baseline_weight)) + (baseline * baseline_weight)).clip(lower=0)
+
+    if forecast_profile == "setor":
+        recent_history = pd.to_numeric(history_df["y"].tail(min(8, len(history_df))), errors="coerce").dropna()
+        if not recent_history.empty:
+            recent_mean = float(recent_history.mean())
+            recent_std = float(recent_history.std(ddof=0)) if len(recent_history) > 1 else 0.0
+            recent_max = float(recent_history.max())
+            upper_cap = max(recent_mean + (2.0 * recent_std), recent_max * 1.10, baseline * 1.20)
+            lower_cap = max(0.0, min(float(recent_history.min()) * 0.80, baseline * 0.70))
+            anchored_yhat = anchored_yhat.clip(lower=lower_cap, upper=upper_cap)
+
+    future_only["yhat"] = anchored_yhat
+    future_only["yhat_lower"] = (future_only["yhat"] - half_width).clip(lower=0)
+    future_only["yhat_upper"] = future_only["yhat"] + half_width
+    smoothed.loc[future_mask, ["yhat", "yhat_lower", "yhat_upper"]] = future_only[["yhat", "yhat_lower", "yhat_upper"]]
+    return smoothed
 
 
 def _build_prophet_model(
@@ -831,8 +917,9 @@ def _select_best_model_config(
     periods: int,
     cadence: str,
     regressor_columns: list[str] | None = None,
+    forecast_profile: str = "default",
 ) -> tuple[dict[str, Any], dict[str, float], list[dict[str, Any]]]:
-    candidates = _candidate_model_configs(len(fit_df), use_weather)
+    candidates = _candidate_model_configs(len(fit_df), use_weather, forecast_profile=forecast_profile)
     evaluations = []
     best_config = candidates[0]
     best_metrics = {
@@ -880,6 +967,7 @@ def build_monthly_forecast(
     periods: int = 4,
     interval_width: float = 0.8,
     cadence: str = "quinzenal",
+    forecast_profile: str = "default",
 ) -> dict[str, Any]:
     if monthly_df is None or monthly_df.empty:
         return _empty_result("no_data", "Não há dados suficientes para gerar previsão.")
@@ -913,13 +1001,18 @@ def build_monthly_forecast(
         periods,
         cadence,
     )
-    use_weather = bool(regressor_columns)
+    active_regressor_columns = _regressor_columns_for_profile(
+        regressor_columns,
+        observations=len(series_df),
+        forecast_profile=forecast_profile,
+    )
+    use_weather = bool(active_regressor_columns)
 
     try:
         fit_df = model_df.copy()
         fit_df["y"] = fit_df["y_model"] if "y_model" in fit_df.columns else fit_df["y"]
         if use_weather:
-            for regressor in regressor_columns:
+            for regressor in active_regressor_columns:
                 fit_df[regressor] = pd.to_numeric(fit_df[regressor], errors="coerce")
                 fit_df[regressor] = fit_df[regressor].interpolate(method="linear", limit_direction="both")
                 fit_df[regressor] = fit_df[regressor].fillna(
@@ -934,7 +1027,8 @@ def build_monthly_forecast(
             use_weather=use_weather,
             periods=periods,
             cadence=cadence,
-            regressor_columns=regressor_columns,
+            regressor_columns=active_regressor_columns,
+            forecast_profile=forecast_profile,
         )
 
         model = _build_prophet_model(
@@ -943,7 +1037,7 @@ def build_monthly_forecast(
             use_weather=bool(selected_config.get("use_weather", use_weather)),
             observations=len(series_df),
             model_config=selected_config,
-            regressor_columns=regressor_columns,
+            regressor_columns=active_regressor_columns,
         )
     except Exception as exc:
         result = _empty_result(
@@ -966,12 +1060,12 @@ def build_monthly_forecast(
     future = pd.DataFrame({"ds": fit_df["ds"].tolist() + _generate_future_dates(fit_df["ds"].max(), periods, cadence)})
     effective_use_weather = bool(selected_config.get("use_weather", use_weather))
     if effective_use_weather:
-        future = future.merge(fit_df[["ds", *regressor_columns]], on="ds", how="left")
+        future = future.merge(fit_df[["ds", *active_regressor_columns]], on="ds", how="left")
         if not future_regressors.empty:
             future_regressor_map = future_regressors.set_index("ds")
-            for regressor in regressor_columns:
+            for regressor in active_regressor_columns:
                 future.loc[future["ds"].isin(future_regressor_map.index), regressor] = future_regressor_map[regressor]
-        for regressor in regressor_columns:
+        for regressor in active_regressor_columns:
             future[regressor] = pd.to_numeric(future[regressor], errors="coerce")
             future[regressor] = future[regressor].interpolate(method="linear", limit_direction="both")
             future[regressor] = future[regressor].fillna(
@@ -994,6 +1088,7 @@ def build_monthly_forecast(
     forecast_view["yhat_lower"] = forecast_view["yhat_lower"].clip(lower=0)
     forecast_view["yhat_upper"] = forecast_view[["yhat_upper", "yhat"]].max(axis=1)
     history = series_df.merge(forecast_view[["ds", "yhat"]], on="ds", how="left")
+    forecast_view = _smooth_forecast_projection(history, forecast_view, forecast_profile)
 
     mae = float((history["y"] - history["yhat"]).abs().mean())
     rmse = float(math.sqrt(((history["y"] - history["yhat"]) ** 2).mean()))
@@ -1035,8 +1130,8 @@ def build_monthly_forecast(
             "sources": RIO_GRANDE_PUBLIC_CONTEXT["sources"],
             "weather_status": weather_status,
             "holiday_status": holiday_status,
-            "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(regressor_columns if effective_use_weather else [])],
-            "insights": _build_external_factor_insights(model_df, holiday_df, regressor_columns if effective_use_weather else []),
+            "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(active_regressor_columns if effective_use_weather else [])],
+            "insights": _build_external_factor_insights(model_df, holiday_df, active_regressor_columns if effective_use_weather else []),
         },
     }
 
@@ -1075,7 +1170,6 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
         f"- Validação retrospectiva adotada: **{validation_label}**, cobrindo **{retrospective_periods} períodos** já conhecidos.\n"
         f"- Erro médio na validação retrospectiva: **{metrics.get('retrospective_mae', 0.0):.2f} kg por quinzena**.\n"
         f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**.\n"
-        f"- Cobertura do intervalo original na validação: **{cobertura_original:.2f}%**.\n"
         f"- Cobertura empírica após recalibração: **{cobertura_empirica:.2f}%** ({covered_periods} de {retrospective_periods} períodos ficaram dentro do intervalo).\n"
         f"- Margem adicional aplicada ao intervalo com base no erro histórico: **±{calibration_margin:.2f} kg**.\n"
         f"- Último volume observado: **{metrics['last_actual']:.2f} kg**.\n"

@@ -34,6 +34,7 @@ class ForecastingService:
             periods=periods,
             interval_width=interval_width,
             cadence="quinzenal",
+            forecast_profile="default",
         )
 
     @cache.memoize(timeout=3600)
@@ -53,6 +54,7 @@ class ForecastingService:
             periods=periods,
             interval_width=interval_width,
             cadence="quinzenal",
+            forecast_profile="default",
         )
 
     @cache.memoize(timeout=3600)
@@ -63,6 +65,7 @@ class ForecastingService:
             periods=periods,
             interval_width=interval_width,
             cadence="quinzenal",
+            forecast_profile="default",
         )
 
     @cache.memoize(timeout=3600)
@@ -73,6 +76,7 @@ class ForecastingService:
             periods=periods,
             interval_width=interval_width,
             cadence="quinzenal",
+            forecast_profile="setor",
         )
 
 

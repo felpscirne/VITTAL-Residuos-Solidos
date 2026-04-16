@@ -1,7 +1,6 @@
-from dash import callback, dcc, html
+from dash import callback, dcc
 from dash.dependencies import Input, Output
 import dash_mantine_components as dmc
-from dash_iconify import DashIconify
 import plotly.graph_objects as go
 
 from app.application.analytics import get_setores_options, get_tipos_residuo_options
@@ -13,8 +12,8 @@ from app.application.forecasting import (
     get_volume_mensal_forecast,
 )
 from app.services.forecast_service import (
-    build_forecast_summary_markdown,
     RIO_GRANDE_PUBLIC_CONTEXT,
+    build_forecast_summary_markdown,
 )
 
 
@@ -254,19 +253,16 @@ layout = dmc.Container(
         Output("previsao-entradas-summary", "children"),
         Output("previsao-saidas-graph", "figure"),
         Output("previsao-saidas-summary", "children"),
-        Output("previsao-setor-graph", "figure"),
-        Output("previsao-setor-summary", "children"),
         Output("previsao-public-data-summary", "children"),
     ],
     [
         Input("mantine-provider", "forceColorScheme"),
-        Input("previsao-setor-select", "value"),
         Input("previsao-horizonte-select", "value"),
         Input("previsao-confianca-select", "value"),
         Input("previsao-tipo-residuo-select", "value"),
     ],
 )
-def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
+def update_previsoes_gerais(color_scheme, horizonte, confianca, tipo_residuo):
     template_name = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     horizonte = int(horizonte or 6)
     confianca = float(confianca or 0.80)
@@ -292,15 +288,6 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
         interval_width=confianca,
         tipo_residuo=tipo_residuo,
     )
-    setor_result = get_setor_volume_mensal_forecast(
-        setor,
-        periods=horizonte,
-        interval_width=confianca,
-        tipo_residuo=tipo_residuo,
-    ) if setor else {
-        "status": "no_data",
-        "message": "Selecione um setor para visualizar a previsao.",
-    }
 
     return (
         _forecast_figure(
@@ -324,6 +311,45 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
             interval_label,
         ),
         build_forecast_summary_markdown(saidas_result),
+        get_public_data_context_markdown(total_result),
+    )
+
+
+@callback(
+    [
+        Output("previsao-setor-graph", "figure"),
+        Output("previsao-setor-summary", "children"),
+    ],
+    [
+        Input("mantine-provider", "forceColorScheme"),
+        Input("previsao-setor-select", "value"),
+        Input("previsao-horizonte-select", "value"),
+        Input("previsao-confianca-select", "value"),
+        Input("previsao-tipo-residuo-select", "value"),
+    ],
+)
+def update_previsao_setorial(color_scheme, setor, horizonte, confianca, tipo_residuo):
+    template_name = "plotly_dark" if color_scheme == "dark" else "plotly_white"
+    horizonte = int(horizonte or 6)
+    confianca = float(confianca or 0.80)
+    interval_label = f"{int(confianca * 100)}%"
+    tipo_residuo = tipo_residuo or "todos"
+    tipo_label = next(
+        (opt["label"] for opt in tipos_residuo_options if opt["value"] == tipo_residuo),
+        "Todos os resíduos",
+    )
+
+    setor_result = get_setor_volume_mensal_forecast(
+        setor,
+        periods=horizonte,
+        interval_width=confianca,
+        tipo_residuo=tipo_residuo,
+    ) if setor else {
+        "status": "no_data",
+        "message": "Selecione um setor para visualizar a previsão.",
+    }
+
+    return (
         _forecast_figure(
             setor_result,
             f"Previsão do setor: {setor or 'N/D'} - {tipo_label}",
@@ -331,5 +357,4 @@ def update_previsoes(color_scheme, setor, horizonte, confianca, tipo_residuo):
             interval_label,
         ),
         build_forecast_summary_markdown(setor_result),
-        get_public_data_context_markdown(total_result),
     )

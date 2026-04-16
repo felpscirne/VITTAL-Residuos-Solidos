@@ -6,12 +6,16 @@ from sqlalchemy import extract
 
 from app.application.analytics import get_anos_options, get_dados_setores_macro, get_dados_setor_temporal
 from app.models import Event
+from app.services.ai_analytics import get_setor_clustering_analysis
 from app.services.dashboard_summaries import summarize_setores_overview, summarize_setor_temporal
 from app.services.management_insights import render_management_insight
 
 
 df_setores = get_dados_setores_macro()
-setores_options_temporal = sorted([{"label": s, "value": s} for s in df_setores["setor"].unique()], key=lambda x: x["label"])
+setores_options_temporal = sorted(
+    [{"label": s, "value": s} for s in df_setores["setor"].unique()],
+    key=lambda x: x["label"],
+) if not df_setores.empty else []
 anos_options_temporal, ano_inicial_temporal = get_anos_options()
 setor_inicial_temporal = setores_options_temporal[0]["value"] if setores_options_temporal else None
 
@@ -21,8 +25,8 @@ def fig_relacao_peso_volume(df, template):
         df,
         x="quantidade",
         y="Média de Peso (kg)",
-        title="Relacao: Media de Peso x Volume de Registros por Setor",
-        labels={"quantidade": "Volume (Contagem)", "Média de Peso (kg)": "Media de Peso (kg)"},
+        title="Relação: média de peso x volume de registros por setor",
+        labels={"quantidade": "Volume (contagem)", "Média de Peso (kg)": "Média de peso (kg)"},
         hover_name="setor",
         template=template,
     )
@@ -32,7 +36,7 @@ def fig_relacao_peso_volume(df, template):
 
 def fig_media_por_setor(df, template):
     df_sorted = df.sort_values(by="Média de Peso (kg)", ascending=False)
-    fig = px.bar(df_sorted, x="setor", y="Média de Peso (kg)", title="Ranking: Media do Peso por Setor", template=template)
+    fig = px.bar(df_sorted, x="setor", y="Média de Peso (kg)", title="Ranking: média do peso por setor", template=template)
     fig.update_xaxes(tickangle=45)
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
@@ -41,90 +45,219 @@ def fig_media_por_setor(df, template):
 def fig_contagem_por_setor(df, template):
     df_sorted = df.sort_values(by="quantidade", ascending=False)
     dynamic_height = max(400, len(df_sorted.index) * 20)
-    fig = px.bar(df_sorted, x="quantidade", y="setor", orientation="h", title="Ranking: Volume de Registros por Setor", template=template)
-    fig.update_layout(yaxis={"autorange": "reversed"}, height=dynamic_height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    fig = px.bar(
+        df_sorted,
+        x="quantidade",
+        y="setor",
+        orientation="h",
+        title="Ranking: volume de registros por setor",
+        template=template,
+    )
+    fig.update_layout(
+        yaxis={"autorange": "reversed"},
+        height=dynamic_height,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
     return fig
 
 
-layout = dmc.Container([
-    dmc.Title("Análise de Setores", order=2),
-    dmc.Text("Compare todos os setores entre si ou analise a tendência de um setor específico ao longo do tempo.", c="dimmed", mb="lg"),
-    dmc.Divider(mb="lg"),
-    dmc.Title("Visão Geral: Comparativo entre Setores", order=3, mb="md"),
-    dmc.Tabs(
-        [
-            dmc.TabsList([
-                dmc.TabsTab("Matriz de Relação", value="relacao", leftSection=DashIconify(icon="radix-icons:mix")),
-                dmc.TabsTab("Rankings Individuais", value="individual", leftSection=DashIconify(icon="radix-icons:bar-chart")),
-            ]),
-            dmc.TabsPanel(
-                [
-                    dmc.Alert("Este gráfico cruza número de viagens com peso médio para identificar setores fora da curva.", title="Ajuda analítica", color="blue", variant="light", mt="md", mb="md"),
-                    dmc.Card(dcc.Graph(id="grafico-relacao-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
-                ],
-                value="relacao",
-            ),
-            dmc.TabsPanel(
-                [
-                    dmc.Alert("Observe setores com maior peso médio e setores com maior demanda operacional.", title="Ajuda analítica", color="blue", variant="light", mt="md", mb="md"),
-                    dmc.SimpleGrid(
-                        cols={"base": 1, "lg": 2},
-                        spacing="md",
-                        children=[
-                            dmc.Card(dcc.Graph(id="grafico-media-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
-                            dmc.Card(dcc.Graph(id="grafico-contagem-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
-                        ],
+layout = dmc.Container(
+    [
+        dmc.Title("Análise de setores", order=2),
+        dmc.Text(
+            "Compare todos os setores entre si ou analise a tendência de um setor específico ao longo do tempo.",
+            c="dimmed",
+            mb="lg",
+        ),
+        dmc.Divider(mb="lg"),
+        dmc.Title("Visão geral: comparativo entre setores", order=3, mb="md"),
+        dmc.Tabs(
+            [
+                dmc.TabsList(
+                    [
+                        dmc.TabsTab("Matriz de relação", value="relacao", leftSection=DashIconify(icon="radix-icons:mix")),
+                        dmc.TabsTab("Rankings individuais", value="individual", leftSection=DashIconify(icon="radix-icons:bar-chart")),
+                    ]
+                ),
+                dmc.TabsPanel(
+                    [
+                        dmc.Alert(
+                            "Este gráfico cruza número de viagens com peso médio para identificar setores fora da curva.",
+                            title="Ajuda analítica",
+                            color="blue",
+                            variant="light",
+                            mt="md",
+                            mb="md",
+                        ),
+                        dmc.Card(dcc.Graph(id="grafico-relacao-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
+                    ],
+                    value="relacao",
+                ),
+                dmc.TabsPanel(
+                    [
+                        dmc.Alert(
+                            "Observe setores com maior peso médio e setores com maior demanda operacional.",
+                            title="Ajuda analítica",
+                            color="blue",
+                            variant="light",
+                            mt="md",
+                            mb="md",
+                        ),
+                        dmc.SimpleGrid(
+                            cols={"base": 1, "lg": 2},
+                            spacing="md",
+                            children=[
+                                dmc.Card(dcc.Graph(id="grafico-media-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
+                                dmc.Card(dcc.Graph(id="grafico-contagem-setor"), withBorder=True, shadow="sm", radius="md", p="md"),
+                            ],
+                        ),
+                    ],
+                    value="individual",
+                ),
+            ],
+            value="relacao",
+            color="blue",
+            mb="md",
+        ),
+        dmc.Card(dcc.Markdown(id="resumo-setores-overview"), withBorder=True, shadow="sm", radius="md", p="md", mb="md"),
+        html.Div(id="insight-setores-overview-gerencial"),
+        dmc.Card(
+            [
+                dmc.Title("Clustering de setores", order=4, mb="sm"),
+                dmc.Text(
+                    "A IA agrupa setores com comportamento parecido de volume, peso e discrepância operacional.",
+                    c="dimmed",
+                    size="sm",
+                    mb="md",
+                ),
+                dcc.Graph(id="grafico-cluster-setores"),
+                dcc.Markdown(id="resumo-cluster-setores"),
+            ],
+            withBorder=True,
+            shadow="sm",
+            radius="md",
+            p="md",
+            mb="xl",
+        ),
+        dmc.Title("Drill-down: análise temporal por setor", order=3, mb="md"),
+        dmc.Alert(
+            "Compare o desempenho mensal de um setor e observe possível influência de eventos sazonais.",
+            color="gray",
+            variant="light",
+            mb="md",
+        ),
+        dmc.Grid(
+            gutter="md",
+            mb="md",
+            children=[
+                dmc.GridCol(
+                    dmc.Select(
+                        label="Selecione o setor",
+                        id="filtro-setor-temporal",
+                        data=setores_options_temporal,
+                        value=setor_inicial_temporal,
+                        searchable=True,
                     ),
-                ],
-                value="individual",
-            ),
-        ],
-        value="relacao",
-        color="blue",
-        mb="md",
-    ),
-    dmc.Card(dcc.Markdown(id="resumo-setores-overview"), withBorder=True, shadow="sm", radius="md", p="md", mb="xl"),
-    html.Div(id="insight-setores-overview-gerencial"),
-    dmc.Title("Drill-Down: Análise Temporal por Setor", order=3, mb="md"),
-    dmc.Alert("Compare o desempenho mensal de um setor e observe possível influência de eventos sazonais.", color="gray", variant="light", mb="md"),
-    dmc.Grid(
-        gutter="md",
-        mb="md",
-        children=[
-            dmc.GridCol(dmc.Select(label="Selecione o Setor", id="filtro-setor-temporal", data=setores_options_temporal, value=setor_inicial_temporal, searchable=True), span=6),
-            dmc.GridCol(dmc.Select(label="Selecione o Ano", id="filtro-ano-temporal", data=anos_options_temporal, value=str(ano_inicial_temporal) if ano_inicial_temporal else None, allowDeselect=False), span=6),
-        ],
-    ),
-    dmc.Card(
-        [dcc.Graph(id="grafico-media-setor-temporal"), html.Div(id="lista-eventos-setor", style={"paddingTop": "20px"}), dcc.Markdown(id="resumo-setor-temporal")],
-        withBorder=True,
-        shadow="sm",
-        radius="md",
-        p="md",
-        mb="md",
-    ),
-    html.Div(id="insight-setor-temporal-gerencial"),
-], fluid=True)
+                    span=6,
+                ),
+                dmc.GridCol(
+                    dmc.Select(
+                        label="Selecione o ano",
+                        id="filtro-ano-temporal",
+                        data=anos_options_temporal,
+                        value=str(ano_inicial_temporal) if ano_inicial_temporal else None,
+                        allowDeselect=False,
+                    ),
+                    span=6,
+                ),
+            ],
+        ),
+        dmc.Card(
+            [
+                dcc.Graph(id="grafico-media-setor-temporal"),
+                html.Div(id="lista-eventos-setor", style={"paddingTop": "20px"}),
+                dcc.Markdown(id="resumo-setor-temporal"),
+            ],
+            withBorder=True,
+            shadow="sm",
+            radius="md",
+            p="md",
+            mb="md",
+        ),
+        html.Div(id="insight-setor-temporal-gerencial"),
+    ],
+    fluid=True,
+)
 
 
 @callback(
-    [Output("grafico-relacao-setor", "figure"), Output("grafico-media-setor", "figure"), Output("grafico-contagem-setor", "figure"), Output("resumo-setores-overview", "children"), Output("insight-setores-overview-gerencial", "children")],
+    [
+        Output("grafico-relacao-setor", "figure"),
+        Output("grafico-media-setor", "figure"),
+        Output("grafico-contagem-setor", "figure"),
+        Output("resumo-setores-overview", "children"),
+        Output("insight-setores-overview-gerencial", "children"),
+        Output("grafico-cluster-setores", "figure"),
+        Output("resumo-cluster-setores", "children"),
+    ],
     [Input("mantine-provider", "forceColorScheme")],
 )
 def update_overview_graphs_theme(theme):
     template = "plotly_dark" if theme == "dark" else "plotly_white"
     summary = summarize_setores_overview(df_setores)
+    cluster_result = get_setor_clustering_analysis()
+    cluster_df = cluster_result.get("data")
+
+    if cluster_result.get("available") and cluster_df is not None and not cluster_df.empty:
+        cluster_fig = px.scatter(
+            cluster_df,
+            x="quantidade",
+            y="media_peso",
+            size="peso_total",
+            color="cluster",
+            hover_name="setor",
+            title="Grupos de setores por comportamento operacional",
+            labels={
+                "quantidade": "Volume de registros",
+                "media_peso": "Média de peso (kg)",
+                "cluster": "Grupo",
+            },
+            template=template,
+        )
+        cluster_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        cluster_summary = cluster_result.get("summary", "")
+    else:
+        cluster_fig = px.scatter(title="Grupos de setores por comportamento operacional", template=template)
+        cluster_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        cluster_fig.add_annotation(
+            text=cluster_result.get("message", "Ainda não há dados suficientes para agrupar setores."),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        cluster_summary = cluster_result.get("summary", cluster_result.get("message", ""))
+
     return (
         fig_relacao_peso_volume(df_setores, template),
         fig_media_por_setor(df_setores, template),
         fig_contagem_por_setor(df_setores, template),
         summary,
         render_management_insight(summary),
+        cluster_fig,
+        cluster_summary,
     )
 
 
 @callback(
-    [Output("grafico-media-setor-temporal", "figure"), Output("lista-eventos-setor", "children"), Output("resumo-setor-temporal", "children"), Output("insight-setor-temporal-gerencial", "children")],
+    [
+        Output("grafico-media-setor-temporal", "figure"),
+        Output("lista-eventos-setor", "children"),
+        Output("resumo-setor-temporal", "children"),
+        Output("insight-setor-temporal-gerencial", "children"),
+    ],
     [Input("filtro-setor-temporal", "value"), Input("filtro-ano-temporal", "value"), Input("mantine-provider", "forceColorScheme")],
 )
 def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
@@ -132,20 +265,36 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
     if not setor_selecionado or not ano_selecionado:
         fig_vazia = px.line(title="Selecione um setor e um ano.", template=template)
         fig_vazia.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        summary = "### Resumo analitico\n- Selecione um setor e um ano para visualizar a serie."
-    return fig_vazia, "", summary, render_management_insight(summary)
+        summary = "### Resumo analítico\n- Selecione um setor e um ano para visualizar a série."
+        return fig_vazia, "", summary, render_management_insight(summary)
 
     df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
     meses_map = {1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"}
     if not df.empty:
         df["mes_nome"] = df["mes"].map(meses_map)
         df = df.sort_values(by="mes")
-    fig = px.line(df, x="mes_nome" if not df.empty else [], y="media_peso" if not df.empty else [], markers=True, title=f"Media Mensal de Peso Corrigido: {setor_selecionado} ({ano_selecionado})", template=template)
-    fig.update_layout(xaxis_title="Mes", yaxis_title="Peso Medio (kg)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+    fig = px.line(
+        df,
+        x="mes_nome" if not df.empty else [],
+        y="media_peso" if not df.empty else [],
+        markers=True,
+        title=f"Média mensal de peso corrigido: {setor_selecionado} ({ano_selecionado})",
+        template=template,
+    )
+    fig.update_layout(
+        xaxis_title="Mês",
+        yaxis_title="Peso médio (kg)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
 
     events_html = []
     try:
-        events = Event.query.filter(extract("year", Event.start_date) <= ano_selecionado, extract("year", Event.end_date) >= ano_selecionado).all()
+        events = Event.query.filter(
+            extract("year", Event.start_date) <= ano_selecionado,
+            extract("year", Event.end_date) >= ano_selecionado,
+        ).all()
         fig.update_xaxes(categoryorder="array", categoryarray=["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"])
         found_events = []
         for event in events:
@@ -158,8 +307,19 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
             items = []
             for event in found_events:
                 dt_str = f"{event.start_date.strftime('%d/%m/%Y')} a {event.end_date.strftime('%d/%m/%Y')}"
-                items.append(dmc.Paper([dmc.Text(event.title, fw=700), dmc.Text(f"Periodo: {dt_str}", size="sm", c="dimmed"), dmc.Text(event.description or "", size="sm")], withBorder=True, p="sm", mb="xs"))
-            events_html = [dmc.Title("Eventos neste periodo:", order=5, mt="md", mb="sm"), dmc.ScrollArea(h=200, children=items)]
+                items.append(
+                    dmc.Paper(
+                        [
+                            dmc.Text(event.title, fw=700),
+                            dmc.Text(f"Período: {dt_str}", size="sm", c="dimmed"),
+                            dmc.Text(event.description or "", size="sm"),
+                        ],
+                        withBorder=True,
+                        p="sm",
+                        mb="xs",
+                    )
+                )
+            events_html = [dmc.Title("Eventos neste período:", order=5, mt="md", mb="sm"), dmc.ScrollArea(h=200, children=items)]
     except Exception:
         events_html = []
 

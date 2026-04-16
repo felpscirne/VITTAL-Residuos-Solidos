@@ -17,6 +17,11 @@ def create_app():
     server.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
     server.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
     server.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    server.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": int(os.getenv("DB_POOL_RECYCLE_SECONDS", 1800)),
+        "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT_SECONDS", 30)),
+    }
 
     server.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")
     server.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", 587))

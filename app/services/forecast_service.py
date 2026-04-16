@@ -51,6 +51,9 @@ FEATURE_LABELS = {
     "feriados_publicos_rio_grande_rs": "Feriados públicos de Rio Grande e do Brasil",
     "temp_mean": "Temperatura média",
     "precip_sum": "Precipitação acumulada",
+    "rainy_days": "Dias chuvosos no período",
+    "precip_sum_lag1": "Chuva acumulada no período anterior",
+    "holiday_window_days": "Dias próximos a feriados",
 }
 
 SMOOTHING_LABELS = {
@@ -209,7 +212,7 @@ def _build_holiday_dataframe(start_year: int, end_year: int) -> tuple[pd.DataFra
 
 
 @lru_cache(maxsize=24)
-def _fetch_rio_grande_weather_monthly_cached(start_date_str: str, end_date_str: str) -> tuple[pd.DataFrame, str]:
+def _fetch_rio_grande_weather_daily_cached(start_date_str: str, end_date_str: str) -> tuple[pd.DataFrame, str]:
     start_date = pd.Timestamp(start_date_str)
     end_date = pd.Timestamp(end_date_str)
     api_url = "https://archive-api.open-meteo.com/v1/archive"
@@ -235,19 +238,13 @@ def _fetch_rio_grande_weather_monthly_cached(start_date_str: str, end_date_str: 
         )
         if weather_df.empty:
             return pd.DataFrame(), "empty"
-        weather_df["month"] = weather_df["date"].dt.to_period("M").dt.to_timestamp()
-        monthly = weather_df.groupby("month", as_index=False).agg(
-            temp_mean=("temp_mean", "mean"),
-            precip_sum=("precip_sum", "sum"),
-        )
-        monthly = monthly.rename(columns={"month": "ds"})
-        return monthly, "ok"
+        return weather_df, "ok"
     except Exception:  # pragma: no cover
         return pd.DataFrame(), "unavailable"
 
 
-def fetch_rio_grande_weather_monthly(start_date: pd.Timestamp, end_date: pd.Timestamp) -> tuple[pd.DataFrame, str]:
-    return _fetch_rio_grande_weather_monthly_cached(
+def fetch_rio_grande_weather_daily(start_date: pd.Timestamp, end_date: pd.Timestamp) -> tuple[pd.DataFrame, str]:
+    return _fetch_rio_grande_weather_daily_cached(
         pd.Timestamp(start_date).strftime("%Y-%m-%d"),
         pd.Timestamp(end_date).strftime("%Y-%m-%d"),
     )
@@ -370,15 +367,79 @@ def _stabilize_monthly_signal(series_df: pd.DataFrame) -> pd.DataFrame:
     return stabilized
 
 
-def _build_monthly_climatology(weather_df: pd.DataFrame) -> pd.DataFrame:
+def _cadence_bucket(ts: pd.Timestamp, cadence: str) -> pd.Timestamp:
+    ts = pd.Timestamp(ts)
+    if cadence == "quinzenal":
+        return _semi_month_start(ts)
+    return ts.to_period("M").to_timestamp()
+
+
+def _build_cadence_climatology(weather_df: pd.DataFrame, cadence: str) -> pd.DataFrame:
     if weather_df.empty:
-        return pd.DataFrame(columns=["month_num", "temp_mean", "precip_sum"])
+        return pd.DataFrame(columns=["month_num", "half", "temp_mean", "precip_sum", "rainy_days", "precip_sum_lag1"])
+
     climatology = weather_df.copy()
     climatology["month_num"] = climatology["ds"].dt.month
-    return climatology.groupby("month_num", as_index=False).agg(
+    climatology["half"] = climatology["ds"].dt.day.apply(lambda day: 1 if day <= 15 else 2)
+    return climatology.groupby(["month_num", "half"], as_index=False).agg(
         temp_mean=("temp_mean", "mean"),
         precip_sum=("precip_sum", "mean"),
+        rainy_days=("rainy_days", "mean"),
+        precip_sum_lag1=("precip_sum_lag1", "mean"),
     )
+
+
+def _expand_holiday_window(holiday_dates: pd.Series, days_before: int = 1, days_after: int = 2) -> set[pd.Timestamp]:
+    expanded = set()
+    for holiday_date in pd.to_datetime(holiday_dates, errors="coerce").dropna().dt.normalize().unique():
+        for offset in range(-days_before, days_after + 1):
+            expanded.add(pd.Timestamp(holiday_date) + pd.Timedelta(days=offset))
+    return expanded
+
+
+def _build_holiday_cadence_features(
+    dates: pd.Series | list[pd.Timestamp],
+    holiday_df: pd.DataFrame,
+    cadence: str,
+) -> pd.DataFrame:
+    ds_index = pd.to_datetime(pd.Series(dates), errors="coerce").dropna().drop_duplicates().sort_values()
+    if ds_index.empty:
+        return pd.DataFrame(columns=["ds", "holiday_window_days"])
+
+    holiday_dates = pd.to_datetime(holiday_df["ds"], errors="coerce").dropna().dt.normalize().drop_duplicates() if holiday_df is not None and not holiday_df.empty else pd.Series(dtype="datetime64[ns]")
+    if holiday_dates.empty:
+        return pd.DataFrame({"ds": ds_index, "holiday_window_days": 0})
+
+    daily_range = pd.date_range(ds_index.min(), ds_index.max() + pd.Timedelta(days=15), freq="D")
+    window_dates = _expand_holiday_window(holiday_dates)
+    daily_df = pd.DataFrame({"date": daily_range})
+    daily_df["holiday_window_days"] = daily_df["date"].isin(window_dates).astype(int)
+    daily_df["ds"] = daily_df["date"].apply(lambda value: _cadence_bucket(value, cadence))
+    aggregated = daily_df.groupby("ds", as_index=False).agg(
+        holiday_window_days=("holiday_window_days", "sum"),
+    )
+    return pd.DataFrame({"ds": ds_index}).merge(aggregated, on="ds", how="left").fillna({"holiday_window_days": 0})
+
+
+def _aggregate_weather_by_cadence(weather_df: pd.DataFrame, cadence: str) -> pd.DataFrame:
+    if weather_df.empty:
+        return pd.DataFrame(columns=["ds", "temp_mean", "precip_sum", "rainy_days", "precip_sum_lag1"])
+
+    aggregated = weather_df.copy()
+    aggregated["date"] = pd.to_datetime(aggregated["date"], errors="coerce")
+    aggregated["temp_mean"] = pd.to_numeric(aggregated["temp_mean"], errors="coerce")
+    aggregated["precip_sum"] = pd.to_numeric(aggregated["precip_sum"], errors="coerce").fillna(0)
+    aggregated = aggregated.dropna(subset=["date"])
+    aggregated["ds"] = aggregated["date"].apply(lambda value: _cadence_bucket(value, cadence))
+    aggregated["rainy_day_flag"] = (aggregated["precip_sum"] >= 5).astype(int)
+    aggregated = aggregated.groupby("ds", as_index=False).agg(
+        temp_mean=("temp_mean", "mean"),
+        precip_sum=("precip_sum", "sum"),
+        rainy_days=("rainy_day_flag", "sum"),
+    ).sort_values("ds")
+    aggregated["precip_sum_lag1"] = aggregated["precip_sum"].shift(1)
+    aggregated["precip_sum_lag1"] = aggregated["precip_sum_lag1"].fillna(aggregated["precip_sum"].median() if not aggregated.empty else 0)
+    return aggregated
 
 
 def _safe_corr(series_a: pd.Series, series_b: pd.Series) -> float | None:
@@ -412,7 +473,7 @@ def _describe_correlation(label: str, corr: float | None) -> str | None:
     return f"{label}: {strength} ({direction}, correlação aproximada de {corr:.2f})"
 
 
-def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataFrame, weather_features: list[str]) -> list[str]:
+def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataFrame, regressor_columns: list[str]) -> list[str]:
     if model_df is None or model_df.empty or "y" not in model_df.columns:
         return []
 
@@ -424,55 +485,110 @@ def _build_external_factor_insights(model_df: pd.DataFrame, holiday_df: pd.DataF
         return []
 
     insights = []
+    signal_strengths: list[float] = []
+    holiday_difference_relevant = False
 
-    if "temp_mean" in weather_features and "temp_mean" in enriched.columns:
-        temp_text = _describe_correlation("Temperatura média", _safe_corr(enriched["y"], enriched["temp_mean"]))
+    if "temp_mean" in regressor_columns and "temp_mean" in enriched.columns:
+        temp_corr = _safe_corr(enriched["y"], enriched["temp_mean"])
+        temp_text = _describe_correlation("Temperatura média", temp_corr)
         if temp_text:
             insights.append(temp_text)
+        if temp_corr is not None:
+            signal_strengths.append(abs(temp_corr))
 
-    if "precip_sum" in weather_features and "precip_sum" in enriched.columns:
-        precip_text = _describe_correlation("Precipitação acumulada", _safe_corr(enriched["y"], enriched["precip_sum"]))
+    if "precip_sum" in regressor_columns and "precip_sum" in enriched.columns:
+        precip_corr = _safe_corr(enriched["y"], enriched["precip_sum"])
+        precip_text = _describe_correlation("Precipitação acumulada", precip_corr)
         if precip_text:
             insights.append(precip_text)
+        if precip_corr is not None:
+            signal_strengths.append(abs(precip_corr))
 
-    if holiday_df is not None and not holiday_df.empty:
-        holiday_periods = set(pd.to_datetime(holiday_df["ds"], errors="coerce").dropna().dt.to_period("M").astype(str).tolist())
-        if holiday_periods:
-            enriched["period_key"] = enriched["ds"].dt.to_period("M").astype(str)
-            enriched["has_holiday"] = enriched["period_key"].isin(holiday_periods)
-            holiday_slice = enriched[enriched["has_holiday"]]
-            regular_slice = enriched[~enriched["has_holiday"]]
-            if not holiday_slice.empty and not regular_slice.empty:
-                holiday_mean = float(holiday_slice["y"].mean())
-                regular_mean = float(regular_slice["y"].mean())
-                diff_pct = ((holiday_mean - regular_mean) / regular_mean * 100) if regular_mean else 0.0
-                if abs(diff_pct) < 5:
-                    holiday_desc = "sem diferença relevante frente aos demais períodos"
-                elif diff_pct > 0:
-                    holiday_desc = f"volumes historicamente acima da média em cerca de {abs(diff_pct):.1f}%"
-                else:
-                    holiday_desc = f"volumes historicamente abaixo da média em cerca de {abs(diff_pct):.1f}%"
-                insights.append(f"Feriados públicos: {holiday_desc}")
+    if "rainy_days" in regressor_columns and "rainy_days" in enriched.columns:
+        rainy_corr = _safe_corr(enriched["y"], enriched["rainy_days"])
+        rainy_text = _describe_correlation("Dias chuvosos no período", rainy_corr)
+        if rainy_text:
+            insights.append(rainy_text)
+        if rainy_corr is not None:
+            signal_strengths.append(abs(rainy_corr))
+
+    if "precip_sum_lag1" in regressor_columns and "precip_sum_lag1" in enriched.columns:
+        lag_corr = _safe_corr(enriched["y"], enriched["precip_sum_lag1"])
+        lag_text = _describe_correlation("Chuva acumulada no período anterior", lag_corr)
+        if lag_text:
+            insights.append(lag_text)
+        if lag_corr is not None:
+            signal_strengths.append(abs(lag_corr))
+
+    if "holiday_window_days" in regressor_columns and "holiday_window_days" in enriched.columns:
+        enriched["has_holiday_window"] = pd.to_numeric(enriched["holiday_window_days"], errors="coerce").fillna(0) > 0
+        holiday_slice = enriched[enriched["has_holiday_window"]]
+        regular_slice = enriched[~enriched["has_holiday_window"]]
+        if not holiday_slice.empty and not regular_slice.empty:
+            holiday_mean = float(holiday_slice["y"].mean())
+            regular_mean = float(regular_slice["y"].mean())
+            diff_pct = ((holiday_mean - regular_mean) / regular_mean * 100) if regular_mean else 0.0
+            if abs(diff_pct) < 5:
+                holiday_desc = "sem diferença relevante frente aos demais períodos"
+            elif diff_pct > 0:
+                holiday_desc = f"volumes historicamente acima da média em cerca de {abs(diff_pct):.1f}%"
+            else:
+                holiday_desc = f"volumes historicamente abaixo da média em cerca de {abs(diff_pct):.1f}%"
+            insights.append(f"Proximidade de feriados: {holiday_desc}")
+            holiday_difference_relevant = abs(diff_pct) >= 5
+
+    if regressor_columns and not any(strength >= 0.35 for strength in signal_strengths) and not holiday_difference_relevant:
+        insights.append(
+            "Leitura gerencial: no agregado quinzenal, os efeitos de clima e feriados parecem diluídos; eles podem aparecer com mais nitidez em recortes por setor ou por tipo de resíduo"
+        )
 
     return insights
 
 
-def _attach_weather_regressors(series_df: pd.DataFrame, periods: int) -> tuple[pd.DataFrame, pd.DataFrame, str, list[str]]:
-    weather_df, weather_status = fetch_rio_grande_weather_monthly(series_df["ds"].min(), series_df["ds"].max())
-    if weather_df.empty:
-        return series_df, pd.DataFrame(), weather_status, []
-
+def _attach_external_regressors(
+    series_df: pd.DataFrame,
+    holiday_df: pd.DataFrame,
+    periods: int,
+    cadence: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, str, list[str]]:
+    weather_df, weather_status = fetch_rio_grande_weather_daily(series_df["ds"].min(), series_df["ds"].max())
+    regressor_columns: list[str] = []
     model_df = series_df.copy()
-    model_df["month_key"] = model_df["ds"].dt.to_period("M").dt.to_timestamp()
-    weather_df = weather_df.copy()
-    weather_df["month_key"] = pd.to_datetime(weather_df["ds"]).dt.to_period("M").dt.to_timestamp()
-    model_df = model_df.merge(weather_df[["month_key", "temp_mean", "precip_sum"]], on="month_key", how="left")
-    climatology = _build_monthly_climatology(weather_df)
-    future_dates = _generate_future_dates(series_df["ds"].max(), periods, "quinzenal")
-    future_regressors = pd.DataFrame({"ds": future_dates})
-    future_regressors["month_num"] = future_regressors["ds"].dt.month
-    future_regressors = future_regressors.merge(climatology, on="month_num", how="left").drop(columns=["month_num"])
-    return model_df, future_regressors, weather_status, ["temp_mean", "precip_sum"]
+
+    if not weather_df.empty:
+        weather_cadence_df = _aggregate_weather_by_cadence(weather_df, cadence)
+        model_df = model_df.merge(weather_cadence_df, on="ds", how="left")
+        regressor_columns.extend(["temp_mean", "precip_sum", "rainy_days", "precip_sum_lag1"])
+        climatology = _build_cadence_climatology(weather_cadence_df, cadence)
+        future_dates = pd.DataFrame({"ds": _generate_future_dates(series_df["ds"].max(), periods, cadence)})
+        future_dates["month_num"] = future_dates["ds"].dt.month
+        future_dates["half"] = future_dates["ds"].dt.day.apply(lambda day: 1 if day <= 15 else 2)
+        future_regressors = future_dates.merge(climatology, on=["month_num", "half"], how="left").drop(columns=["month_num", "half"])
+    else:
+        future_regressors = pd.DataFrame({"ds": _generate_future_dates(series_df["ds"].max(), periods, cadence)})
+
+    holiday_features = _build_holiday_cadence_features(model_df["ds"], holiday_df, cadence)
+    model_df = model_df.merge(holiday_features, on="ds", how="left")
+    future_holiday_features = _build_holiday_cadence_features(future_regressors["ds"], holiday_df, cadence)
+    future_regressors = future_regressors.merge(future_holiday_features, on="ds", how="left")
+    regressor_columns.append("holiday_window_days")
+
+    for regressor in regressor_columns:
+        if regressor in model_df.columns:
+            model_df[regressor] = pd.to_numeric(model_df[regressor], errors="coerce")
+            model_df[regressor] = model_df[regressor].interpolate(method="linear", limit_direction="both")
+            model_df[regressor] = model_df[regressor].fillna(model_df[regressor].median() if model_df[regressor].notna().any() else 0)
+        if regressor in future_regressors.columns:
+            future_regressors[regressor] = pd.to_numeric(future_regressors[regressor], errors="coerce")
+            future_regressors[regressor] = future_regressors[regressor].interpolate(method="linear", limit_direction="both")
+            future_regressors[regressor] = future_regressors[regressor].fillna(model_df[regressor].median() if regressor in model_df.columns and model_df[regressor].notna().any() else 0)
+
+    regressor_columns = [
+        regressor for regressor in regressor_columns
+        if regressor in model_df.columns and model_df[regressor].nunique(dropna=True) > 1
+    ]
+
+    return model_df, future_regressors, weather_status, regressor_columns
 
 
 def _default_model_config(observations: int, use_weather: bool) -> dict[str, Any]:
@@ -524,10 +640,12 @@ def _build_prophet_model(
     use_weather: bool,
     observations: int,
     model_config: dict[str, Any] | None = None,
+    regressor_columns: list[str] | None = None,
 ) -> Prophet:
     config = model_config or _default_model_config(observations, use_weather)
     yearly_seasonality = bool(config.get("yearly_seasonality", observations >= 18))
     effective_use_weather = bool(config.get("use_weather", use_weather))
+    active_regressors = list(regressor_columns or [])
     n_changepoints = min(max(observations - 2, 0), 6)
     model = Prophet(
         yearly_seasonality=yearly_seasonality,
@@ -543,8 +661,8 @@ def _build_prophet_model(
         stan_backend="CMDSTANPY",
     )
     if effective_use_weather:
-        model.add_regressor("temp_mean", standardize=True)
-        model.add_regressor("precip_sum", standardize=True)
+        for regressor in active_regressors:
+            model.add_regressor(regressor, standardize=True)
     return model
 
 
@@ -601,6 +719,7 @@ def _run_retrospective_validation(
     periods: int,
     cadence: str,
     model_config: dict[str, Any] | None = None,
+    regressor_columns: list[str] | None = None,
 ) -> dict[str, float]:
     if len(fit_df) < 8:
         return {
@@ -608,9 +727,11 @@ def _run_retrospective_validation(
             "retrospective_rmse": 0.0,
             "retrospective_periods": 0,
             "retrospective_interval_coverage": 0.0,
+            "retrospective_validation_label": "janela retrospectiva ampliada",
         }
 
-    holdout_periods = min(max(periods, 2), max(2, len(fit_df) // 4))
+    target_holdout = max(periods + (2 if cadence == "quinzenal" else 1), 4 if cadence != "quinzenal" else 6)
+    holdout_periods = min(target_holdout, max(2, len(fit_df) // 3))
     train_df = fit_df.iloc[:-holdout_periods].copy()
     validation_df = fit_df.iloc[-holdout_periods:].copy()
     if len(train_df) < 4 or validation_df.empty:
@@ -619,6 +740,7 @@ def _run_retrospective_validation(
             "retrospective_rmse": 0.0,
             "retrospective_periods": 0,
             "retrospective_interval_coverage": 0.0,
+            "retrospective_validation_label": "janela retrospectiva ampliada",
         }
 
     model = _build_prophet_model(
@@ -627,16 +749,23 @@ def _run_retrospective_validation(
         use_weather=use_weather,
         observations=len(train_df),
         model_config=model_config,
+        regressor_columns=regressor_columns,
     )
     model.fit(train_df)
 
     future_dates = pd.DataFrame({"ds": validation_df["ds"].tolist()})
-    if use_weather:
-        future_dates = future_dates.merge(validation_df[["ds", "temp_mean", "precip_sum"]], on="ds", how="left")
-        for regressor in ["temp_mean", "precip_sum"]:
+    active_regressors = list(regressor_columns or []) if use_weather else []
+    if active_regressors:
+        future_dates = future_dates.merge(validation_df[["ds", *active_regressors]], on="ds", how="left")
+        for regressor in active_regressors:
             future_dates[regressor] = pd.to_numeric(future_dates[regressor], errors="coerce")
             future_dates[regressor] = future_dates[regressor].interpolate(method="linear", limit_direction="both")
-            future_dates[regressor] = future_dates[regressor].fillna(future_dates[regressor].mean())
+            fill_value = (
+                train_df[regressor].median()
+                if regressor in train_df.columns and train_df[regressor].notna().any()
+                else 0
+            )
+            future_dates[regressor] = future_dates[regressor].fillna(fill_value)
 
     predicted = model.predict(future_dates)[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
     for column in ["yhat", "yhat_lower", "yhat_upper"]:
@@ -652,6 +781,7 @@ def _run_retrospective_validation(
             "retrospective_rmse": 0.0,
             "retrospective_periods": 0,
             "retrospective_interval_coverage": 0.0,
+            "retrospective_validation_label": "janela retrospectiva ampliada",
         }
 
     mae = float((comparison["y"] - comparison["yhat"]).abs().mean())
@@ -689,6 +819,7 @@ def _run_retrospective_validation(
         "retrospective_raw_interval_coverage": raw_coverage,
         "retrospective_interval_margin": float(calibration_margin),
         "retrospective_covered_periods": covered_periods,
+        "retrospective_validation_label": "janela retrospectiva ampliada",
     }
 
 
@@ -699,6 +830,7 @@ def _select_best_model_config(
     use_weather: bool,
     periods: int,
     cadence: str,
+    regressor_columns: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, float], list[dict[str, Any]]]:
     candidates = _candidate_model_configs(len(fit_df), use_weather)
     evaluations = []
@@ -721,6 +853,7 @@ def _select_best_model_config(
                 periods=periods,
                 cadence=cadence,
                 model_config=candidate,
+                regressor_columns=regressor_columns,
             )
             score = _score_validation_result(validation_metrics)
             evaluations.append(
@@ -774,17 +907,24 @@ def build_monthly_forecast(
         return result
 
     holiday_df, holiday_status = _build_holiday_dataframe(series_df["ds"].dt.year.min(), (series_df["ds"].dt.year.max() + 2))
-    model_df, future_regressors, weather_status, weather_features = _attach_weather_regressors(series_df, periods)
-    use_weather = all(feature in model_df.columns and model_df[feature].notna().any() for feature in weather_features)
+    model_df, future_regressors, weather_status, regressor_columns = _attach_external_regressors(
+        series_df,
+        holiday_df,
+        periods,
+        cadence,
+    )
+    use_weather = bool(regressor_columns)
 
     try:
         fit_df = model_df.copy()
         fit_df["y"] = fit_df["y_model"] if "y_model" in fit_df.columns else fit_df["y"]
         if use_weather:
-            for regressor in weather_features:
+            for regressor in regressor_columns:
                 fit_df[regressor] = pd.to_numeric(fit_df[regressor], errors="coerce")
                 fit_df[regressor] = fit_df[regressor].interpolate(method="linear", limit_direction="both")
-                fit_df[regressor] = fit_df[regressor].fillna(fit_df[regressor].mean())
+                fit_df[regressor] = fit_df[regressor].fillna(
+                    fit_df[regressor].median() if fit_df[regressor].notna().any() else 0
+                )
         fit_df = fit_df.dropna(subset=["ds", "y"]).copy()
 
         selected_config, retrospective_metrics, calibration_runs = _select_best_model_config(
@@ -794,6 +934,7 @@ def build_monthly_forecast(
             use_weather=use_weather,
             periods=periods,
             cadence=cadence,
+            regressor_columns=regressor_columns,
         )
 
         model = _build_prophet_model(
@@ -802,6 +943,7 @@ def build_monthly_forecast(
             use_weather=bool(selected_config.get("use_weather", use_weather)),
             observations=len(series_df),
             model_config=selected_config,
+            regressor_columns=regressor_columns,
         )
     except Exception as exc:
         result = _empty_result(
@@ -824,14 +966,17 @@ def build_monthly_forecast(
     future = pd.DataFrame({"ds": fit_df["ds"].tolist() + _generate_future_dates(fit_df["ds"].max(), periods, cadence)})
     effective_use_weather = bool(selected_config.get("use_weather", use_weather))
     if effective_use_weather:
-        future = future.merge(fit_df[["ds", *weather_features]], on="ds", how="left")
+        future = future.merge(fit_df[["ds", *regressor_columns]], on="ds", how="left")
         if not future_regressors.empty:
-            for regressor in weather_features:
-                future.loc[future["ds"].isin(future_regressors["ds"]), regressor] = future_regressors.set_index("ds")[regressor]
-        for regressor in weather_features:
+            future_regressor_map = future_regressors.set_index("ds")
+            for regressor in regressor_columns:
+                future.loc[future["ds"].isin(future_regressor_map.index), regressor] = future_regressor_map[regressor]
+        for regressor in regressor_columns:
             future[regressor] = pd.to_numeric(future[regressor], errors="coerce")
             future[regressor] = future[regressor].interpolate(method="linear", limit_direction="both")
-            future[regressor] = future[regressor].fillna(future[regressor].mean())
+            future[regressor] = future[regressor].fillna(
+                fit_df[regressor].median() if regressor in fit_df.columns and fit_df[regressor].notna().any() else 0
+            )
 
     try:
         forecast = model.predict(future)
@@ -890,8 +1035,8 @@ def build_monthly_forecast(
             "sources": RIO_GRANDE_PUBLIC_CONTEXT["sources"],
             "weather_status": weather_status,
             "holiday_status": holiday_status,
-            "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(weather_features if effective_use_weather else [])],
-            "insights": _build_external_factor_insights(model_df, holiday_df, weather_features if effective_use_weather else []),
+            "features_used": ["serie_historica_interna", "feriados_publicos_rio_grande_rs", *(regressor_columns if effective_use_weather else [])],
+            "insights": _build_external_factor_insights(model_df, holiday_df, regressor_columns if effective_use_weather else []),
         },
     }
 
@@ -916,6 +1061,7 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
     retrospective_periods = metrics.get("retrospective_periods", 0)
     covered_periods = metrics.get("retrospective_covered_periods", 0)
     calibration_margin = metrics.get("retrospective_interval_margin", 0.0)
+    validation_label = metrics.get("retrospective_validation_label", "janela retrospectiva")
     return (
         "### Resumo preditivo\n"
         f"- Série histórica utilizada: **{metrics['observations']} observações**.\n"
@@ -926,7 +1072,7 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
         f"- Configuração escolhida com base no histórico recente: **{selected_model_label}**.\n"
         f"- Erro médio absoluto da série agregada: **{metrics['mae']:.2f} kg por quinzena**.\n"
         f"- Erro quadrático médio da série agregada: **{metrics['rmse']:.2f} kg por quinzena**.\n"
-        f"- Validação retrospectiva: **{retrospective_periods} períodos** comparados com dados já conhecidos.\n"
+        f"- Validação retrospectiva adotada: **{validation_label}**, cobrindo **{retrospective_periods} períodos** já conhecidos.\n"
         f"- Erro médio na validação retrospectiva: **{metrics.get('retrospective_mae', 0.0):.2f} kg por quinzena**.\n"
         f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**.\n"
         f"- Cobertura do intervalo original na validação: **{cobertura_original:.2f}%**.\n"

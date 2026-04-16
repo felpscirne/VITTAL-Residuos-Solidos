@@ -6,8 +6,13 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+ENGINE_OPTIONS = {
+    "pool_pre_ping": True,
+    "pool_recycle": int(os.getenv("DB_POOL_RECYCLE_SECONDS", 1800)),
+    "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT_SECONDS", 30)),
+}
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, **ENGINE_OPTIONS)
 
 
 # Função para obter opções de anos

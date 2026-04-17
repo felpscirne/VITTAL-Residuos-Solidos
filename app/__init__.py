@@ -11,8 +11,13 @@ from app.services.rbac_bootstrap import run_startup_migrations
 load_dotenv()
 
 
+def _env_bool(name, default=False):
+    return os.getenv(name, str(default)).lower() in ["true", "1", "yes", "on"]
+
+
 def create_app():
     server = Flask(__name__, instance_relative_config=False)
+    email_delivery_enabled = _env_bool("ENABLE_OUTBOUND_EMAIL", False)
 
     server.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
     server.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
@@ -29,10 +34,12 @@ def create_app():
     server.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")
     server.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
     server.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_DEFAULT_SENDER")
+    server.config["MAIL_SUPPRESS_SEND"] = not email_delivery_enabled
 
     server.config["SECURITY_PASSWORD_SALT"] = os.getenv("SECURITY_PASSWORD_SALT")
     server.config["SECURITY_REGISTERABLE"] = True
-    server.config["SECURITY_CONFIRMABLE"] = True
+    server.config["SECURITY_CONFIRMABLE"] = _env_bool("SECURITY_CONFIRMABLE", email_delivery_enabled)
+    server.config["SECURITY_SEND_REGISTER_EMAIL"] = _env_bool("SECURITY_SEND_REGISTER_EMAIL", email_delivery_enabled)
     server.config["SECURITY_RECOVERABLE"] = True
     server.config["SECURITY_CHANGEABLE"] = True
     server.config["SECURITY_EMAIL_SUBJECT_REGISTER"] = "Bem-vindo ao VITTAL Transbordo - IFEsCS"

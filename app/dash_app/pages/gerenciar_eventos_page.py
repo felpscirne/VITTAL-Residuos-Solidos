@@ -71,7 +71,6 @@ layout = html.Div([
                         className="mb-3",
                         searchable=True,
                         nothingFoundMessage="Nenhum setor encontrado",
-                        maxValues=50,
                     ),
 
                     # Descrição
@@ -270,27 +269,24 @@ def manage_events(pathname, n_save, n_delete, title, etype, date_range, sectors,
                 else:
                     sectors_str = ", ".join(sectors)
                 
-                if len(sectors_str) > 255:
-                     msg = dmc.Alert(f"Muitos setores selecionados ({len(sectors_str)} caracteres). Limite 255.", color="red", variant="filled")
-                else:
-                    new_event = Event(
-                        title=title,
-                        event_type=etype,
-                        start_date=datetime.strptime(start_date_str.split('T')[0], '%Y-%m-%d'),
-                        end_date=datetime.strptime(end_date_str.split('T')[0], '%Y-%m-%d'),
-                        affected_sectors=sectors_str,
-                        description=desc
-                    )
-                    db.session.add(new_event)
-                    db.session.commit()
-                    msg = dmc.Alert("Evento criado com sucesso!", color="green", variant="filled")
-                    
-                    # Clear Form
-                    ret_title = ""
-                    ret_desc = ""
-                    ret_type = "Manutenção" # Default
-                    ret_daterange = None
-                    ret_sectors = []
+                new_event = Event(
+                    title=title,
+                    event_type=etype,
+                    start_date=datetime.strptime(start_date_str.split('T')[0], '%Y-%m-%d'),
+                    end_date=datetime.strptime(end_date_str.split('T')[0], '%Y-%m-%d'),
+                    affected_sectors=sectors_str,
+                    description=desc
+                )
+                db.session.add(new_event)
+                db.session.commit()
+                msg = dmc.Alert("Evento criado com sucesso!", color="green", variant="filled")
+                
+                # Clear Form
+                ret_title = ""
+                ret_desc = ""
+                ret_type = "Manutenção" # Default
+                ret_daterange = None
+                ret_sectors = []
 
             except Exception as e:
                 db.session.rollback()

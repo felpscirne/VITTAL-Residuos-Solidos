@@ -10,6 +10,7 @@ from app.application.analytics import (
     get_top_produtos_geral,
     get_volume_mensal,
 )
+from app.services.event_markers import apply_event_markers, get_events_for_period
 from app.services.management_insights import render_management_insight
 
 
@@ -163,6 +164,9 @@ def update_overview_graphs(color_scheme):
         plot_bgcolor="rgba(0,0,0,0)",
         margin={"l": 40, "r": 20, "t": 50, "b": 30},
     )
+    if not df_mensal.empty:
+        eventos = get_events_for_period(df_mensal["ds"].min(), df_mensal["ds"].max())
+        fig_mensal = apply_event_markers(fig_mensal, eventos)
 
     fig_ano = px.bar(
         df_ano,

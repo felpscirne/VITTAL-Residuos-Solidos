@@ -61,5 +61,5 @@ class Event(db.Model):
     event_type = db.Column(db.String(50))
     start_date = db.Column(db.DateTime, nullable=False)
     end_date = db.Column(db.DateTime, nullable=False)
-    affected_sectors = db.Column(db.String(255))
+    affected_sectors = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=db.func.now())

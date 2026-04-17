@@ -8,6 +8,7 @@ from dash_iconify import DashIconify
 from app.application.analytics import engine, get_anos_options
 from app.services.ai_analytics import get_empresa_clustering_analysis
 from app.services.dashboard_summaries import summarize_empresas_ranking, summarize_empresas_temporal
+from app.services.event_markers import apply_event_markers, get_events_for_period
 from app.services.management_insights import render_management_insight
 
 
@@ -40,13 +41,13 @@ def fig_contagem_empresas(df, template):
 
 layout = html.Div(
     [
-        dmc.Title("Análise de empresas e entidades", order=2),
-        dmc.Text("Compare empresas/entidades ou analise a tendência de uma específica ao longo do tempo.", c="dimmed", size="sm"),
+        dmc.Title("AnÃ¡lise de empresas e entidades", order=2),
+        dmc.Text("Compare empresas/entidades ou analise a tendÃªncia de uma especÃ­fica ao longo do tempo.", c="dimmed", size="sm"),
         dmc.Divider(variant="solid", my="md"),
-        dmc.Title("Visão geral: ranking de empresas", order=3, my="sm"),
+        dmc.Title("VisÃ£o geral: ranking de empresas", order=3, my="sm"),
         dmc.Alert(
             "Quais entidades mais usam o sistema de pesagem e concentram o fluxo registrado?",
-            title="O que este gráfico responde?",
+            title="O que este grÃ¡fico responde?",
             color="ifsc-green",
             variant="light",
             icon=DashIconify(icon="radix-icons:info-circled"),
@@ -59,7 +60,7 @@ layout = html.Div(
             [
                 dmc.Title("Clustering de empresas", order=4, mb="sm"),
                 dmc.Text(
-                    "A IA aproxima empresas com comportamento parecido de volume, peso e discrepância operacional.",
+                    "A IA aproxima empresas com comportamento parecido de volume, peso e discrepÃ¢ncia operacional.",
                     c="dimmed",
                     size="sm",
                     mb="md",
@@ -73,11 +74,11 @@ layout = html.Div(
             p="md",
             mb="xl",
         ),
-        dmc.Divider(label="Análise temporal", labelPosition="center", my="xl"),
-        dmc.Title("Drill-down: análise mensal por empresa", order=3, my="sm"),
+        dmc.Divider(label="AnÃ¡lise temporal", labelPosition="center", my="xl"),
+        dmc.Title("Drill-down: anÃ¡lise mensal por empresa", order=3, my="sm"),
         dmc.Alert(
-            "Acompanhe volume mensal e média de peso para avaliar carga operacional e perfil de atendimento.",
-            title="O que esta análise responde?",
+            "Acompanhe volume mensal e mÃ©dia de peso para avaliar carga operacional e perfil de atendimento.",
+            title="O que esta anÃ¡lise responde?",
             color="ifsc-green",
             variant="light",
             icon=DashIconify(icon="akar-icons:statistic-up"),
@@ -143,9 +144,9 @@ def update_empresas_main_graph(pathname, color_scheme):
     df = load_company_data()
     if df.empty:
         fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        summary = "### Resumo analítico\n- Não há dados de empresas disponíveis."
+        summary = "### Resumo analÃ­tico\n- NÃ£o hÃ¡ dados de empresas disponÃ­veis."
         cluster_fig = px.scatter(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        return fig, summary, render_management_insight(summary), cluster_fig, "Ainda não há dados suficientes para clustering."
+        return fig, summary, render_management_insight(summary), cluster_fig, "Ainda nÃ£o hÃ¡ dados suficientes para clustering."
 
     cluster_result = get_empresa_clustering_analysis()
     cluster_df = cluster_result.get("data")
@@ -160,7 +161,7 @@ def update_empresas_main_graph(pathname, color_scheme):
             title="Grupos de empresas por comportamento operacional",
             labels={
                 "quantidade": "Volume de registros",
-                "media_peso": "Média de peso (kg)",
+                "media_peso": "MÃ©dia de peso (kg)",
                 "cluster": "Grupo",
             },
             template=template,
@@ -171,7 +172,7 @@ def update_empresas_main_graph(pathname, color_scheme):
         cluster_fig = px.scatter(title="Grupos de empresas por comportamento operacional", template=template)
         cluster_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         cluster_fig.add_annotation(
-            text=cluster_result.get("message", "Ainda não há dados suficientes para clustering."),
+            text=cluster_result.get("message", "Ainda nÃ£o hÃ¡ dados suficientes para clustering."),
             xref="paper",
             yref="paper",
             x=0.5,
@@ -196,8 +197,8 @@ def update_empresas_main_graph(pathname, color_scheme):
 def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     if not ano_selecionado:
-        empty_fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", title="Aguardando seleção de ano...")
-        summary = "### Resumo analítico\n- Selecione um ano para visualizar a série."
+        empty_fig = px.bar(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", title="Aguardando seleÃ§Ã£o de ano...")
+        summary = "### Resumo analÃ­tico\n- Selecione um ano para visualizar a sÃ©rie."
         return empty_fig, empty_fig, summary, render_management_insight(summary)
 
     base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
@@ -213,9 +214,24 @@ def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
     meses_map = {1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"}
     df1["mes_nome"] = df1["mes"].map(meses_map)
     df2["mes_nome"] = df2["mes"].map(meses_map)
-    fig1 = px.bar(df1, x="mes_nome", y="qtde", title=f"Volume de registros ({empresa_selecionada}, {ano_selecionado})", template=template)
-    fig2 = px.line(df2, x="mes_nome", y="media", title=f"Média de peso de entrada ({empresa_selecionada}, {ano_selecionado})", markers=True, template=template)
+    if not df1.empty:
+        df1["periodo_data"] = pd.to_datetime({"year": int(ano_selecionado), "month": df1["mes"].astype(int), "day": 1})
+    if not df2.empty:
+        df2["periodo_data"] = pd.to_datetime({"year": int(ano_selecionado), "month": df2["mes"].astype(int), "day": 1})
+
+    fig1 = px.bar(df1, x="periodo_data", y="qtde", title=f"Volume de registros ({empresa_selecionada}, {ano_selecionado})", template=template)
+    fig2 = px.line(df2, x="periodo_data", y="media", title=f"MÃ©dia de peso de entrada ({empresa_selecionada}, {ano_selecionado})", markers=True, template=template)
     fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    fig2.update_layout(yaxis_title="Média de peso de entrada (kg)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    fig2.update_layout(yaxis_title="MÃ©dia de peso de entrada (kg)", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    fig1.update_xaxes(tickformat="%b", dtick="M1")
+    fig2.update_xaxes(tickformat="%b", dtick="M1")
+
+    eventos = get_events_for_period(
+        pd.Timestamp(f"{int(ano_selecionado)}-01-01"),
+        pd.Timestamp(f"{int(ano_selecionado)}-12-31"),
+    )
+    fig1 = apply_event_markers(fig1, eventos)
+    fig2 = apply_event_markers(fig2, eventos)
+
     summary = summarize_empresas_temporal(df1[["mes_nome", "qtde"]], df2[["mes_nome", "media"]], empresa_selecionada, ano_selecionado)
     return fig1, fig2, summary, render_management_insight(summary)

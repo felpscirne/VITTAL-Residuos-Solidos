@@ -88,6 +88,16 @@ DEFAULT_ADMIN_USER = {
 def run_startup_migrations():
     db.create_all()
 
+    with db.engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE event
+                ALTER COLUMN affected_sectors TYPE TEXT
+                """
+            )
+        )
+
     role_upsert = text(
         """
         INSERT INTO role (name, description)

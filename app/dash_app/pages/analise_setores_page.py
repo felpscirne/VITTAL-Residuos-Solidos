@@ -1,13 +1,13 @@
 from dash import dcc, html, callback, Input, Output
+import pandas as pd
 import plotly.express as px
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
-from sqlalchemy import extract
 
 from app.application.analytics import get_anos_options, get_dados_setores_macro, get_dados_setor_temporal
-from app.models import Event
 from app.services.ai_analytics import get_setor_clustering_analysis
 from app.services.dashboard_summaries import summarize_setores_overview, summarize_setor_temporal
+from app.services.event_markers import apply_event_markers, get_events_for_period
 from app.services.management_insights import render_management_insight
 
 
@@ -59,6 +59,7 @@ def fig_contagem_por_setor(df, template):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
+    fig.update_xaxes(tickformat="%b", dtick="M1")
     return fig
 
 
@@ -269,14 +270,19 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
         return fig_vazia, "", summary, render_management_insight(summary)
 
     df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
-    meses_map = {1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"}
     if not df.empty:
-        df["mes_nome"] = df["mes"].map(meses_map)
         df = df.sort_values(by="mes")
+        df["periodo_data"] = pd.to_datetime(
+            {
+                "year": int(ano_selecionado),
+                "month": df["mes"].astype(int),
+                "day": 1,
+            }
+        )
 
     fig = px.line(
         df,
-        x="mes_nome" if not df.empty else [],
+        x="periodo_data" if not df.empty else [],
         y="media_peso" if not df.empty else [],
         markers=True,
         title=f"Média mensal de peso corrigido: {setor_selecionado} ({ano_selecionado})",
@@ -291,18 +297,12 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
 
     events_html = []
     try:
-        events = Event.query.filter(
-            extract("year", Event.start_date) <= ano_selecionado,
-            extract("year", Event.end_date) >= ano_selecionado,
-        ).all()
-        fig.update_xaxes(categoryorder="array", categoryarray=["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"])
-        found_events = []
-        for event in events:
-            if not event.affected_sectors:
-                continue
-            affected_list = [s.strip() for s in event.affected_sectors.split(",")]
-            if "Geral (Todos)" in affected_list or "Geral" in affected_list or setor_selecionado in affected_list:
-                found_events.append(event)
+        found_events = get_events_for_period(
+            pd.Timestamp(f"{int(ano_selecionado)}-01-01"),
+            pd.Timestamp(f"{int(ano_selecionado)}-12-31"),
+            setor=setor_selecionado,
+        )
+        fig = apply_event_markers(fig, found_events)
         if found_events:
             items = []
             for event in found_events:

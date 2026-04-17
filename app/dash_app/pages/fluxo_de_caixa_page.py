@@ -7,6 +7,7 @@ from dash_iconify import DashIconify
 
 from app.application.analytics import engine
 from app.services.dashboard_summaries import summarize_fluxo_macro, summarize_fluxo_setor
+from app.services.event_markers import apply_event_markers, get_events_for_period
 from app.services.management_insights import render_management_insight
 
 
@@ -25,6 +26,7 @@ def load_fluxo_macro_data():
     df["balanco"] = (df["entradas"] - df["saidas"]).round(2)
     df["entradas"] = df["entradas"].round(2)
     df["saidas"] = df["saidas"].round(2)
+    df["periodo_data"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]])
     df["periodo"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]]).dt.strftime("%Y-%m")
     return df
 
@@ -41,6 +43,7 @@ def load_fluxo_micro_data():
     df = pd.read_sql(query, engine)
     if df.empty:
         return df
+    df["periodo_data"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]])
     df["periodo"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]]).dt.strftime("%Y-%m")
     return df
 
@@ -54,10 +57,10 @@ def get_setores_options_dynamic():
 
 
 def create_macro_fluxo_graph(df, template):
-    df_melted = df.melt(id_vars=["periodo"], value_vars=["entradas", "saidas"], var_name="tipo_fluxo", value_name="peso_kg")
+    df_melted = df.melt(id_vars=["periodo", "periodo_data"], value_vars=["entradas", "saidas"], var_name="tipo_fluxo", value_name="peso_kg")
     fig = px.bar(
         df_melted,
-        x="periodo",
+        x="periodo_data",
         y="peso_kg",
         color="tipo_fluxo",
         barmode="group",
@@ -72,7 +75,7 @@ def create_micro_fluxo_graph(df, setor_selecionado, template):
     df_comparativo = pd.concat([df[df["setor"] == "CANDIOTA"], df[df["setor"] == setor_selecionado]])
     fig = px.line(
         df_comparativo,
-        x="periodo",
+        x="periodo_data",
         y="peso_kg",
         color="setor",
         title=f"Comparativo mensal: {setor_selecionado} vs Candiota",
@@ -180,7 +183,10 @@ def update_macro_graph(pathname, color_scheme):
         summary = summarize_fluxo_macro(df)
         return fig, summary, render_management_insight(summary)
     summary = summarize_fluxo_macro(df)
-    return create_macro_fluxo_graph(df, template), summary, render_management_insight(summary)
+    fig = create_macro_fluxo_graph(df, template)
+    fig.update_xaxes(tickformat="%b/%y", dtick="M1")
+    fig = apply_event_markers(fig, get_events_for_period(df["periodo_data"].min(), df["periodo_data"].max()))
+    return fig, summary, render_management_insight(summary)
 
 
 @callback(
@@ -209,4 +215,7 @@ def update_micro_graph(setor_selecionado, color_scheme):
         ]
     )
     summary = summarize_fluxo_setor(total_setor, total_saida, pct, setor_selecionado)
-    return create_micro_fluxo_graph(df, setor_selecionado, template), kpi, summary, render_management_insight(summary)
+    fig = create_micro_fluxo_graph(df, setor_selecionado, template)
+    fig.update_xaxes(tickformat="%b/%y", dtick="M1")
+    fig = apply_event_markers(fig, get_events_for_period(df["periodo_data"].min(), df["periodo_data"].max(), setor=setor_selecionado))
+    return fig, kpi, summary, render_management_insight(summary)

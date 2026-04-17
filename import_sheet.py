@@ -1,7 +1,7 @@
 import os
 import zlib
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -11,6 +11,12 @@ load_dotenv()
 
 DATABASE_URI = os.getenv("DATABASE_URL")
 IMPORT_INITIATED_BY = os.getenv("IMPORT_INITIATED_BY", "Sistema")
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
+ENGINE_OPTIONS = {
+    "connect_args": {
+        "options": f"-c timezone={APP_TIMEZONE}",
+    }
+}
 PASTA_PLANILHAS = "sheets"
 
 COLUMNS_NAMES = [
@@ -337,8 +343,8 @@ def _ensure_audit_table_schema(conn):
             """
             CREATE TABLE IF NOT EXISTS import_auditoria (
                 id SERIAL PRIMARY KEY,
-                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                finished_at TIMESTAMP,
+                started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                finished_at TIMESTAMPTZ,
                 status VARCHAR(20) NOT NULL DEFAULT 'running',
                 source_file VARCHAR(255),
                 initiated_by VARCHAR(255),
@@ -348,7 +354,7 @@ def _ensure_audit_table_schema(conn):
                 rows_new INTEGER NOT NULL DEFAULT 0,
                 rows_updated INTEGER NOT NULL DEFAULT 0,
                 deleted_rows INTEGER NOT NULL DEFAULT 0,
-                deleted_at TIMESTAMP,
+                deleted_at TIMESTAMPTZ,
                 deleted_by VARCHAR(255),
                 details TEXT,
                 error_message TEXT
@@ -360,8 +366,8 @@ def _ensure_audit_table_schema(conn):
 
 def _ensure_pesagem_import_tracking(conn):
     conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT NOW()"))
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS source_file VARCHAR(255)"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(255)"))
@@ -371,7 +377,7 @@ def _ensure_pesagem_import_tracking(conn):
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_new INTEGER NOT NULL DEFAULT 0"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_updated INTEGER NOT NULL DEFAULT 0"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_rows INTEGER NOT NULL DEFAULT 0"))
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(255)"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
@@ -450,7 +456,7 @@ def _finish_audit(conn, audit_id, status, rows_valid, rows_new, rows_updated, de
             """
         ),
         {
-            "finished_at": datetime.utcnow(),
+            "finished_at": datetime.now(timezone.utc),
             "status": status,
             "rows_valid": rows_valid,
             "rows_new": rows_new,
@@ -480,7 +486,7 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
     if not db_uri:
         raise RuntimeError("DATABASE_URL nao configurada no ambiente.")
 
-    engine = create_engine(db_uri)
+    engine = create_engine(db_uri, **ENGINE_OPTIONS)
 
     with engine.begin() as conn:
         _ensure_audit_table_schema(conn)
@@ -706,7 +712,7 @@ def registrar_arquivo_sem_dados(db_uri, arquivo, metrics, initiated_by):
     if not db_uri:
         raise RuntimeError("DATABASE_URL nao configurada no ambiente.")
 
-    engine = create_engine(db_uri)
+    engine = create_engine(db_uri, **ENGINE_OPTIONS)
     with engine.begin() as conn:
         _ensure_audit_table_schema(conn)
         _ensure_pesagem_import_tracking(conn)

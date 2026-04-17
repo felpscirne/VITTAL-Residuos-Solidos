@@ -18,6 +18,7 @@ def _env_bool(name, default=False):
 def create_app():
     server = Flask(__name__, instance_relative_config=False)
     email_delivery_enabled = _env_bool("ENABLE_OUTBOUND_EMAIL", False)
+    app_timezone = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
 
     server.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
     server.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
@@ -26,6 +27,9 @@ def create_app():
         "pool_pre_ping": True,
         "pool_recycle": int(os.getenv("DB_POOL_RECYCLE_SECONDS", 1800)),
         "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT_SECONDS", 30)),
+        "connect_args": {
+            "options": f"-c timezone={app_timezone}",
+        },
     }
 
     server.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")

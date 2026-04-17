@@ -1,11 +1,22 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from flask_security.utils import hash_password
 from sqlalchemy import text
 
 from app.extensions import db
+
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
+WEIGHT_NUMERIC_COLUMNS = [
+    "peso_entrada",
+    "peso_saida",
+    "peso_liquido",
+    "peso_embalagem_liquido",
+    "peso_embalagem_liquido_corrigido",
+    "peso_nota_fiscal",
+    "diferenca_peso",
+]
 
 PAGES_TO_SEED = {
     "/": "Visão Geral do Painel",
@@ -91,8 +102,8 @@ def _ensure_import_auditoria_table(conn):
             """
             CREATE TABLE IF NOT EXISTS import_auditoria (
                 id SERIAL PRIMARY KEY,
-                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                finished_at TIMESTAMP,
+                started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                finished_at TIMESTAMPTZ,
                 status VARCHAR(20) NOT NULL DEFAULT 'running',
                 source_file VARCHAR(255),
                 initiated_by VARCHAR(255),
@@ -102,7 +113,7 @@ def _ensure_import_auditoria_table(conn):
                 rows_new INTEGER NOT NULL DEFAULT 0,
                 rows_updated INTEGER NOT NULL DEFAULT 0,
                 deleted_rows INTEGER NOT NULL DEFAULT 0,
-                deleted_at TIMESTAMP,
+                deleted_at TIMESTAMPTZ,
                 deleted_by VARCHAR(255),
                 details TEXT,
                 error_message TEXT
@@ -111,8 +122,8 @@ def _ensure_import_auditoria_table(conn):
         )
     )
 
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT NOW()"))
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS source_file VARCHAR(255)"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(255)"))
@@ -122,16 +133,150 @@ def _ensure_import_auditoria_table(conn):
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_new INTEGER NOT NULL DEFAULT 0"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_updated INTEGER NOT NULL DEFAULT 0"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_rows INTEGER NOT NULL DEFAULT 0"))
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(255)"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
 
 
+def _drop_registro_view(conn):
+    conn.execute(text("DROP VIEW IF EXISTS registro"))
+
+
+def _recreate_registro_view(conn):
+    conn.execute(
+        text(
+            f"""
+            CREATE OR REPLACE VIEW registro AS
+            SELECT
+                p.ticket,
+                v.placa AS placa,
+                (p.data_hora AT TIME ZONE '{APP_TIMEZONE}') AS data_hora,
+                pr.nome AS produto,
+                t.nome AS transportadora,
+                c.nome AS fornecedor_cliente,
+                p.peso_entrada::DOUBLE PRECISION AS peso_entrada,
+                p.peso_saida::DOUBLE PRECISION AS peso_saida,
+                p.peso_liquido::DOUBLE PRECISION AS peso_liquido,
+                p.peso_embalagem_liquido::DOUBLE PRECISION AS peso_embalagem_liquido,
+                p.peso_embalagem_liquido_corrigido::DOUBLE PRECISION AS peso_embalagem_liquido_corrigido,
+                p.peso_nota_fiscal::DOUBLE PRECISION AS peso_nota_fiscal,
+                v.placa AS placa_veiculo,
+                p.diferenca_peso::DOUBLE PRECISION AS diferenca_peso,
+                p.diferenca_peso_porcentagem::DOUBLE PRECISION AS diferenca_peso_porcentagem,
+                p.nro_nota_fiscal,
+                s.codigo AS setor,
+                NULL::TEXT AS destino_procedencia
+            FROM pesagem p
+            JOIN produto pr ON pr.id_produto = p.id_produto
+            JOIN empresa c ON c.id_empresa = p.id_cliente
+            LEFT JOIN empresa t ON t.id_empresa = p.id_transportadora
+            LEFT JOIN veiculo v ON v.id_veiculo = p.id_veiculo
+            JOIN setor s ON s.id_setor = p.id_setor
+            """
+        )
+    )
+
+
+def _convert_column_type_if_needed(conn, table_name, column_name, expected_type, using_expression):
+    conn.execute(
+        text(
+            f"""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = '{table_name}'
+                      AND column_name = '{column_name}'
+                      AND data_type <> '{expected_type}'
+                ) THEN
+                    EXECUTE 'ALTER TABLE "{table_name}" ALTER COLUMN "{column_name}" TYPE ' || '{using_expression}';
+                END IF;
+            END
+            $$;
+            """
+        )
+    )
+
+
 def _ensure_database_business_standards(conn):
     _ensure_import_auditoria_table(conn)
 
+    _drop_registro_view(conn)
     conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))
+    _convert_column_type_if_needed(
+        conn,
+        table_name="pesagem",
+        column_name="data_hora",
+        expected_type="timestamp with time zone",
+        using_expression=f"TIMESTAMPTZ USING data_hora AT TIME ZONE ''{APP_TIMEZONE}''",
+    )
+    for weight_column in WEIGHT_NUMERIC_COLUMNS:
+        _convert_column_type_if_needed(
+            conn,
+            table_name="pesagem",
+            column_name=weight_column,
+            expected_type="numeric",
+            using_expression=f"NUMERIC(18,3) USING ROUND({weight_column}::NUMERIC, 3)",
+        )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="pesagem",
+        column_name="diferenca_peso_porcentagem",
+        expected_type="numeric",
+        using_expression="NUMERIC(12,4) USING ROUND(diferenca_peso_porcentagem::NUMERIC, 4)",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="event",
+        column_name="start_date",
+        expected_type="timestamp with time zone",
+        using_expression=f"TIMESTAMPTZ USING start_date AT TIME ZONE ''{APP_TIMEZONE}''",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="event",
+        column_name="end_date",
+        expected_type="timestamp with time zone",
+        using_expression=f"TIMESTAMPTZ USING end_date AT TIME ZONE ''{APP_TIMEZONE}''",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="event",
+        column_name="created_at",
+        expected_type="timestamp with time zone",
+        using_expression="TIMESTAMPTZ USING created_at AT TIME ZONE ''UTC''",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="import_auditoria",
+        column_name="started_at",
+        expected_type="timestamp with time zone",
+        using_expression="TIMESTAMPTZ USING started_at AT TIME ZONE ''UTC''",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="import_auditoria",
+        column_name="finished_at",
+        expected_type="timestamp with time zone",
+        using_expression="TIMESTAMPTZ USING finished_at AT TIME ZONE ''UTC''",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="import_auditoria",
+        column_name="deleted_at",
+        expected_type="timestamp with time zone",
+        using_expression="TIMESTAMPTZ USING deleted_at AT TIME ZONE ''UTC''",
+    )
+    _convert_column_type_if_needed(
+        conn,
+        table_name="user",
+        column_name="confirmed_at",
+        expected_type="timestamp with time zone",
+        using_expression="TIMESTAMPTZ USING confirmed_at AT TIME ZONE ''UTC''",
+    )
     conn.execute(text("UPDATE event SET created_at = COALESCE(created_at, start_date, end_date, NOW()) WHERE created_at IS NULL"))
     conn.execute(text("ALTER TABLE event ALTER COLUMN created_at SET DEFAULT NOW()"))
     conn.execute(text("ALTER TABLE event ALTER COLUMN created_at SET NOT NULL"))
@@ -149,6 +294,7 @@ def _ensure_database_business_standards(conn):
             """
         )
     )
+    _recreate_registro_view(conn)
 
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_start_date ON event (start_date)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_end_date ON event (end_date)"))
@@ -332,7 +478,7 @@ def run_startup_migrations():
                 "email": DEFAULT_ADMIN_USER["email"],
                 "password": admin_password,
                 "active": True,
-                "confirmed_at": datetime.utcnow(),
+                "confirmed_at": datetime.now(timezone.utc),
                 "fs_uniquifier": admin_unique,
                 "role_id": admin_role_id,
             },
@@ -360,7 +506,7 @@ def run_startup_migrations():
                 "email": DEFAULT_ADMIN_USER["email"],
                 "password": admin_password,
                 "active": True,
-                "confirmed_at": datetime.utcnow(),
+                "confirmed_at": datetime.now(timezone.utc),
                 "role_id": admin_role_id,
             },
         )

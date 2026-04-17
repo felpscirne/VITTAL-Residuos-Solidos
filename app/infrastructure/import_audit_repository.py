@@ -15,8 +15,8 @@ class SqlImportAuditRepositoryAdapter:
                     """
                     CREATE TABLE IF NOT EXISTS import_auditoria (
                         id SERIAL PRIMARY KEY,
-                        started_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                        finished_at TIMESTAMP,
+                        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        finished_at TIMESTAMPTZ,
                         status VARCHAR(20) NOT NULL DEFAULT 'running',
                         source_file VARCHAR(255),
                         initiated_by VARCHAR(255),
@@ -26,7 +26,7 @@ class SqlImportAuditRepositoryAdapter:
                         rows_new INTEGER NOT NULL DEFAULT 0,
                         rows_updated INTEGER NOT NULL DEFAULT 0,
                         deleted_rows INTEGER NOT NULL DEFAULT 0,
-                        deleted_at TIMESTAMP,
+                        deleted_at TIMESTAMPTZ,
                         deleted_by VARCHAR(255),
                         details TEXT,
                         error_message TEXT
@@ -34,8 +34,8 @@ class SqlImportAuditRepositoryAdapter:
                     """
                 )
             )
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT NOW()"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP"))
+            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"))
+            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS source_file VARCHAR(255)"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(255)"))
@@ -45,7 +45,7 @@ class SqlImportAuditRepositoryAdapter:
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_new INTEGER NOT NULL DEFAULT 0"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_updated INTEGER NOT NULL DEFAULT 0"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_rows INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"))
+            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(255)"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
             conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))

@@ -1,13 +1,21 @@
 import pandas as pd
-from sqlalchemy import and_
 
 from app.models import Event
+
+APP_TIMEZONE = "America/Sao_Paulo"
 
 
 def _normalize_sector_values(affected_sectors):
     if not affected_sectors:
         return []
     return [sector.strip() for sector in affected_sectors.split(",") if sector.strip()]
+
+
+def _to_local_naive_timestamp(value):
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert(APP_TIMEZONE).tz_localize(None)
+    return ts
 
 
 def get_events_for_period(start_date=None, end_date=None, setor=None):
@@ -37,8 +45,8 @@ def apply_event_markers(fig, events):
         return fig
 
     for event in events:
-        start = pd.Timestamp(event.start_date).normalize()
-        end = pd.Timestamp(event.end_date).normalize() + pd.Timedelta(days=1)
+        start = _to_local_naive_timestamp(event.start_date).normalize()
+        end = _to_local_naive_timestamp(event.end_date).normalize() + pd.Timedelta(days=1)
         fig.add_vrect(
             x0=start,
             x1=end,

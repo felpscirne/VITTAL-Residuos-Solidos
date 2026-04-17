@@ -89,7 +89,6 @@ main_layout = dmc.MantineProvider(
     },
     children=[
         dcc.Location(id='url', refresh='callback'),
-        dcc.Store(id='sidebar-state', data='open', storage_type='session'),
         dcc.Store(id='theme-store', data='light', storage_type='local'),
         
         dmc.AppShell(
@@ -108,6 +107,33 @@ main_layout = dmc.MantineProvider(
             },
             padding="md",
             id="app-shell",
+        ),
+        html.Div(
+            id="mobile-nav-overlay",
+            n_clicks=0,
+            style={"display": "none"},
+        ),
+        html.Div(
+            id="mobile-nav-panel",
+            children=[
+                dmc.Group(
+                    justify="space-between",
+                    align="center",
+                    mb="md",
+                    children=[
+                        dmc.Text("Menu", fw=700, size="lg", c="ifsc-green"),
+                        dmc.ActionIcon(
+                            DashIconify(icon="radix-icons:cross-1", width=18),
+                            id="mobile-nav-close",
+                            variant="subtle",
+                            color="gray",
+                            n_clicks=0,
+                        ),
+                    ],
+                ),
+                html.Div(id="mobile-sidebar-content"),
+            ],
+            style={"display": "none"},
         ),
         
         html.Div(id='dummy-theme-output', style={'display': 'none'}) 
@@ -133,30 +159,6 @@ clientside_callback(
     Output("theme-store", "data"),
     Input("color-scheme-toggle", "n_clicks"),
     State("theme-store", "data"),
-    prevent_initial_call=True,
-)
-
-clientside_callback(
-    """
-    function(n_clicks, navbar) {
-        if (n_clicks) {
-            return [
-                {
-                    ...navbar,
-                    collapsed: {
-                        ...navbar.collapsed,
-                        mobile: !navbar.collapsed.mobile
-                    }
-                },
-                !navbar.collapsed.mobile
-            ];
-        }
-        return [window.dash_clientside.no_update, window.dash_clientside.no_update];
-    }
-    """,
-    [Output("app-shell", "navbar"), Output("burger-button", "opened")],
-    Input("burger-button", "n_clicks"),
-    State("app-shell", "navbar"),
     prevent_initial_call=True,
 )
 

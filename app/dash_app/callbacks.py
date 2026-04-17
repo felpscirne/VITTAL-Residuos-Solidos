@@ -1,5 +1,5 @@
 import dash
-from dash import html, Input, Output
+from dash import html, Input, Output, State
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 from flask_login import current_user
@@ -86,11 +86,12 @@ def register_global_callbacks(app):
 
     @app.callback(
         Output("sidebar-content", "children"),
+        Output("mobile-sidebar-content", "children"),
         Input("url", "pathname"),
     )
     def update_sidebar_content(pathname):
         if pathname in ["/login", "/logout", "/register"]:
-            return dash.no_update
+            return dash.no_update, dash.no_update
 
         display_name = "Usuário"
         allowed_routes = get_allowed_routes()
@@ -193,8 +194,60 @@ def register_global_callbacks(app):
 
         sidebar_children.extend(links_login)
 
-        return dmc.ScrollArea(
+        sidebar = dmc.ScrollArea(
             offsetScrollbars=True,
             type="scroll",
             children=sidebar_children,
         )
+        return sidebar, sidebar
+
+    @app.callback(
+        Output("mobile-nav-overlay", "style"),
+        Output("mobile-nav-panel", "style"),
+        Output("burger-button", "opened"),
+        Input("burger-button", "n_clicks"),
+        Input("mobile-nav-close", "n_clicks"),
+        Input("mobile-nav-overlay", "n_clicks"),
+        Input("url", "pathname"),
+        State("burger-button", "opened"),
+        prevent_initial_call=True,
+    )
+    def toggle_mobile_navbar(burger_clicks, close_clicks, overlay_clicks, pathname, burger_opened):
+        burger_opened = bool(burger_opened)
+        triggered_id = dash.ctx.triggered_id
+        open_overlay_style = {
+            "position": "fixed",
+            "inset": "0",
+            "backgroundColor": "rgba(15, 23, 42, 0.45)",
+            "zIndex": 199,
+            "display": "block",
+        }
+        open_panel_style = {
+            "position": "fixed",
+            "top": "0",
+            "left": "0",
+            "width": "85vw",
+            "maxWidth": "360px",
+            "height": "100vh",
+            "backgroundColor": "#ffffff",
+            "padding": "1rem",
+            "boxShadow": "0 10px 30px rgba(0, 0, 0, 0.18)",
+            "zIndex": 200,
+            "overflowY": "auto",
+            "display": "block",
+        }
+        closed_style = {"display": "none"}
+
+        if triggered_id == "burger-button":
+            next_opened = not burger_opened
+            if next_opened:
+                return open_overlay_style, open_panel_style, True
+            return closed_style, closed_style, False
+
+        if triggered_id in {"mobile-nav-close", "mobile-nav-overlay"}:
+            return closed_style, closed_style, False
+
+        if triggered_id == "url" and burger_opened:
+            return closed_style, closed_style, False
+
+        return dash.no_update, dash.no_update, dash.no_update

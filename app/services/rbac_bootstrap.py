@@ -126,6 +126,15 @@ def run_startup_migrations():
         """
     )
 
+    role_permission_count = text(
+        """
+        SELECT COUNT(*)
+        FROM role_page_permission rp
+        JOIN role r ON r.id = rp.role_id
+        WHERE r.name = :role_name
+        """
+    )
+
     user_insert = text(
         """
         INSERT INTO "user" (name, email, password, active, confirmed_at, fs_uniquifier, role_id)
@@ -182,6 +191,13 @@ def run_startup_migrations():
             )
 
         for role_name, routes in DEFAULT_PERMISSIONS.items():
+            existing_permissions = db.session.execute(
+                role_permission_count,
+                {"role_name": role_name},
+            ).scalar_one()
+            if existing_permissions:
+                continue
+
             for route in routes:
                 db.session.execute(
                     permission_upsert,

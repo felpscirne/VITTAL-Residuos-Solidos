@@ -375,6 +375,44 @@ def _ensure_pesagem_import_tracking(conn):
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(255)"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_import_auditoria_started_at ON import_auditoria (started_at)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_import_auditoria_status ON import_auditoria (status)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_import_audit_id ON pesagem (import_audit_id)"))
+    conn.execute(
+        text(
+            """
+            UPDATE pesagem p
+            SET import_audit_id = NULL
+            WHERE import_audit_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM import_auditoria ia
+                  WHERE ia.id = p.import_audit_id
+              )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'pesagem_import_audit_id_fkey'
+                ) THEN
+                    ALTER TABLE pesagem
+                    ADD CONSTRAINT pesagem_import_audit_id_fkey
+                    FOREIGN KEY (import_audit_id)
+                    REFERENCES import_auditoria(id)
+                    ON DELETE SET NULL;
+                END IF;
+            END
+            $$;
+            """
+        )
+    )
 
 
 def _start_audit(conn, source_file, initiated_by, files_count, rows_read):

@@ -25,6 +25,25 @@ CREATE TABLE IF NOT EXISTS setor (
                 CHECK (tipo IN ('coleta','destino','ajuste','interno'))
 );
 
+CREATE TABLE IF NOT EXISTS import_auditoria (
+    id            SERIAL PRIMARY KEY,
+    started_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    finished_at   TIMESTAMP,
+    status        VARCHAR(20) NOT NULL DEFAULT 'running',
+    source_file   VARCHAR(255),
+    initiated_by  VARCHAR(255),
+    files_count   INTEGER NOT NULL DEFAULT 0,
+    rows_read     INTEGER NOT NULL DEFAULT 0,
+    rows_valid    INTEGER NOT NULL DEFAULT 0,
+    rows_new      INTEGER NOT NULL DEFAULT 0,
+    rows_updated  INTEGER NOT NULL DEFAULT 0,
+    deleted_rows  INTEGER NOT NULL DEFAULT 0,
+    deleted_at    TIMESTAMP,
+    deleted_by    VARCHAR(255),
+    details       TEXT,
+    error_message TEXT
+);
+
 CREATE TABLE IF NOT EXISTS pesagem (
     ticket                           INTEGER     PRIMARY KEY,
     data_hora                        TIMESTAMP   NOT NULL,
@@ -41,7 +60,8 @@ CREATE TABLE IF NOT EXISTS pesagem (
     peso_nota_fiscal                 REAL,
     diferenca_peso                   REAL,
     diferenca_peso_porcentagem       REAL,
-    nro_nota_fiscal                  VARCHAR(50)
+    nro_nota_fiscal                  VARCHAR(50),
+    import_audit_id                  INTEGER REFERENCES import_auditoria(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_pesagem_data_hora  ON pesagem (data_hora);
@@ -49,6 +69,9 @@ CREATE INDEX IF NOT EXISTS idx_pesagem_id_setor   ON pesagem (id_setor);
 CREATE INDEX IF NOT EXISTS idx_pesagem_id_cliente ON pesagem (id_cliente);
 CREATE INDEX IF NOT EXISTS idx_pesagem_id_produto ON pesagem (id_produto);
 CREATE INDEX IF NOT EXISTS idx_pesagem_id_veiculo ON pesagem (id_veiculo);
+CREATE INDEX IF NOT EXISTS idx_pesagem_import_audit_id ON pesagem (import_audit_id);
+CREATE INDEX IF NOT EXISTS idx_import_auditoria_started_at ON import_auditoria (started_at);
+CREATE INDEX IF NOT EXISTS idx_import_auditoria_status ON import_auditoria (status);
 
 CREATE OR REPLACE VIEW registro AS
 SELECT

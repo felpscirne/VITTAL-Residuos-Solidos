@@ -85,10 +85,125 @@ DEFAULT_ADMIN_USER = {
 }
 
 
+def _ensure_import_auditoria_table(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS import_auditoria (
+                id SERIAL PRIMARY KEY,
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                finished_at TIMESTAMP,
+                status VARCHAR(20) NOT NULL DEFAULT 'running',
+                source_file VARCHAR(255),
+                initiated_by VARCHAR(255),
+                files_count INTEGER NOT NULL DEFAULT 0,
+                rows_read INTEGER NOT NULL DEFAULT 0,
+                rows_valid INTEGER NOT NULL DEFAULT 0,
+                rows_new INTEGER NOT NULL DEFAULT 0,
+                rows_updated INTEGER NOT NULL DEFAULT 0,
+                deleted_rows INTEGER NOT NULL DEFAULT 0,
+                deleted_at TIMESTAMP,
+                deleted_by VARCHAR(255),
+                details TEXT,
+                error_message TEXT
+            )
+            """
+        )
+    )
+
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT NOW()"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS source_file VARCHAR(255)"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(255)"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS files_count INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_read INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_valid INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_new INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_updated INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_rows INTEGER NOT NULL DEFAULT 0"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(255)"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
+    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
+
+
+def _ensure_database_business_standards(conn):
+    _ensure_import_auditoria_table(conn)
+
+    conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))
+    conn.execute(text("UPDATE event SET created_at = COALESCE(created_at, start_date, end_date, NOW()) WHERE created_at IS NULL"))
+    conn.execute(text("ALTER TABLE event ALTER COLUMN created_at SET DEFAULT NOW()"))
+    conn.execute(text("ALTER TABLE event ALTER COLUMN created_at SET NOT NULL"))
+    conn.execute(
+        text(
+            """
+            UPDATE pesagem p
+            SET import_audit_id = NULL
+            WHERE import_audit_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM import_auditoria ia
+                  WHERE ia.id = p.import_audit_id
+              )
+            """
+        )
+    )
+
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_start_date ON event (start_date)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_end_date ON event (end_date)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_import_audit_id ON pesagem (import_audit_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_import_auditoria_started_at ON import_auditoria (started_at)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_import_auditoria_status ON import_auditoria (status)"))
+
+    conn.execute(
+        text(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'event_date_order_check'
+                ) THEN
+                    ALTER TABLE event
+                    ADD CONSTRAINT event_date_order_check
+                    CHECK (start_date <= end_date);
+                END IF;
+            END
+            $$;
+            """
+        )
+    )
+
+    conn.execute(
+        text(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'pesagem_import_audit_id_fkey'
+                ) THEN
+                    ALTER TABLE pesagem
+                    ADD CONSTRAINT pesagem_import_audit_id_fkey
+                    FOREIGN KEY (import_audit_id)
+                    REFERENCES import_auditoria(id)
+                    ON DELETE SET NULL;
+                END IF;
+            END
+            $$;
+            """
+        )
+    )
+
+
 def run_startup_migrations():
     db.create_all()
 
     with db.engine.begin() as conn:
+        _ensure_database_business_standards(conn)
         conn.execute(
             text(
                 """

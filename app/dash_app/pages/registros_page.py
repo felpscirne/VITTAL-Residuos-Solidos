@@ -59,14 +59,27 @@ layout = html.Div([
                     dmc.GridCol(
                         [
                             dmc.Button(
-                            "Filtrar",
-                            id='btn-filtrar-tabela',
-                            n_clicks=0,
-                            variant="filled",
-                            color="blue",
-                            leftSection=DashIconify(icon="fluent:search-24-regular"),
-                            fullWidth=True
-                        ),  
+                                "Filtrar",
+                                id='btn-filtrar-tabela',
+                                n_clicks=0,
+                                variant="filled",
+                                color="blue",
+                                leftSection=DashIconify(icon="fluent:search-24-regular"),
+                                fullWidth=True
+                            ),
+                        ], span={"base": 12, "md": 3}
+                    ),
+                    dmc.GridCol(
+                        [
+                            dmc.Button(
+                                "Baixar registros",
+                                id='btn-download-registros',
+                                n_clicks=0,
+                                variant="light",
+                                color="teal",
+                                leftSection=DashIconify(icon="tabler:download"),
+                                fullWidth=True
+                            ),
                         ], span={"base": 12, "md": 3}
                     )
                 ]
@@ -112,7 +125,8 @@ layout = html.Div([
             radius="md",
             mb="md"
         )
-    )
+    ),
+    dcc.Download(id="download-registros")
 ])
 
 @callback(
@@ -141,3 +155,36 @@ def update_table(n_clicks, ano, mes, ticket):
     except Exception as e:
         print(f"Erro ao buscar na tabela: {e}")
         return [], []
+
+
+@callback(
+    Output("download-registros", "data"),
+    [Input("btn-download-registros", "n_clicks")],
+    [
+        State('filtro-ano-tabela', 'value'),
+        State('filtro-mes-tabela', 'value'),
+        State('filtro-ticket-tabela', 'value')
+    ],
+    prevent_initial_call=True,
+)
+def download_registros(n_clicks, ano, mes, ticket):
+    try:
+        ano_int = int(ano) if ano else None
+        df = get_registros_filtrados(ano_int, mes, ticket)
+        if df.empty:
+            df = pd.DataFrame([{"mensagem": "Nenhum registro encontrado para os filtros selecionados."}])
+
+        nome_arquivo = "registros_filtrados"
+        if ano:
+            nome_arquivo += f"_{ano}"
+        if mes:
+            nome_arquivo += f"_mes_{mes}"
+        if ticket:
+            nome_arquivo += f"_ticket_{ticket}"
+        nome_arquivo += ".csv"
+
+        return dcc.send_data_frame(df.to_csv, nome_arquivo, index=False)
+    except Exception as e:
+        print(f"Erro ao baixar registros: {e}")
+        fallback = pd.DataFrame([{"erro": "Nao foi possivel gerar o download dos registros."}])
+        return dcc.send_data_frame(fallback.to_csv, "erro_download_registros.csv", index=False)

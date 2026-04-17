@@ -163,79 +163,85 @@ layout = dmc.Container(
                 ),
             ],
         ),
-        dmc.Card(
-            [
-                dmc.Title("Fontes públicas consideradas", order=4, mb="sm"),
-                dcc.Markdown(
-                    id="previsao-public-data-summary",
-                    link_target="_blank",
-                ),
-            ],
-            withBorder=True,
-            shadow="sm",
-            radius="md",
-            p="md",
-            mb="md",
-        ),
-        dmc.SimpleGrid(
-            cols={"base": 1, "xl": 2},
-            spacing="md",
-            mb="md",
+        dcc.Loading(
+            type="circle",
+            color="#0b7285",
             children=[
                 dmc.Card(
                     [
-                        dcc.Graph(id="previsao-volume-total-graph"),
-                        dcc.Markdown(id="previsao-volume-total-summary"),
-                    ],
-                    withBorder=True,
-                    shadow="sm",
-                    radius="md",
-                    p="md",
-                ),
-                dmc.Card(
-                    [
-                        dcc.Graph(id="previsao-entradas-graph"),
-                        dcc.Markdown(id="previsao-entradas-summary"),
-                    ],
-                    withBorder=True,
-                    shadow="sm",
-                    radius="md",
-                    p="md",
-                ),
-            ],
-        ),
-        dmc.SimpleGrid(
-            cols={"base": 1, "xl": 2},
-            spacing="md",
-            mb="md",
-            children=[
-                dmc.Card(
-                    [
-                        dcc.Graph(id="previsao-saidas-graph"),
-                        dcc.Markdown(id="previsao-saidas-summary"),
-                    ],
-                    withBorder=True,
-                    shadow="sm",
-                    radius="md",
-                    p="md",
-                ),
-                dmc.Card(
-                    [
-                        dmc.Select(
-                            id="previsao-setor-select",
-                            label="Setor para previsão específica",
-                            data=setores_options,
-                            value=setor_inicial,
-                            searchable=True,
-                            mb="md",
+                        dmc.Title("Fontes públicas consideradas", order=4, mb="sm"),
+                        dcc.Markdown(
+                            id="previsao-public-data-summary",
+                            link_target="_blank",
                         ),
-                        dcc.Graph(id="previsao-setor-graph"),
-                        dcc.Markdown(id="previsao-setor-summary"),
                     ],
                     withBorder=True,
                     shadow="sm",
                     radius="md",
                     p="md",
+                    mb="md",
+                ),
+                dmc.SimpleGrid(
+                    cols={"base": 1, "xl": 2},
+                    spacing="md",
+                    mb="md",
+                    children=[
+                        dmc.Card(
+                            [
+                                dcc.Graph(id="previsao-volume-total-graph"),
+                                dcc.Markdown(id="previsao-volume-total-summary"),
+                            ],
+                            withBorder=True,
+                            shadow="sm",
+                            radius="md",
+                            p="md",
+                        ),
+                        dmc.Card(
+                            [
+                                dcc.Graph(id="previsao-entradas-graph"),
+                                dcc.Markdown(id="previsao-entradas-summary"),
+                            ],
+                            withBorder=True,
+                            shadow="sm",
+                            radius="md",
+                            p="md",
+                        ),
+                    ],
+                ),
+                dmc.SimpleGrid(
+                    cols={"base": 1, "xl": 2},
+                    spacing="md",
+                    mb="md",
+                    children=[
+                        dmc.Card(
+                            [
+                                dcc.Graph(id="previsao-saidas-graph"),
+                                dcc.Markdown(id="previsao-saidas-summary"),
+                            ],
+                            withBorder=True,
+                            shadow="sm",
+                            radius="md",
+                            p="md",
+                        ),
+                        dmc.Card(
+                            [
+                                dmc.Select(
+                                    id="previsao-setor-select",
+                                    label="Setor para previsão específica",
+                                    data=setores_options,
+                                    value=setor_inicial,
+                                    searchable=True,
+                                    mb="md",
+                                ),
+                                dcc.Graph(id="previsao-setor-graph"),
+                                dcc.Markdown(id="previsao-setor-summary"),
+                            ],
+                            withBorder=True,
+                            shadow="sm",
+                            radius="md",
+                            p="md",
+                        ),
+                    ],
                 ),
             ],
         ),

@@ -51,8 +51,7 @@ layout = dmc.Container(
             children=[
                 dmc.Title("Indicadores operacionais", order=5, mb="xs"),
                 dmc.Text(
-                    "Esta tela apresenta apenas indicadores consolidados e históricos gerais. "
-                    "As previsões ficam em módulo separado com permissão de gestão."
+                    "Esta página reúne indicadores consolidados da operação, permitindo acompanhar volume, período coberto e distribuição geral dos registros ao longo do tempo."
                 ),
             ],
             title="Visão pública e institucional",

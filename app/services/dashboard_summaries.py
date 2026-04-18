@@ -25,7 +25,6 @@ def summarize_produtos_ranking(df):
         "### Resumo analítico\n"
         f"- Produto líder: **{top_produto}** com {top_qtde:.0f} registros.\n"
         f"- Participação no top 10: **{participacao:.1f}%**.\n"
-        "- Leitura gerencial: produtos dominantes devem orientar priorização de coleta, alocação operacional e tratamento diferenciado quando necessário."
     )
 
 
@@ -40,7 +39,6 @@ def summarize_produto_fornecedores(df, produto):
         "### Resumo analítico\n"
         f"- Principal movimentador de **{produto}**: **{top_fornecedor}**.\n"
         f"- Participação no volume analisado: **{participacao:.1f}%**.\n"
-        "- Leitura gerencial: alta concentração em poucos atores sugere dependência operacional e facilita auditoria dirigida."
     )
 
 
@@ -55,7 +53,6 @@ def summarize_setor_produtos(df, setor):
         "### Resumo analítico\n"
         f"- Produto predominante no setor **{setor}**: **{top_produto}**.\n"
         f"- Participação no mix do setor: **{participacao:.1f}%**.\n"
-        "- Leitura gerencial: a composição setorial ajuda a definir rota, frequência de coleta e necessidade de tratamento especializado."
     )
 
 
@@ -68,7 +65,6 @@ def summarize_setores_overview(df):
         "### Resumo analítico\n"
         f"- Setor com maior volume: **{maior_volume['setor']}** ({float(maior_volume['quantidade']):.0f} registros).\n"
         f"- Setor com maior peso médio: **{maior_peso['setor']}** ({float(maior_peso['Média de Peso (kg)']):.2f} kg).\n"
-        "- Leitura gerencial: diferenças entre liderança em volume e peso médio indicam perfis operacionais distintos entre os setores."
     )
 
 
@@ -84,7 +80,6 @@ def summarize_setor_temporal(df, setor, ano):
         f"- Pico mensal de peso médio: **mês {int(df.loc[pico_idx, 'mes'])}** com {serie.loc[pico_idx]:.2f} kg.\n"
         f"- Menor valor mensal: **mês {int(df.loc[vale_idx, 'mes'])}** com {serie.loc[vale_idx]:.2f} kg.\n"
         f"- Variação do início ao fim da série: **{crescimento:.2f} kg**.\n"
-        "- Leitura gerencial: a evolução mensal ajuda a identificar sazonalidade, eventos operacionais e necessidade de replanejamento."
     )
 
 
@@ -98,7 +93,6 @@ def summarize_empresas_ranking(df):
         "### Resumo analítico\n"
         f"- Entidade líder: **{lider['fornecedor_cliente']}** com {float(lider['quantidade']):.0f} registros.\n"
         f"- Participação no conjunto analisado: **{participacao:.1f}%**.\n"
-        "- Leitura gerencial: concentração alta em poucas entidades indica pontos-chave para coordenação institucional e auditoria."
     )
 
 
@@ -115,7 +109,7 @@ def summarize_empresas_temporal(df_volume, df_media, empresa, ano):
         med = pd.to_numeric(df_media.iloc[:, 1], errors="coerce").fillna(0)
         melhor_idx = med.idxmax()
         texto += f"- Melhor média de peso no ano: **{df_media.loc[melhor_idx, 'mes_nome']}** com {med.loc[melhor_idx]:.2f} kg.\n"
-    texto += "- Leitura gerencial: volume e peso médio devem ser acompanhados em conjunto para distinguir carga operacional de eficiência."
+   
     return texto
 
 
@@ -128,7 +122,6 @@ def summarize_frota(df):
         "### Resumo analítico\n"
         f"- Veículo mais eficiente: **{melhor['placa_veiculo']}** com média de {float(melhor['peso_medio_por_viagem']):.2f} kg/viagem.\n"
         f"- Veículo com menor média: **{pior['placa_veiculo']}** com {float(pior['peso_medio_por_viagem']):.2f} kg/viagem.\n"
-        "- Leitura gerencial: diferenças acentuadas sugerem revisão de rota, carga, manutenção ou alocação da frota."
     )
 
 
@@ -141,7 +134,6 @@ def summarize_heatmap(df_grouped):
         "### Resumo analítico\n"
         f"- Pico operacional: **{pico['dia_semana']}** às **{int(pico['hora_do_dia'])}h** com {float(pico['numero_de_registros']):.0f} registros.\n"
         f"- Menor carga observada: **{vale['dia_semana']}** às **{int(vale['hora_do_dia'])}h**.\n"
-        "- Leitura gerencial: janelas de pico devem orientar escala, atendimento e distribuição do trabalho na balança."
     )
 
 
@@ -155,7 +147,6 @@ def summarize_auditoria(df, limite, entidade):
         f"- Total de ocorrências acima do limite: **{len(df)}**.\n"
         f"- Maior discrepância: ticket **{maior['ticket']}** com **{float(maior['diferenca_percentual']):.2f}%**.\n"
         f"- Média absoluta das discrepâncias: **{media_abs:.2f}%**.\n"
-        "- Leitura gerencial: casos extremos devem ser auditados primeiro para verificar falha documental, balança ou processo."
     )
 
 
@@ -170,7 +161,6 @@ def summarize_fluxo_macro(df):
         f"- Balanço médio mensal: **{media_balanco:.2f} kg**.\n"
         f"- Maior excesso de entrada: **{maior['periodo']}** com {float(maior['balanco']):.2f} kg.\n"
         f"- Maior déficit relativo: **{menor['periodo']}** com {float(menor['balanco']):.2f} kg.\n"
-        "- Leitura gerencial: desvios persistentes entre entrada e saída merecem verificação de estoque temporário, umidade, material agregado ou medição."
     )
 
 
@@ -180,5 +170,4 @@ def summarize_fluxo_setor(total_setor, total_saida, percentual, setor):
         f"- Participação de **{setor}** no total de saída: **{percentual:.2f}%**.\n"
         f"- Volume acumulado do setor: **{total_setor:,.2f} kg**.\n"
         f"- Volume acumulado de saída para Candiota: **{total_saida:,.2f} kg**.\n"
-        "- Leitura gerencial: a participação do setor ajuda a priorizar redimensionamento, rota e recursos de coleta."
     )

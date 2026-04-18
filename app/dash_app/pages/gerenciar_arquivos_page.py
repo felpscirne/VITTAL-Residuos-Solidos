@@ -26,7 +26,7 @@ def _build_upload_feedback(saved, errors, processing_started):
     if processing_started:
         alerts.append(
             dmc.Alert(
-                "Importacao iniciada. O status abaixo ja esta acompanhando a execucao em tempo real.",
+                "Processando arquivos enviados. O status abaixo acompanha a execucao em tempo real.",
                 color="blue",
                 variant="filled",
                 mb="sm",
@@ -96,7 +96,7 @@ layout = html.Div([
                             DashIconify(icon="bi:cloud-upload", width=40, height=40),
                             html.Br(),
                             dmc.Text('Arraste ou Clique para Selecionar', fw=700),
-                            dmc.Text('Os arquivos ficam aguardando ate voce confirmar a importacao', c="dimmed", size="xs"),
+                    dmc.Text('Os arquivos ficam aguardando ate voce confirmar a importacao', c="dimmed", size="xs"),
                         ]),
                         style={
                             'width': '100%',
@@ -174,33 +174,6 @@ layout = html.Div([
             ], span={"base": 12, "md": 7}),
         ],
     ),
-
-    dmc.Card([
-        dmc.Text("Arquivos Temporarios no Servidor", size="lg", fw=500, mb="sm"),
-        dmc.Text("Esta lista deve ficar vazia apos uma importacao finalizada. Se houver itens aqui, a importacao ainda nao concluiu ou falhou antes da limpeza.", c="dimmed", size="sm", mb="sm"),
-        dash_table.DataTable(
-            id='tabela-arquivos-temporarios',
-            columns=[
-                {'name': 'Nome do Arquivo', 'id': 'filename'},
-                {'name': 'Tamanho', 'id': 'size'},
-            ],
-            data=[],
-            style_table={'overflowX': 'auto'},
-            style_header={
-                "backgroundColor": "#f8f9fa",
-                "color": "#000",
-                "fontWeight": "bold",
-                "fontFamily": "sans-serif",
-            },
-            style_data={
-                "backgroundColor": "#fff",
-                "color": "#000",
-                "fontFamily": "sans-serif",
-            },
-            style_cell={'textAlign': 'left', 'padding': '10px', 'border': '1px solid #dee2e6'},
-            page_size=6,
-        ),
-    ], withBorder=True, shadow="sm", radius="md", mt="md"),
 
     dmc.Card([
         dmc.Group([
@@ -358,6 +331,16 @@ layout = html.Div([
     dcc.Store(id='store-pending-uploads', data=[]),
     dcc.Store(id='store-import-to-delete'),
     dcc.Store(id='store-import-audit-raw', data=[]),
+    html.Div(
+        id='import-notification-area',
+        style={
+            'position': 'fixed',
+            'top': '1rem',
+            'right': '1rem',
+            'zIndex': 2000,
+            'maxWidth': '380px',
+        },
+    ),
     html.Div(id='dummy-import-output'),
 ])
 
@@ -400,7 +383,8 @@ def update_pending_table(pending_uploads):
      Output('interval-import-status', 'disabled'),
      Output('dummy-import-output', 'children'),
      Output('alert-import-status', 'children', allow_duplicate=True),
-     Output('alert-import-status', 'color', allow_duplicate=True)],
+     Output('alert-import-status', 'color', allow_duplicate=True),
+     Output('import-notification-area', 'children', allow_duplicate=True)],
     Input('btn-confirm-upload', 'n_clicks'),
     State('store-pending-uploads', 'data'),
     prevent_initial_call=True,
@@ -414,6 +398,13 @@ def confirm_pending_uploads(n_clicks, pending_uploads):
             no_update,
             "Voce nao possui permissao para iniciar importacoes.",
             "red",
+            dmc.Notification(
+                title="Importacao nao iniciada",
+                message="Voce nao possui permissao para iniciar importacoes.",
+                color="red",
+                action="show",
+                autoClose=5000,
+            ),
         )
 
     if not pending_uploads:
@@ -424,6 +415,13 @@ def confirm_pending_uploads(n_clicks, pending_uploads):
             no_update,
             "Nao ha arquivos pendentes para importar.",
             "yellow",
+            dmc.Notification(
+                title="Nenhum arquivo pendente",
+                message="Nao ha arquivos pendentes para importar.",
+                color="yellow",
+                action="show",
+                autoClose=4000,
+            ),
         )
 
     contents = [item['contents'] for item in pending_uploads]
@@ -437,7 +435,7 @@ def confirm_pending_uploads(n_clicks, pending_uploads):
         processing_started = file_management.start_etl_async(initiated_by=_get_current_actor())
 
     status_message = (
-        "Importacao em andamento..."
+        "Processando arquivos enviados..."
         if processing_started
         else "Nenhuma importacao foi iniciada."
     )
@@ -450,6 +448,18 @@ def confirm_pending_uploads(n_clicks, pending_uploads):
         "import-started" if processing_started else no_update,
         status_message,
         status_color,
+        dmc.Notification(
+            title="Processamento iniciado" if processing_started else "Importacao nao iniciada",
+            message=(
+                "Os arquivos enviados estao sendo processados agora."
+                if processing_started
+                else "Nenhum arquivo valido estava disponivel para iniciar a importacao."
+            ),
+            color="blue" if processing_started else "gray",
+            action="show",
+            loading=processing_started,
+            autoClose=False if processing_started else 4000,
+        ),
     )
 
 
@@ -461,17 +471,6 @@ def confirm_pending_uploads(n_clicks, pending_uploads):
 )
 def clear_pending_uploads(n_clicks):
     return [], dmc.Alert("Fila de arquivos pendentes limpa.", color="gray", variant="filled")
-
-
-@callback(
-    Output('tabela-arquivos-temporarios', 'data'),
-    [Input('url', 'pathname'),
-     Input('interval-import-status', 'n_intervals'),
-     Input('dummy-import-output', 'children'),
-     Input('output-upload-status', 'children')]
-)
-def update_temp_file_list(pathname, n_intervals, import_trigger, upload_trigger):
-    return file_management.list_files()
 
 
 @callback(
@@ -560,17 +559,42 @@ def toggle_audit_action_buttons(selected_rows, table_data):
 @callback(
     [Output('alert-import-status', 'children'),
      Output('alert-import-status', 'color'),
-     Output('interval-import-status', 'disabled', allow_duplicate=True)],
+     Output('interval-import-status', 'disabled', allow_duplicate=True),
+     Output('import-notification-area', 'children', allow_duplicate=True)],
     Input('interval-import-status', 'n_intervals'),
     prevent_initial_call=True
 )
 def check_import_status(n):
     status, message, color = file_management.get_etl_status()
     if status:
-        return message, color, False
+        return (
+            message,
+            color,
+            False,
+            dmc.Notification(
+                title="Processamento em andamento",
+                message=message,
+                color="blue",
+                action="show",
+                loading=True,
+                autoClose=False,
+            ),
+        )
     if color == "green":
         cache.clear()
-    return message, color, True
+    title = "Processamento concluido" if color == "green" else "Processamento finalizado com alertas"
+    return (
+        message,
+        color,
+        True,
+        dmc.Notification(
+            title=title,
+            message=message,
+            color=color,
+            action="show",
+            autoClose=6000,
+        ),
+    )
 
 
 @callback(

@@ -107,7 +107,7 @@ def register_global_callbacks(app):
                 active=(pathname == href),
                 variant="filled",
                 color="ifsc-green",
-                refresh=True,
+                refresh=False,
             )
 
         links_gerais = []

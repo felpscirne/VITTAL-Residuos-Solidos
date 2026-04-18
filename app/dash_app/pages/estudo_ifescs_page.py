@@ -8,8 +8,9 @@ from app.application.analytics import (
     get_kpis_gerais,
     get_qtde_por_ano,
     get_top_produtos_geral,
-    get_volume_mensal,
+    get_volume_diario,
 )
+from app.services.temporal_charts import build_temporal_line_figure
 
 
 def _create_highlight_card(title, value, icon, color):
@@ -61,7 +62,7 @@ def _build_model_questions_markdown(df_volume, df_produtos, kpis):
 
     return (
         "### Modelo de Melhoria aplicado ao IFEsCS\n"
-        f"- O que queremos alcancar? Reduzir sobrecargas operacionais em quinzenas acima da media historica de **{_format_kg(media_periodica)}**.\n"
+        f"- O que queremos alcancar? Reduzir sobrecargas operacionais em dias acima da media historica de **{_format_kg(media_periodica)}**.\n"
         f"- Como saber se houve melhoria? Comparando o comportamento atual com o pico recente de **{pico_valor}** registrado em **{pico_periodo}**, observando tendencia, distribuicao dos dados e estabilidade do processo.\n"
         f"- Que mudanca pode resultar em melhoria? Reorganizar a operacao com foco nos fluxos ligados ao item de maior recorrencia, hoje identificado como **{produto_lider}**, e acompanhar o efeito dessa acao ao longo do tempo.\n"
         f"- Leitura IFEsCS: os dados cobrem o periodo entre **{kpis['inicio']}** e **{kpis['fim']}**, servindo como base para aprendizagem estatistica aplicada e apoio a decisao."
@@ -90,7 +91,7 @@ def _build_pdsa_markdown(df_volume, df_produtos):
         "### Ciclo PDSA com leitura orientada por dados\n"
         f"- **Plan**: formular a meta de reduzir a amplitude operacional atual de **{_format_kg(amplitude)}** entre os periodos observados.\n"
         f"- **Do**: testar uma mudanca localizada, como reorganizacao de rotina, reforco de equipe ou acao focada no fluxo de **{produto_lider}**.\n"
-        f"- **Study**: verificar se a media periodica permanece abaixo ou proxima de **{_format_kg(media_periodica)}** com menor variacao entre quinzenas.\n"
+        f"- **Study**: verificar se a media periodica permanece abaixo ou proxima de **{_format_kg(media_periodica)}** com menor variacao entre dias.\n"
         f"- **Act**: institucionalizar a mudanca quando os indicadores mostrarem ganho, ou revisar a hipotese quando nao houver melhora mensuravel.\n"
         "- **Metodo IFEsCS**: o estudo parte de dados reais organizados, articulando ensino, pesquisa e extensao para gerar leitura estatistica contextualizada."
     )
@@ -294,13 +295,6 @@ layout = dmc.Container(
                     radius="md",
                     p="md",
                 ),
-            ],
-        ),
-        dmc.SimpleGrid(
-            cols={"base": 1, "xl": 2},
-            spacing="md",
-            mt="md",
-            children=[
                 dmc.Card(
                     dcc.Markdown(id="estudo-causa-efeito"),
                     withBorder=True,
@@ -355,7 +349,7 @@ layout = dmc.Container(
 def update_estudo_ifescs_page(color_scheme):
     template_name = "plotly_dark" if color_scheme == "dark" else "plotly_white"
     kpis = get_kpis_gerais()
-    df_volume = get_volume_mensal()
+    df_volume = get_volume_diario()
     df_produtos = get_top_produtos_geral()
     df_ano = get_qtde_por_ano()
 
@@ -369,19 +363,16 @@ def update_estudo_ifescs_page(color_scheme):
         pico_row = df_volume.loc[df_volume["y"].idxmax()]
         pico_label = f"{_format_kg(pico_row['y'])} em {pico_row['ds'].strftime('%d/%m/%Y')}"
 
-    fig_serie = px.line(
+    fig_serie = build_temporal_line_figure(
         df_volume,
         x="ds",
         y="y",
-        markers=True,
-        title="Serie Historica para Leitura de Variacao e Melhoria",
-        labels={"ds": "Periodo", "y": "Volume (kg)"},
+        title="Serie Diaria para Leitura de Variacao e Melhoria",
         template=template_name,
-    ) if not df_volume.empty else px.line(template=template_name, title="Serie Historica para Leitura de Variacao e Melhoria")
-    fig_serie.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin={"l": 40, "r": 20, "t": 50, "b": 30},
+        granularity="diaria",
+        labels={"ds": "Dia", "y": "Volume (kg)"},
+        xaxis_title="Dia",
+        yaxis_title="Volume (kg)",
     )
 
     fig_produtos = px.bar(
@@ -413,7 +404,7 @@ def update_estudo_ifescs_page(color_scheme):
     return (
         _create_highlight_card("Total de Registros", total_registros, "radix-icons:stack", "ifsc-green"),
         _create_highlight_card("Periodo Observado", periodo, "radix-icons:calendar", "ifsc-green"),
-        _create_highlight_card("Media por Periodo", media_label, "radix-icons:bar-chart", "ifsc-green"),
+        _create_highlight_card("Media Diaria", media_label, "radix-icons:bar-chart", "ifsc-green"),
         _create_highlight_card("Maior Pico", pico_label, "radix-icons:activity-log", "ifsc-green"),
         fig_serie,
         fig_produtos,
@@ -438,7 +429,7 @@ def update_estudo_ifescs_page(color_scheme):
         _pdsa_step_card(
             "Study",
             "Comparar o antes e o depois",
-            "Observar se a acao gerou alteracao nos indicadores, na variacao do processo ou na estabilidade das quinzenas.",
+            "Observar se a acao gerou alteracao nos indicadores, na variacao do processo ou na estabilidade do comportamento diario.",
             "yellow",
         ),
         _pdsa_step_card(

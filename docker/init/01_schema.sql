@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS pesagem (
     diferenca_peso                   NUMERIC(18,3),
     diferenca_peso_porcentagem       NUMERIC(12,4),
     nro_nota_fiscal                  VARCHAR(50),
+    tipo_de_residuo                  TEXT,
     import_audit_id                  INTEGER REFERENCES import_auditoria(id) ON DELETE SET NULL
 );
 
@@ -91,6 +92,7 @@ SELECT
     p.diferenca_peso::DOUBLE PRECISION,
     p.diferenca_peso_porcentagem::DOUBLE PRECISION,
     p.nro_nota_fiscal,
+    p.tipo_de_residuo,
     s.codigo                             AS setor,
     NULL::TEXT                           AS destino_procedencia
 FROM      pesagem  p

@@ -1,12 +1,10 @@
 import pandas as pd
 from app.database import engine
 from app.extensions import cache
-from app.services.residue_types import TYPE_ALL, TYPE_OPTIONS, get_tipo_residuo_case_sql
 
+TYPE_ALL = "todos"
 
 # --- 1. DADOS GERAIS / OVERVIEW ---
-TIPO_RESIDUO_CASE = get_tipo_residuo_case_sql("produto")
-TIPO_RESIDUO_CASE_VIEW = get_tipo_residuo_case_sql("pr.nome")
 
 
 def _fill_monthly_gaps(df, value_columns):
@@ -29,10 +27,30 @@ def _fill_monthly_gaps(df, value_columns):
     return filled
 
 
+def _fill_daily_gaps(df, value_columns):
+    if df is None or df.empty or "ds" not in df.columns:
+        return df
+
+    filled = df.copy()
+    filled["ds"] = pd.to_datetime(filled["ds"])
+    full_range = pd.date_range(
+        filled["ds"].min(),
+        filled["ds"].max(),
+        freq="D",
+    )
+    filled = filled.set_index("ds").reindex(full_range).rename_axis("ds").reset_index()
+
+    for column in value_columns:
+        if column in filled.columns:
+            filled[column] = pd.to_numeric(filled[column], errors="coerce").fillna(0)
+
+    return filled
+
+
 def _apply_tipo_residuo_filter(base_where, params, tipo_residuo):
     if tipo_residuo and tipo_residuo != TYPE_ALL:
         params["tipo_residuo"] = tipo_residuo
-        return f"{base_where}\n        AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
+        return f"{base_where}\n        AND COALESCE(tipo_de_residuo, produto) = %(tipo_residuo)s"
     return base_where
 
 
@@ -49,6 +67,19 @@ def _build_quinzenal_query(where_clause):
     GROUP BY ds
     ORDER BY ds
     """
+
+
+def _build_daily_query(where_clause):
+    return f"""
+    SELECT
+        DATE_TRUNC('day', data_hora)::date AS ds,
+        SUM(peso_embalagem_liquido_corrigido) AS y
+    FROM registro
+    WHERE {where_clause}
+    GROUP BY ds
+    ORDER BY ds
+    """
+
 
 @cache.memoize(timeout=600)
 def get_kpis_gerais():
@@ -104,6 +135,31 @@ def get_volume_quinzenal(tipo_residuo=TYPE_ALL):
 
 
 @cache.memoize(timeout=3600)
+def get_volume_diario(tipo_residuo=TYPE_ALL, fill_gaps=True):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor != 'ACERTO DE PESO'
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = _build_daily_query(where_clause)
+    try:
+        df = pd.read_sql(query, engine, params=params)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            if fill_gaps:
+                df = _fill_daily_gaps(df, ["y"])
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
 def get_entradas_quinzenais(tipo_residuo=TYPE_ALL):
     params = {}
     where_clause = _apply_tipo_residuo_filter(
@@ -122,6 +178,32 @@ def get_entradas_quinzenais(tipo_residuo=TYPE_ALL):
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
+def get_entradas_diarias(tipo_residuo=TYPE_ALL, fill_gaps=True):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor != 'ACERTO DE PESO'
+        AND setor != 'CANDIOTA'
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = _build_daily_query(where_clause)
+    try:
+        df = pd.read_sql(query, engine, params=params)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            if fill_gaps:
+                df = _fill_daily_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
@@ -151,6 +233,31 @@ def get_saidas_quinzenais(tipo_residuo=TYPE_ALL):
 
 
 @cache.memoize(timeout=3600)
+def get_saidas_diarias(tipo_residuo=TYPE_ALL, fill_gaps=True):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor = 'CANDIOTA'
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = _build_daily_query(where_clause)
+    try:
+        df = pd.read_sql(query, engine, params=params)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            if fill_gaps:
+                df = _fill_daily_gaps(df, ["y"])
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
 def get_setor_volume_quinzenal(setor, tipo_residuo=TYPE_ALL):
     params = {"setor": setor}
     where_clause = _apply_tipo_residuo_filter(
@@ -168,6 +275,31 @@ def get_setor_volume_quinzenal(setor, tipo_residuo=TYPE_ALL):
         if not df.empty:
             df["ds"] = pd.to_datetime(df["ds"])
             df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
+def get_setor_volume_diario(setor, tipo_residuo=TYPE_ALL, fill_gaps=True):
+    params = {"setor": setor}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND setor = %(setor)s
+        """,
+        params,
+        tipo_residuo,
+    )
+    query = _build_daily_query(where_clause)
+    try:
+        df = pd.read_sql(query, engine, params=params)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            if fill_gaps:
+                df = _fill_daily_gaps(df, ["y"])
         return df
     except Exception:
         return pd.DataFrame(columns=["ds", "y"])
@@ -200,9 +332,29 @@ def get_list_setores():
         return []
 
 
-@cache.memoize(timeout=3600)
 def get_tipos_residuo_options():
-    return TYPE_OPTIONS
+    """Retorna apenas os tipos de resíduo realmente presentes na tabela registro."""
+    try:
+        query = """
+            SELECT DISTINCT COALESCE(tipo_de_residuo, produto) AS tipo_residuo
+            FROM registro
+            WHERE COALESCE(tipo_de_residuo, produto) IS NOT NULL
+            ORDER BY tipo_residuo
+        """
+        df = pd.read_sql(query, engine)
+        tipos_presentes = [
+            str(t) for t in df["tipo_residuo"].dropna().tolist() if str(t).strip()
+        ]
+    except Exception:
+        return [{"label": "Todos os Resíduos", "value": TYPE_ALL}]
+
+    options = [{"label": "Todos os Resíduos", "value": TYPE_ALL}]
+    for tipo in tipos_presentes:
+        options.append({
+            "label": tipo,
+            "value": tipo,
+        })
+    return options
 
 # --- 3. ANÁLISE DE SETORES ---
 
@@ -328,7 +480,7 @@ def get_fluxo_macro(tipo_residuo=TYPE_ALL):
     tipo_clause = ""
     if tipo_residuo and tipo_residuo != TYPE_ALL:
         params["tipo_residuo"] = tipo_residuo
-        tipo_clause = f" AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
+        tipo_clause = " AND COALESCE(tipo_de_residuo, produto) = %(tipo_residuo)s"
     query = f"""
     SELECT 
         EXTRACT(YEAR FROM data_hora) as year,
@@ -361,13 +513,13 @@ def get_fluxo_micro(tipo_residuo=TYPE_ALL):
     tipo_clause = ""
     if tipo_residuo and tipo_residuo != TYPE_ALL:
         params["tipo_residuo"] = tipo_residuo
-        tipo_clause = f" AND {TIPO_RESIDUO_CASE} = %(tipo_residuo)s"
+        tipo_clause = " AND COALESCE(tipo_de_residuo, produto) = %(tipo_residuo)s"
     query = f"""
     SELECT
         EXTRACT(YEAR FROM data_hora) as year,
         EXTRACT(MONTH FROM data_hora) as month,
         setor,
-        {TIPO_RESIDUO_CASE} as tipo_residuo,
+        COALESCE(tipo_de_residuo, produto) as tipo_residuo,
         SUM(peso_embalagem_liquido_corrigido) as peso_kg
     FROM registro
     WHERE setor != 'ACERTO DE PESO'{tipo_clause}

@@ -19,11 +19,6 @@ from app.services.dashboard_summaries import (
 from app.services.management_insights import render_management_insight
 
 
-df_produtos = get_produtos_resumo()
-produtos_options = get_produtos_options()
-setores_options = get_setores_options()
-
-
 def fig_contagem_produtos(df, template):
     num_itens = len(df.index)
     dynamic_height = max(400, num_itens * 20)
@@ -42,6 +37,29 @@ def fig_contagem_produtos(df, template):
         plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig
+
+
+def _empty_bar_figure(template, title, xaxis_title, yaxis_title, message):
+    fig = px.bar(title=title, template=template)
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+    )
+    fig.add_annotation(
+        text=message,
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+        showarrow=False,
+    )
+    return fig
+
+
+produtos_options = get_produtos_options()
+setores_options = get_setores_options()
 
 
 layout = dmc.Container([
@@ -112,6 +130,17 @@ layout = dmc.Container([
 )
 def update_product_graph_theme(color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
+    df_produtos = get_produtos_resumo()
+    if df_produtos.empty:
+        fig = _empty_bar_figure(
+            template,
+            "Volume (N de Registros) por Produto",
+            "Quantidade",
+            "Produto",
+            "Não há dados disponíveis para montar o ranking de produtos.",
+        )
+        summary = "Sem dados suficientes para resumir os produtos neste momento."
+        return fig, summary, render_management_insight(summary)
     fig = fig_contagem_produtos(df_produtos, template)
     summary = summarize_produtos_ranking(df_produtos.head(10))
     return fig, summary, render_management_insight(summary)
@@ -123,7 +152,29 @@ def update_product_graph_theme(color_scheme):
 )
 def update_prod_forn_graph(selected_product, color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
+    if not selected_product:
+        message = "Selecione um produto para visualizar os fornecedores relacionados."
+        fig = _empty_bar_figure(
+            template,
+            "Fornecedores por produto",
+            "Quantidade",
+            "Fornecedor / Cliente",
+            message,
+        )
+        return fig, message, render_management_insight(message)
+
     df_drilldown = get_fornecedores_por_produto(selected_product, limit=None)
+    if df_drilldown.empty:
+        message = f"Não foram encontrados fornecedores para o produto {selected_product}."
+        fig = _empty_bar_figure(
+            template,
+            f"Fornecedores que movimentaram: {selected_product}",
+            "Quantidade",
+            "Fornecedor / Cliente",
+            message,
+        )
+        return fig, message, render_management_insight(message)
+
     fig = px.bar(
         df_drilldown,
         x="quantidade",
@@ -143,7 +194,29 @@ def update_prod_forn_graph(selected_product, color_scheme):
 )
 def update_setor_prod_graph(selected_setor, color_scheme):
     template = "plotly_dark" if color_scheme == "dark" else "plotly_white"
+    if not selected_setor:
+        message = "Selecione um setor para visualizar os produtos relacionados."
+        fig = _empty_bar_figure(
+            template,
+            "Produtos por setor",
+            "Quantidade",
+            "Produto",
+            message,
+        )
+        return fig, message, render_management_insight(message)
+
     df_drilldown = get_produtos_por_setor(selected_setor, limit=None)
+    if df_drilldown.empty:
+        message = f"Não foram encontrados produtos para o setor {selected_setor}."
+        fig = _empty_bar_figure(
+            template,
+            f"Produtos encontrados no Setor: {selected_setor}",
+            "Quantidade",
+            "Produto",
+            message,
+        )
+        return fig, message, render_management_insight(message)
+
     fig = px.bar(
         df_drilldown,
         x="quantidade",

@@ -6,8 +6,7 @@ from app.services.error_messages import get_safe_import_error_message
 
 
 class SubprocessEtlRunnerAdapter:
-    def __init__(self, script_name='import_sheet.py'):
-        self._script_name = script_name
+    def __init__(self):
         self._status = {
             'is_running': False,
             'message': '',
@@ -16,7 +15,7 @@ class SubprocessEtlRunnerAdapter:
 
     def _run_import_script(self, initiated_by=None):
         self._status['is_running'] = True
-        self._status['message'] = 'O script de importacao esta rodando... Isso pode levar alguns minutos.'
+        self._status['message'] = 'Processando arquivos enviados... Isso pode levar alguns minutos.'
         self._status['color'] = 'blue'
 
         try:
@@ -24,7 +23,20 @@ class SubprocessEtlRunnerAdapter:
             if initiated_by:
                 env['IMPORT_INITIATED_BY'] = initiated_by
             result = subprocess.run(
-                [sys.executable, self._script_name],
+                [
+                    sys.executable,
+                    '-c',
+                    (
+                        'import os; '
+                        'from app.services.import_pipeline import run_pending_imports; '
+                        'raise SystemExit('
+                        'run_pending_imports('
+                        'sheets_folder="sheets", '
+                        'initiated_by=os.getenv("IMPORT_INITIATED_BY", "Sistema")'
+                        ')'
+                        ')'
+                    ),
+                ],
                 capture_output=True,
                 text=True,
                 cwd=os.getcwd(),
@@ -32,8 +44,11 @@ class SubprocessEtlRunnerAdapter:
             )
 
             if result.returncode == 0:
-                self._status['message'] = 'Sucesso! Importacao concluida.'
+                self._status['message'] = 'Processamento finalizado. Consulte o historico para ver quais arquivos concluiram ou falharam.'
                 self._status['color'] = 'green'
+            elif result.returncode == 2:
+                self._status['message'] = 'Processamento finalizado com alguns arquivos falhando. Consulte o historico para detalhes.'
+                self._status['color'] = 'yellow'
             else:
                 self._status['message'] = get_safe_import_error_message()
                 self._status['color'] = 'red'

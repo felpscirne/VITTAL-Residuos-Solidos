@@ -14,13 +14,25 @@ class AnalyticsRepositoryPort(Protocol):
     def get_top_produtos_geral(self):
         ...
 
+    def get_volume_diario(self, tipo_residuo="todos"):
+        ...
+
     def get_volume_mensal(self, tipo_residuo="todos"):
+        ...
+
+    def get_entradas_diarias(self, tipo_residuo="todos"):
         ...
 
     def get_entradas_mensais(self, tipo_residuo="todos"):
         ...
 
+    def get_saidas_diarias(self, tipo_residuo="todos"):
+        ...
+
     def get_saidas_mensais(self, tipo_residuo="todos"):
+        ...
+
+    def get_setor_volume_diario(self, setor, tipo_residuo="todos"):
         ...
 
     def get_setor_volume_mensal(self, setor, tipo_residuo="todos"):
@@ -97,14 +109,26 @@ class AnalyticsService:
     def get_top_produtos_geral(self):
         return self._repository.get_top_produtos_geral()
 
+    def get_volume_diario(self, tipo_residuo="todos"):
+        return self._repository.get_volume_diario(tipo_residuo=tipo_residuo)
+
     def get_volume_mensal(self, tipo_residuo="todos"):
         return self._repository.get_volume_mensal(tipo_residuo=tipo_residuo)
+
+    def get_entradas_diarias(self, tipo_residuo="todos"):
+        return self._repository.get_entradas_diarias(tipo_residuo=tipo_residuo)
 
     def get_entradas_mensais(self, tipo_residuo="todos"):
         return self._repository.get_entradas_mensais(tipo_residuo=tipo_residuo)
 
+    def get_saidas_diarias(self, tipo_residuo="todos"):
+        return self._repository.get_saidas_diarias(tipo_residuo=tipo_residuo)
+
     def get_saidas_mensais(self, tipo_residuo="todos"):
         return self._repository.get_saidas_mensais(tipo_residuo=tipo_residuo)
+
+    def get_setor_volume_diario(self, setor, tipo_residuo="todos"):
+        return self._repository.get_setor_volume_diario(setor, tipo_residuo=tipo_residuo)
 
     def get_setor_volume_mensal(self, setor, tipo_residuo="todos"):
         return self._repository.get_setor_volume_mensal(setor, tipo_residuo=tipo_residuo)
@@ -186,16 +210,32 @@ def get_top_produtos_geral():
     return _default_analytics_service.get_top_produtos_geral()
 
 
+def get_volume_diario(tipo_residuo="todos"):
+    return _default_analytics_service.get_volume_diario(tipo_residuo=tipo_residuo)
+
+
 def get_volume_mensal(tipo_residuo="todos"):
     return _default_analytics_service.get_volume_mensal(tipo_residuo=tipo_residuo)
+
+
+def get_entradas_diarias(tipo_residuo="todos"):
+    return _default_analytics_service.get_entradas_diarias(tipo_residuo=tipo_residuo)
 
 
 def get_entradas_mensais(tipo_residuo="todos"):
     return _default_analytics_service.get_entradas_mensais(tipo_residuo=tipo_residuo)
 
 
+def get_saidas_diarias(tipo_residuo="todos"):
+    return _default_analytics_service.get_saidas_diarias(tipo_residuo=tipo_residuo)
+
+
 def get_saidas_mensais(tipo_residuo="todos"):
     return _default_analytics_service.get_saidas_mensais(tipo_residuo=tipo_residuo)
+
+
+def get_setor_volume_diario(setor, tipo_residuo="todos"):
+    return _default_analytics_service.get_setor_volume_diario(setor, tipo_residuo=tipo_residuo)
 
 
 def get_setor_volume_mensal(setor, tipo_residuo="todos"):

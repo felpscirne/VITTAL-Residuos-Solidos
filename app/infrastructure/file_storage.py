@@ -1,10 +1,7 @@
 import base64
 import os
-import tempfile
 
-import pandas as pd
-
-from import_sheet import COLUMNS_NAMES, tratar_planilhas_para_carga
+from app.services.import_pipeline import validate_uploaded_sheet
 
 
 class LocalFileStorageAdapter:
@@ -32,17 +29,7 @@ class LocalFileStorageAdapter:
 
     def _validate_ods_file(self, path):
         try:
-            df = pd.read_excel(path, engine='odf', skiprows=2)
-            if df.shape[1] < len(COLUMNS_NAMES):
-                return False, 'A planilha nao possui a estrutura esperada para importacao.'
-
-            df = df.iloc[:, :len(COLUMNS_NAMES)].copy()
-            df.columns = COLUMNS_NAMES
-            df['source_file'] = os.path.basename(path)
-            treated_df, metrics = tratar_planilhas_para_carga(df)
-            if treated_df.empty or metrics.get('rows_valid', 0) == 0:
-                return False, 'A planilha nao possui registros validos para importacao.'
-            return True, None
+            return validate_uploaded_sheet(path)
         except Exception:
             return False, 'Falha ao validar a planilha enviada.'
 

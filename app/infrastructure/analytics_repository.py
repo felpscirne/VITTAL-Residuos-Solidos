@@ -15,11 +15,17 @@ class SqlAnalyticsRepositoryAdapter:
     def get_top_produtos_geral(self):
         return data_repository.get_top_produtos_geral()
 
+    def get_volume_diario(self, tipo_residuo="todos", fill_gaps=True):
+        return data_repository.get_volume_diario(tipo_residuo=tipo_residuo, fill_gaps=fill_gaps)
+
     def get_volume_quinzenal(self, tipo_residuo="todos"):
         return data_repository.get_volume_quinzenal(tipo_residuo=tipo_residuo)
 
     def get_volume_mensal(self, tipo_residuo="todos"):
         return self.get_volume_quinzenal(tipo_residuo=tipo_residuo)
+
+    def get_entradas_diarias(self, tipo_residuo="todos", fill_gaps=True):
+        return data_repository.get_entradas_diarias(tipo_residuo=tipo_residuo, fill_gaps=fill_gaps)
 
     def get_entradas_quinzenais(self, tipo_residuo="todos"):
         return data_repository.get_entradas_quinzenais(tipo_residuo=tipo_residuo)
@@ -27,11 +33,17 @@ class SqlAnalyticsRepositoryAdapter:
     def get_entradas_mensais(self, tipo_residuo="todos"):
         return self.get_entradas_quinzenais(tipo_residuo=tipo_residuo)
 
+    def get_saidas_diarias(self, tipo_residuo="todos", fill_gaps=True):
+        return data_repository.get_saidas_diarias(tipo_residuo=tipo_residuo, fill_gaps=fill_gaps)
+
     def get_saidas_quinzenais(self, tipo_residuo="todos"):
         return data_repository.get_saidas_quinzenais(tipo_residuo=tipo_residuo)
 
     def get_saidas_mensais(self, tipo_residuo="todos"):
         return self.get_saidas_quinzenais(tipo_residuo=tipo_residuo)
+
+    def get_setor_volume_diario(self, setor, tipo_residuo="todos", fill_gaps=True):
+        return data_repository.get_setor_volume_diario(setor, tipo_residuo=tipo_residuo, fill_gaps=fill_gaps)
 
     def get_setor_volume_quinzenal(self, setor, tipo_residuo="todos"):
         return data_repository.get_setor_volume_quinzenal(setor, tipo_residuo=tipo_residuo)

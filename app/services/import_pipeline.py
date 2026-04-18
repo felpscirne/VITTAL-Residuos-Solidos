@@ -4,59 +4,61 @@ from collections import Counter
 from datetime import datetime, timezone
 
 import pandas as pd
-from dotenv import load_dotenv
 from sqlalchemy import bindparam, create_engine, text
 
-load_dotenv()
+from app.database import DATABASE_URL, ENGINE_OPTIONS
 
-DATABASE_URI = os.getenv("DATABASE_URL")
-IMPORT_INITIATED_BY = os.getenv("IMPORT_INITIATED_BY", "Sistema")
 APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
-ENGINE_OPTIONS = {
-    "connect_args": {
-        "options": f"-c timezone={APP_TIMEZONE}",
-    }
-}
-PASTA_PLANILHAS = "sheets"
 
 COLUMNS_NAMES = [
-    "ticket", "placa", "data_hora", "produto", "transportadora", "fornecedor_cliente",
-    "peso_entrada", "peso_saida", "peso_liquido", "peso_embalagem_liquido",
-    "peso_embalagem_liquido_corrigido", "peso_nota_fiscal", "placa_veiculo",
-    "diferenca_peso", "diferenca_peso_porcentagem", "nro_nota_fiscal", "setor",
+    "ticket",
+    "placa",
+    "data_hora",
+    "produto",
+    "transportadora",
+    "fornecedor_cliente",
+    "peso_entrada",
+    "peso_saida",
+    "peso_liquido",
+    "peso_embalagem_liquido",
+    "peso_embalagem_liquido_corrigido",
+    "peso_nota_fiscal",
+    "placa_veiculo",
+    "diferenca_peso",
+    "diferenca_peso_porcentagem",
+    "nro_nota_fiscal",
+    "setor",
     "destino_procedencia",
 ]
 
+OPTIONAL_RESIDUE_TYPE_COLUMN = "tipo_de_residuo"
 REQUIRED_COLUMNS = ["ticket", "data_hora", "produto", "fornecedor_cliente", "setor"]
-TEXT_COLUMNS = ["placa", "placa_veiculo", "produto", "transportadora", "fornecedor_cliente", "setor", "nro_nota_fiscal"]
+TEXT_COLUMNS = [
+    "placa",
+    "placa_veiculo",
+    "produto",
+    "transportadora",
+    "fornecedor_cliente",
+    "setor",
+    "nro_nota_fiscal",
+]
 WEIGHT_COLUMNS = [
-    "peso_entrada", "peso_saida", "peso_liquido", "peso_embalagem_liquido",
-    "peso_embalagem_liquido_corrigido", "peso_nota_fiscal", "diferenca_peso",
+    "peso_entrada",
+    "peso_saida",
+    "peso_liquido",
+    "peso_embalagem_liquido",
+    "peso_embalagem_liquido_corrigido",
+    "peso_nota_fiscal",
+    "diferenca_peso",
 ]
 
 
-def listar_arquivos_planilha(pasta):
-    return [f for f in os.listdir(pasta) if f.endswith(".ods") and not f.startswith("~")]
-
-
-def carregar_planilha_individual(caminho_completo, arquivo):
-    try:
-        df = pd.read_excel(caminho_completo, engine="odf", skiprows=2)
-        if df.shape[1] < len(COLUMNS_NAMES):
-            print(
-                f"  - ERRO: {arquivo} tem colunas insuficientes. "
-                f"Esperado {len(COLUMNS_NAMES)}, encontrado {df.shape[1]}"
-            )
-            return pd.DataFrame()
-
-        df = df.iloc[:, :len(COLUMNS_NAMES)].copy()
-        df.columns = COLUMNS_NAMES
-        df["source_file"] = arquivo
-        print(f"  - Lido com sucesso: {arquivo}")
-        return df
-    except Exception as exc:
-        print(f"  - ERRO ao ler {arquivo}: {exc}")
-        return pd.DataFrame()
+def list_pending_sheet_files(sheets_folder):
+    return [
+        filename
+        for filename in os.listdir(sheets_folder)
+        if filename.endswith(".ods") and not filename.startswith("~")
+    ]
 
 
 def _normalize_text(value):
@@ -77,13 +79,11 @@ def _to_float(value):
         return None
 
     text_value = (
-        text_value
-        .replace("kg", "")
+        text_value.replace("kg", "")
         .replace("%", "")
         .replace(".", "")
         .replace(",", ".")
     )
-
     filtered = "".join(ch for ch in text_value if ch.isdigit() or ch in [".", "-"])
     if not filtered or filtered in ["-", ".", "-."]:
         return None
@@ -132,6 +132,16 @@ def _comparison_signature(source):
     )
 
 
+class _MemoryTicketLookup:
+    def execute(self, *args, **kwargs):
+        return _DummyScalar()
+
+
+class _DummyScalar:
+    def scalar(self):
+        return None
+
+
 def _generate_synthetic_ticket(row, used_tickets, conn):
     source_file = row.get("source_file") or "arquivo"
     original_ticket = row.get("ticket") or 0
@@ -169,10 +179,14 @@ def _resolve_ticket_collisions(df):
     for ticket in colliding_tickets:
         ticket_mask = valid_mask & (resolved["ticket"] == ticket)
         duplicate_rows = resolved.loc[ticket_mask].copy()
-
         comparable_cols = [
-            "data_hora", "produto", "fornecedor_cliente", "setor",
-            "peso_liquido", "peso_embalagem_liquido_corrigido", "source_file",
+            "data_hora",
+            "produto",
+            "fornecedor_cliente",
+            "setor",
+            "peso_liquido",
+            "peso_embalagem_liquido_corrigido",
+            "source_file",
         ]
         if duplicate_rows[comparable_cols].drop_duplicates().shape[0] <= 1:
             continue
@@ -181,16 +195,6 @@ def _resolve_ticket_collisions(df):
             resolved.at[idx, "ticket"] = _generate_synthetic_ticket(row, used_tickets, _MemoryTicketLookup())
 
     return resolved
-
-
-class _MemoryTicketLookup:
-    def execute(self, *args, **kwargs):
-        return _DummyScalar()
-
-
-class _DummyScalar:
-    def scalar(self):
-        return None
 
 
 def _resolve_ticket_collisions_against_database(df, conn):
@@ -252,7 +256,29 @@ def _resolve_ticket_collisions_against_database(df, conn):
     return resolved
 
 
-def tratar_planilhas_para_carga(df):
+def load_sheet_dataframe(path, filename):
+    try:
+        raw_df = pd.read_excel(path, engine="odf", skiprows=2)
+        if raw_df.shape[1] < len(COLUMNS_NAMES):
+            message = (
+                f"{filename} tem colunas insuficientes. "
+                f"Esperado {len(COLUMNS_NAMES)}, encontrado {raw_df.shape[1]}"
+            )
+            return pd.DataFrame(), message
+
+        df = raw_df.iloc[:, : len(COLUMNS_NAMES)].copy()
+        df.columns = COLUMNS_NAMES
+        if raw_df.shape[1] > len(COLUMNS_NAMES):
+            df[OPTIONAL_RESIDUE_TYPE_COLUMN] = raw_df.iloc[:, len(COLUMNS_NAMES)].copy()
+        else:
+            df[OPTIONAL_RESIDUE_TYPE_COLUMN] = df["produto"]
+        df["source_file"] = filename
+        return df, None
+    except Exception as exc:
+        return pd.DataFrame(), f"Falha ao ler {filename}: {exc}"
+
+
+def process_sheet_dataframe(df):
     if df.empty:
         return df, {
             "rows_read": 0,
@@ -266,8 +292,15 @@ def tratar_planilhas_para_carga(df):
     for col in TEXT_COLUMNS:
         treated[col] = treated[col].apply(_normalize_text)
 
+    if OPTIONAL_RESIDUE_TYPE_COLUMN not in treated.columns:
+        treated[OPTIONAL_RESIDUE_TYPE_COLUMN] = treated["produto"]
+    treated[OPTIONAL_RESIDUE_TYPE_COLUMN] = treated[OPTIONAL_RESIDUE_TYPE_COLUMN].apply(_normalize_text)
+    treated[OPTIONAL_RESIDUE_TYPE_COLUMN] = treated[OPTIONAL_RESIDUE_TYPE_COLUMN].fillna(treated["produto"])
+
     treated["ticket"] = treated["ticket"].apply(_to_float)
-    treated["ticket"] = treated["ticket"].apply(lambda v: int(v) if v is not None and float(v).is_integer() else None)
+    treated["ticket"] = treated["ticket"].apply(
+        lambda value: int(value) if value is not None and float(value).is_integer() else None
+    )
     treated["data_hora"] = pd.to_datetime(treated["data_hora"], errors="coerce", dayfirst=True)
 
     for col in WEIGHT_COLUMNS:
@@ -292,8 +325,12 @@ def tratar_planilhas_para_carga(df):
             reasons.append("invalid_data_hora")
 
         for weight_col in [
-            "peso_entrada", "peso_saida", "peso_liquido",
-            "peso_embalagem_liquido", "peso_embalagem_liquido_corrigido", "peso_nota_fiscal",
+            "peso_entrada",
+            "peso_saida",
+            "peso_liquido",
+            "peso_embalagem_liquido",
+            "peso_embalagem_liquido_corrigido",
+            "peso_nota_fiscal",
         ]:
             value = treated.at[idx, weight_col]
             if value is not None and pd.notna(value) and value < 0:
@@ -333,8 +370,18 @@ def tratar_planilhas_para_carga(df):
         "rows_rejected": int(rejected_mask.sum()),
         "rejections_by_reason": dict(rejection_counter),
     }
-
     return valid_df, metrics
+
+
+def validate_uploaded_sheet(path):
+    raw_df, read_error = load_sheet_dataframe(path, os.path.basename(path))
+    if raw_df.empty:
+        return False, read_error or "Falha ao validar a planilha enviada."
+
+    treated_df, metrics = process_sheet_dataframe(raw_df)
+    if treated_df.empty or metrics.get("rows_valid", 0) == 0:
+        return False, "A planilha nao possui registros validos para importacao."
+    return True, None
 
 
 def _ensure_audit_table_schema(conn):
@@ -366,7 +413,10 @@ def _ensure_audit_table_schema(conn):
 
 def _ensure_pesagem_import_tracking(conn):
     conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))
-    conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"))
+    conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS tipo_de_residuo TEXT"))
+    conn.execute(
+        text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
+    )
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS source_file VARCHAR(255)"))
@@ -398,27 +448,37 @@ def _ensure_pesagem_import_tracking(conn):
             """
         )
     )
-    conn.execute(
-        text(
-            """
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1
-                    FROM pg_constraint
-                    WHERE conname = 'pesagem_import_audit_id_fkey'
-                ) THEN
-                    ALTER TABLE pesagem
-                    ADD CONSTRAINT pesagem_import_audit_id_fkey
-                    FOREIGN KEY (import_audit_id)
-                    REFERENCES import_auditoria(id)
-                    ON DELETE SET NULL;
-                END IF;
-            END
-            $$;
-            """
+
+
+def prepare_import_schema(db_uri=DATABASE_URL):
+    if not db_uri:
+        raise RuntimeError("DATABASE_URL nao configurada no ambiente.")
+
+    engine = create_engine(db_uri, **ENGINE_OPTIONS)
+    with engine.begin() as conn:
+        _ensure_audit_table_schema(conn)
+        _ensure_pesagem_import_tracking(conn)
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'pesagem_import_audit_id_fkey'
+                    ) THEN
+                        ALTER TABLE pesagem
+                        ADD CONSTRAINT pesagem_import_audit_id_fkey
+                        FOREIGN KEY (import_audit_id)
+                        REFERENCES import_auditoria(id)
+                        ON DELETE SET NULL;
+                    END IF;
+                END
+                $$;
+                """
+            )
         )
-    )
 
 
 def _start_audit(conn, source_file, initiated_by, files_count, rows_read):
@@ -468,29 +528,25 @@ def _finish_audit(conn, audit_id, status, rows_valid, rows_new, rows_updated, de
     )
 
 
-def _cleanup_processed_files(arquivos):
-    for arquivo in arquivos:
-        caminho = os.path.join(PASTA_PLANILHAS, arquivo)
-        if os.path.exists(caminho):
+def cleanup_processed_files(sheets_folder, filenames):
+    for filename in filenames:
+        path = os.path.join(sheets_folder, filename)
+        if os.path.exists(path):
             try:
-                os.remove(caminho)
+                os.remove(path)
             except OSError:
                 pass
 
 
-def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
+def persist_imported_rows(df, arquivos, metrics, initiated_by, db_uri=DATABASE_URL):
     if df.empty:
-        print("Nenhum dado valido para enviar ao banco.")
         return
 
     if not db_uri:
         raise RuntimeError("DATABASE_URL nao configurada no ambiente.")
 
     engine = create_engine(db_uri, **ENGINE_OPTIONS)
-
     with engine.begin() as conn:
-        _ensure_audit_table_schema(conn)
-        _ensure_pesagem_import_tracking(conn)
         audit_id = _start_audit(
             conn,
             source_file=", ".join(arquivos),
@@ -506,11 +562,25 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
 
             staging = df[
                 [
-                    "ticket", "data_hora", "produto", "transportadora", "fornecedor_cliente",
-                    "veiculo_resolvido", "setor", "setor_tipo", "peso_entrada", "peso_saida",
-                    "peso_liquido", "peso_embalagem_liquido", "peso_embalagem_liquido_corrigido",
-                    "peso_nota_fiscal", "diferenca_peso", "diferenca_peso_porcentagem",
-                    "nro_nota_fiscal", "source_file",
+                    "ticket",
+                    "data_hora",
+                    "produto",
+                    "transportadora",
+                    "fornecedor_cliente",
+                    "veiculo_resolvido",
+                    "setor",
+                    "setor_tipo",
+                    "peso_entrada",
+                    "peso_saida",
+                    "peso_liquido",
+                    "peso_embalagem_liquido",
+                    "peso_embalagem_liquido_corrigido",
+                    "peso_nota_fiscal",
+                    "diferenca_peso",
+                    "diferenca_peso_porcentagem",
+                    "nro_nota_fiscal",
+                    "tipo_de_residuo",
+                    "source_file",
                 ]
             ].copy()
 
@@ -529,7 +599,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                     """
                 )
             )
-
             conn.execute(
                 text(
                     """
@@ -547,7 +616,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                     """
                 )
             )
-
             conn.execute(
                 text(
                     """
@@ -565,7 +633,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                     """
                 )
             )
-
             conn.execute(
                 text(
                     """
@@ -579,7 +646,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                     """
                 )
             )
-
             conn.execute(
                 text(
                     """
@@ -591,7 +657,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                     """
                 )
             )
-
             conn.execute(
                 text(
                     """
@@ -612,6 +677,7 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                         diferenca_peso,
                         diferenca_peso_porcentagem,
                         nro_nota_fiscal,
+                        tipo_de_residuo,
                         import_audit_id
                     )
                     SELECT
@@ -631,6 +697,7 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                         s.diferenca_peso,
                         s.diferenca_peso_porcentagem,
                         s.nro_nota_fiscal,
+                        s.tipo_de_residuo,
                         :audit_id
                     FROM staging_import_registro s
                     JOIN produto pr ON pr.nome = s.produto
@@ -655,6 +722,7 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                         diferenca_peso = EXCLUDED.diferenca_peso,
                         diferenca_peso_porcentagem = EXCLUDED.diferenca_peso_porcentagem,
                         nro_nota_fiscal = EXCLUDED.nro_nota_fiscal,
+                        tipo_de_residuo = EXCLUDED.tipo_de_residuo,
                         import_audit_id = EXCLUDED.import_audit_id
                     """
                 ),
@@ -676,7 +744,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                 f"Rejeitadas: {metrics.get('rows_rejected', 0)} | "
                 f"Motivos: {rejections}"
             )
-
             _finish_audit(
                 conn,
                 audit_id=audit_id,
@@ -686,12 +753,6 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                 rows_updated=rows_updated,
                 details=details,
             )
-
-        _cleanup_processed_files(arquivos)
-        print(
-            "Importacao concluida com sucesso. "
-            f"Registros validos: {rows_valid} | Novos: {rows_new} | Atualizados: {rows_updated}"
-        )
     except Exception as exc:
         with engine.begin() as conn:
             _finish_audit(
@@ -704,21 +765,18 @@ def enviar_para_postgres(df, db_uri, arquivos, metrics, initiated_by):
                 details=f"Arquivo processado: {', '.join(arquivos)} | Usuario responsavel: {initiated_by}",
                 error_message=str(exc),
             )
-        _cleanup_processed_files(arquivos)
         raise
 
 
-def registrar_arquivo_sem_dados(db_uri, arquivo, metrics, initiated_by):
+def register_failed_file(filename, metrics, initiated_by, error_message, db_uri=DATABASE_URL):
     if not db_uri:
         raise RuntimeError("DATABASE_URL nao configurada no ambiente.")
 
     engine = create_engine(db_uri, **ENGINE_OPTIONS)
     with engine.begin() as conn:
-        _ensure_audit_table_schema(conn)
-        _ensure_pesagem_import_tracking(conn)
         audit_id = _start_audit(
             conn,
-            source_file=arquivo,
+            source_file=filename,
             initiated_by=initiated_by,
             files_count=1,
             rows_read=metrics.get("rows_read", 0),
@@ -727,43 +785,106 @@ def registrar_arquivo_sem_dados(db_uri, arquivo, metrics, initiated_by):
             conn,
             audit_id=audit_id,
             status="error",
-            rows_valid=0,
+            rows_valid=metrics.get("rows_valid", 0),
             rows_new=0,
             rows_updated=0,
-            details=f"Arquivo processado: {arquivo} | Usuario responsavel: {initiated_by}",
-            error_message="A planilha nao possui registros validos para importacao.",
+            details=f"Arquivo processado: {filename} | Usuario responsavel: {initiated_by}",
+            error_message=error_message,
         )
-    _cleanup_processed_files([arquivo])
 
 
-if __name__ == "__main__":
-    if not os.path.exists(PASTA_PLANILHAS):
-        print(f"Pasta '{PASTA_PLANILHAS}' nao existe.")
-        raise SystemExit(1)
+def register_empty_file(filename, metrics, initiated_by, db_uri=DATABASE_URL):
+    register_failed_file(
+        filename,
+        metrics,
+        initiated_by,
+        "A planilha nao possui registros validos para importacao.",
+        db_uri=db_uri,
+    )
 
-    arquivos = listar_arquivos_planilha(PASTA_PLANILHAS)
+
+def run_pending_imports(sheets_folder="sheets", initiated_by="Sistema", db_uri=DATABASE_URL):
+    if not os.path.exists(sheets_folder):
+        print(f"Pasta '{sheets_folder}' nao existe.")
+        return 1
+
+    arquivos = list_pending_sheet_files(sheets_folder)
     if not arquivos:
         print("Nenhuma planilha valida foi carregada.")
-        raise SystemExit(0)
+        return 0
 
-    print(f"Encontrados {len(arquivos)} arquivos na pasta '{PASTA_PLANILHAS}':")
+    try:
+        prepare_import_schema(db_uri=db_uri)
+    except Exception as exc:
+        print(f"Falha ao preparar o schema de importacao: {exc}")
+        for arquivo in arquivos:
+            try:
+                register_failed_file(
+                    arquivo,
+                    {"rows_read": 0, "rows_valid": 0},
+                    initiated_by,
+                    f"Falha ao preparar o ambiente de importacao: {exc}",
+                    db_uri=db_uri,
+                )
+            except Exception:
+                pass
+        cleanup_processed_files(sheets_folder, arquivos)
+        return 1
+
+    print(f"Encontrados {len(arquivos)} arquivos na pasta '{sheets_folder}':")
+    success_count = 0
+    failure_count = 0
+
     for arquivo in arquivos:
-        caminho = os.path.join(PASTA_PLANILHAS, arquivo)
-        df_bruto = carregar_planilha_individual(caminho, arquivo)
-        if df_bruto.empty:
-            continue
+        caminho = os.path.join(sheets_folder, arquivo)
+        metrics = {"rows_read": 0, "rows_valid": 0}
+        try:
+            df_bruto, read_error = load_sheet_dataframe(caminho, arquivo)
+            if df_bruto.empty:
+                register_failed_file(
+                    arquivo,
+                    metrics,
+                    initiated_by,
+                    read_error or "Falha ao ler a planilha para importacao.",
+                    db_uri=db_uri,
+                )
+                failure_count += 1
+                continue
 
-        df_tratado, metrics = tratar_planilhas_para_carga(df_bruto)
-        print(
-            "Pre-processamento concluido. "
-            f"Lidas: {metrics['rows_read']} | Validas: {metrics['rows_valid']} | "
-            f"Rejeitadas: {metrics['rows_rejected']}"
-        )
-        if metrics["rejections_by_reason"]:
-            print(f"Motivos de rejeicao: {metrics['rejections_by_reason']}")
+            print(f"  - Lido com sucesso: {arquivo}")
+            df_tratado, metrics = process_sheet_dataframe(df_bruto)
+            print(
+                "Pre-processamento concluido. "
+                f"Lidas: {metrics['rows_read']} | Validas: {metrics['rows_valid']} | "
+                f"Rejeitadas: {metrics['rows_rejected']}"
+            )
+            if metrics["rejections_by_reason"]:
+                print(f"Motivos de rejeicao: {metrics['rejections_by_reason']}")
 
-        if df_tratado.empty:
-            registrar_arquivo_sem_dados(DATABASE_URI, arquivo, metrics, IMPORT_INITIATED_BY)
-            continue
+            if df_tratado.empty:
+                register_empty_file(arquivo, metrics, initiated_by, db_uri=db_uri)
+                failure_count += 1
+                continue
 
-        enviar_para_postgres(df_tratado, DATABASE_URI, [arquivo], metrics, IMPORT_INITIATED_BY)
+            persist_imported_rows(df_tratado, [arquivo], metrics, initiated_by, db_uri=db_uri)
+            success_count += 1
+            print(
+                "Importacao concluida com sucesso. "
+                f"Registros validos: {metrics['rows_valid']}"
+            )
+        except Exception as exc:
+            print(f"  - ERRO ao processar {arquivo}: {exc}")
+            try:
+                register_failed_file(arquivo, metrics, initiated_by, str(exc), db_uri=db_uri)
+            except Exception:
+                pass
+            failure_count += 1
+        finally:
+            cleanup_processed_files(sheets_folder, [arquivo])
+
+    print(f"Processamento finalizado. Sucesso: {success_count} | Falhas: {failure_count}")
+    if failure_count and success_count:
+        return 2
+    if failure_count and not success_count:
+        return 1
+    return 0

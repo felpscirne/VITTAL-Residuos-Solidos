@@ -8,10 +8,11 @@ from app.application.analytics import (
     get_kpis_gerais,
     get_qtde_por_ano,
     get_top_produtos_geral,
-    get_volume_mensal,
+    get_volume_diario,
 )
 from app.services.event_markers import apply_event_markers, get_events_for_period
 from app.services.management_insights import render_management_insight
+from app.services.temporal_charts import build_temporal_line_figure
 
 
 def create_kpi_card(title, value, icon, color):
@@ -132,7 +133,7 @@ def update_overview_graphs(color_scheme):
     template_name = "plotly_dark" if color_scheme == "dark" else "plotly_white"
 
     kpi_data = get_kpis_gerais()
-    df_mensal = get_volume_mensal()
+    df_mensal = get_volume_diario()
     df_ano = get_qtde_por_ano()
     df_produtos = get_top_produtos_geral()
 
@@ -148,21 +149,18 @@ def update_overview_graphs(color_scheme):
     kpi_inicio = create_kpi_card("Data de Inicio", kpi_data["inicio"], "radix-icons:calendar", "ifsc-green")
     kpi_fim = create_kpi_card("Data de Fim", kpi_data["fim"], "radix-icons:calendar", "ifsc-green")
     kpi_volume = create_kpi_card("Volume Acumulado", total_volume, "radix-icons:archive", "ifsc-green")
-    kpi_media = create_kpi_card("Media Mensal", media_mensal, "radix-icons:bar-chart", "ifsc-green")
+    kpi_media = create_kpi_card("Media Diaria", media_mensal, "radix-icons:bar-chart", "ifsc-green")
 
-    fig_mensal = px.line(
+    fig_mensal = build_temporal_line_figure(
         df_mensal,
         x="ds",
         y="y",
-        markers=True,
-        title="Serie Mensal de Volume de Residuos",
-        labels={"ds": "Mes", "y": "Volume (kg)"},
+        title="Serie Diaria de Volume de Residuos",
         template=template_name,
-    ) if not df_mensal.empty else px.line(template=template_name, title="Serie Mensal de Volume de Residuos")
-    fig_mensal.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin={"l": 40, "r": 20, "t": 50, "b": 30},
+        granularity="diaria",
+        labels={"ds": "Dia", "y": "Volume (kg)"},
+        xaxis_title="Dia",
+        yaxis_title="Volume (kg)",
     )
     if not df_mensal.empty:
         eventos = get_events_for_period(df_mensal["ds"].min(), df_mensal["ds"].max())
@@ -202,9 +200,9 @@ def update_overview_graphs(color_scheme):
         "### Resumo analitico\n"
         f"- Total de registros consolidados: **{kpi_data['total']}**.\n"
         f"- Volume acumulado da serie: **{total_volume}**.\n"
-        f"- Media do periodo consolidado: **{media_mensal}**.\n"
+        f"- Media diaria observada: **{media_mensal}**.\n"
         f"- Produto de maior recorrencia: **{lider_produto}**.\n"
-        "- Leitura gerencial: a visao geral permite relacionar escala operacional, distribuicao temporal e concentracao do mix de residuos antes de aprofundar a analise nas demais paginas."
+        "- Leitura gerencial: a visao geral permite acompanhar oscilacao diaria, escala operacional e concentracao do mix de residuos antes de aprofundar a analise nas demais paginas."
     )
 
     return (

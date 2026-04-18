@@ -78,7 +78,7 @@ def _empty_result(status: str, message: str) -> dict[str, Any]:
         "metrics": {
             "missing_months_filled": 0,
             "missing_months_original": [],
-            "cadence_label": "quinzenas",
+            "cadence_label": "dias",
             "retrospective_periods": 0,
         },
         "public_data": {
@@ -291,6 +291,8 @@ def _semi_month_start(ts: pd.Timestamp) -> pd.Timestamp:
 
 
 def _generate_cadence_range(start: pd.Timestamp, end: pd.Timestamp, cadence: str) -> pd.DatetimeIndex:
+    if cadence == "diaria":
+        return pd.date_range(pd.Timestamp(start).normalize(), pd.Timestamp(end).normalize(), freq="D")
     if cadence != "quinzenal":
         return pd.date_range(start, end, freq="MS")
 
@@ -311,7 +313,9 @@ def _generate_future_dates(last_ds: pd.Timestamp, periods: int, cadence: str) ->
     future_dates = []
     current = pd.Timestamp(last_ds)
     for _ in range(periods):
-        if cadence == "quinzenal":
+        if cadence == "diaria":
+            current = current + pd.Timedelta(days=1)
+        elif cadence == "quinzenal":
             if current.day == 1:
                 current = current + pd.Timedelta(days=15)
             else:
@@ -322,7 +326,57 @@ def _generate_future_dates(last_ds: pd.Timestamp, periods: int, cadence: str) ->
     return future_dates
 
 
-def _regularize_series(monthly_df: pd.DataFrame, cadence: str) -> tuple[pd.DataFrame, dict[str, Any]]:
+def _regularize_daily_series(
+    daily_df: pd.DataFrame,
+    fill_missing: bool = True,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Reindexa a série em frequência diária preenchendo lacunas por interpolação."""
+    series_df = daily_df.copy()
+    series_df["ds"] = pd.to_datetime(series_df["ds"], errors="coerce").dt.normalize()
+    series_df["y"] = pd.to_numeric(series_df["y"], errors="coerce")
+    series_df = (
+        series_df.dropna(subset=["ds"])
+        .groupby("ds", as_index=False)
+        .agg(y=("y", "sum"))
+        .sort_values("ds")
+    )
+    if series_df.empty:
+        return series_df, {"missing_months_filled": 0, "missing_months_original": []}
+
+    full_range = pd.date_range(series_df["ds"].min(), series_df["ds"].max(), freq="D")
+    regularized = (
+        series_df.set_index("ds")
+        .reindex(full_range)
+        .rename_axis("ds")
+        .reset_index()
+    )
+    missing_mask = regularized["y"].isna()
+    missing_days = regularized.loc[missing_mask, "ds"].dt.strftime("%Y-%m-%d").tolist()
+
+    if not fill_missing:
+        regularized["was_missing"] = missing_mask
+        regularized["y"] = pd.to_numeric(regularized["y"], errors="coerce")
+        return regularized, {
+            "missing_months_filled": 0,
+            "missing_months_original": missing_days,
+        }
+
+    regularized["y"] = pd.to_numeric(regularized["y"], errors="coerce")
+    regularized["y"] = regularized["y"].fillna(0).clip(lower=0)
+    regularized["was_missing"] = missing_mask
+    return regularized, {
+        "missing_months_filled": int(len(missing_days)),
+        "missing_months_original": missing_days,
+    }
+
+
+def _regularize_series(
+    monthly_df: pd.DataFrame,
+    cadence: str,
+    fill_missing: bool = True,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    if cadence == "diaria":
+        return _regularize_daily_series(monthly_df, fill_missing=fill_missing)
     if cadence != "quinzenal":
         return _regularize_monthly_series(monthly_df)
 
@@ -344,7 +398,6 @@ def _regularize_series(monthly_df: pd.DataFrame, cadence: str) -> tuple[pd.DataF
     missing_mask = regularized["y"].isna()
     missing_labels = regularized.loc[missing_mask, "ds"].dt.strftime("%Y-%m-%d").tolist()
     regularized["y"] = pd.to_numeric(regularized["y"], errors="coerce")
-    regularized["y"] = regularized["y"].interpolate(method="linear", limit_direction="both")
     regularized["y"] = regularized["y"].fillna(0).clip(lower=0)
     regularized["was_missing"] = missing_mask
     return regularized, {
@@ -369,6 +422,8 @@ def _stabilize_monthly_signal(series_df: pd.DataFrame) -> pd.DataFrame:
 
 def _cadence_bucket(ts: pd.Timestamp, cadence: str) -> pd.Timestamp:
     ts = pd.Timestamp(ts)
+    if cadence == "diaria":
+        return ts.normalize()
     if cadence == "quinzenal":
         return _semi_month_start(ts)
     return ts.to_period("M").to_timestamp()
@@ -376,10 +431,22 @@ def _cadence_bucket(ts: pd.Timestamp, cadence: str) -> pd.Timestamp:
 
 def _build_cadence_climatology(weather_df: pd.DataFrame, cadence: str) -> pd.DataFrame:
     if weather_df.empty:
+        if cadence == "diaria":
+            return pd.DataFrame(
+                columns=["month_num", "day_num", "temp_mean", "precip_sum", "rainy_days", "precip_sum_lag1"]
+            )
         return pd.DataFrame(columns=["month_num", "half", "temp_mean", "precip_sum", "rainy_days", "precip_sum_lag1"])
 
     climatology = weather_df.copy()
     climatology["month_num"] = climatology["ds"].dt.month
+    if cadence == "diaria":
+        climatology["day_num"] = climatology["ds"].dt.day
+        return climatology.groupby(["month_num", "day_num"], as_index=False).agg(
+            temp_mean=("temp_mean", "mean"),
+            precip_sum=("precip_sum", "mean"),
+            rainy_days=("rainy_days", "mean"),
+            precip_sum_lag1=("precip_sum_lag1", "mean"),
+        )
     climatology["half"] = climatology["ds"].dt.day.apply(lambda day: 1 if day <= 15 else 2)
     return climatology.groupby(["month_num", "half"], as_index=False).agg(
         temp_mean=("temp_mean", "mean"),
@@ -562,8 +629,16 @@ def _attach_external_regressors(
         climatology = _build_cadence_climatology(weather_cadence_df, cadence)
         future_dates = pd.DataFrame({"ds": _generate_future_dates(series_df["ds"].max(), periods, cadence)})
         future_dates["month_num"] = future_dates["ds"].dt.month
-        future_dates["half"] = future_dates["ds"].dt.day.apply(lambda day: 1 if day <= 15 else 2)
-        future_regressors = future_dates.merge(climatology, on=["month_num", "half"], how="left").drop(columns=["month_num", "half"])
+        if cadence == "diaria":
+            future_dates["day_num"] = future_dates["ds"].dt.day
+            future_regressors = future_dates.merge(
+                climatology, on=["month_num", "day_num"], how="left"
+            ).drop(columns=["month_num", "day_num"])
+        else:
+            future_dates["half"] = future_dates["ds"].dt.day.apply(lambda day: 1 if day <= 15 else 2)
+            future_regressors = future_dates.merge(
+                climatology, on=["month_num", "half"], how="left"
+            ).drop(columns=["month_num", "half"])
     else:
         future_regressors = pd.DataFrame({"ds": _generate_future_dates(series_df["ds"].max(), periods, cadence)})
 
@@ -592,6 +667,17 @@ def _attach_external_regressors(
 
 
 def _default_model_config(observations: int, use_weather: bool, forecast_profile: str = "default") -> dict[str, Any]:
+    if forecast_profile == "diaria":
+        return {
+            "config_name": "padrao",
+            "changepoint_prior_scale": 0.05,
+            "seasonality_prior_scale": 8.0,
+            "holidays_prior_scale": 4.0,
+            "yearly_seasonality": observations >= 365,
+            "weekly_seasonality": observations >= 21,
+            "max_changepoints": 25,
+            "use_weather": use_weather,
+        }
     if forecast_profile == "setor":
         return {
             "config_name": "conservador",
@@ -618,6 +704,10 @@ def _regressor_columns_for_profile(
 ) -> list[str]:
     if not regressor_columns:
         return []
+    if forecast_profile == "diaria":
+        if observations < 30:
+            return []
+        return regressor_columns
     if forecast_profile == "setor":
         if observations < 18:
             return []
@@ -633,6 +723,28 @@ def _candidate_model_configs(
     forecast_profile: str = "default",
 ) -> list[dict[str, Any]]:
     base = _default_model_config(observations, use_weather, forecast_profile=forecast_profile)
+    if forecast_profile == "diaria":
+        candidates = [
+            base,
+            {
+                **base,
+                "config_name": "conservador",
+                "changepoint_prior_scale": 0.02,
+                "seasonality_prior_scale": 5.0,
+                "holidays_prior_scale": 2.5,
+            },
+            {
+                **base,
+                "config_name": "sensivel",
+                "changepoint_prior_scale": 0.1,
+                "seasonality_prior_scale": 10.0,
+                "holidays_prior_scale": 5.0,
+            },
+        ]
+        if observations < 21:
+            for candidate in candidates:
+                candidate["weekly_seasonality"] = False
+        return candidates
     if forecast_profile == "setor":
         candidates = [
             base,
@@ -730,12 +842,14 @@ def _build_prophet_model(
 ) -> Prophet:
     config = model_config or _default_model_config(observations, use_weather)
     yearly_seasonality = bool(config.get("yearly_seasonality", observations >= 18))
+    weekly_seasonality = bool(config.get("weekly_seasonality", False))
     effective_use_weather = bool(config.get("use_weather", use_weather))
     active_regressors = list(regressor_columns or [])
-    n_changepoints = min(max(observations - 2, 0), 6)
+    max_changepoints = int(config.get("max_changepoints", 6))
+    n_changepoints = min(max(observations - 2, 0), max_changepoints)
     model = Prophet(
         yearly_seasonality=yearly_seasonality,
-        weekly_seasonality=False,
+        weekly_seasonality=weekly_seasonality,
         daily_seasonality=False,
         seasonality_mode="additive",
         changepoint_prior_scale=float(config.get("changepoint_prior_scale", 0.03)),
@@ -767,6 +881,7 @@ def _compute_empirical_interval_margin(
     actual: pd.Series,
     predicted: pd.Series,
     interval_width: float,
+    history: pd.Series | None = None,
 ) -> float:
     comparison = pd.DataFrame(
         {
@@ -782,16 +897,43 @@ def _compute_empirical_interval_margin(
     margin = float(absolute_error.quantile(quantile))
     if not math.isfinite(margin):
         return 0.0
-    return max(margin, float(absolute_error.median()))
+    margin = max(margin, float(absolute_error.median()))
+
+    history_series = pd.to_numeric(history, errors="coerce").dropna() if history is not None else pd.Series(dtype=float)
+    if not history_series.empty:
+        recent = history_series.tail(min(30, len(history_series)))
+        recent_mean = float(recent.mean())
+        recent_std = float(recent.std(ddof=0)) if len(recent) > 1 else 0.0
+        recent_median = float(recent.median())
+        volatility_cap = max(recent_std * 2.25, recent_mean * 0.35, recent_median * 0.30, 1.0)
+        margin = min(margin, volatility_cap)
+
+    return max(margin, 0.0)
 
 
 def _apply_empirical_interval_calibration(
     forecast_df: pd.DataFrame,
     calibration_margin: float,
+    history_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     calibrated = forecast_df.copy()
     raw_half_width = ((calibrated["yhat_upper"] - calibrated["yhat_lower"]) / 2).fillna(0)
-    effective_half_width = raw_half_width.clip(lower=float(max(calibration_margin, 0.0)))
+    history_series = pd.to_numeric(history_df["y"], errors="coerce").dropna() if history_df is not None and "y" in history_df.columns else pd.Series(dtype=float)
+    if not history_series.empty:
+        recent = history_series.tail(min(30, len(history_series)))
+        recent_mean = float(recent.mean())
+        recent_std = float(recent.std(ddof=0)) if len(recent) > 1 else 0.0
+        recent_max = float(recent.max())
+        volatility_cap = max(recent_std * 2.25, recent_mean * 0.35, recent_max * 0.20, 1.0)
+    else:
+        volatility_cap = None
+
+    minimum_margin = float(max(calibration_margin, 0.0))
+    if volatility_cap is not None:
+        minimum_margin = min(minimum_margin, volatility_cap)
+        effective_half_width = raw_half_width.clip(lower=minimum_margin, upper=volatility_cap)
+    else:
+        effective_half_width = raw_half_width.clip(lower=minimum_margin)
     calibrated["yhat_lower"] = (calibrated["yhat"] - effective_half_width).clip(lower=0)
     calibrated["yhat_upper"] = calibrated["yhat"] + effective_half_width
     return calibrated
@@ -804,19 +946,30 @@ def _run_retrospective_validation(
     use_weather: bool,
     periods: int,
     cadence: str,
+    validation_window: int | None = None,
     model_config: dict[str, Any] | None = None,
     regressor_columns: list[str] | None = None,
 ) -> dict[str, float]:
+    validation_label = (
+        f"janela retrospectiva de {int(validation_window)} dias"
+        if validation_window is not None
+        else "janela retrospectiva ampliada"
+    )
     if len(fit_df) < 8:
         return {
             "retrospective_mae": 0.0,
             "retrospective_rmse": 0.0,
             "retrospective_periods": 0,
             "retrospective_interval_coverage": 0.0,
-            "retrospective_validation_label": "janela retrospectiva ampliada",
+            "retrospective_validation_label": validation_label,
         }
 
-    target_holdout = max(periods + (2 if cadence == "quinzenal" else 1), 4 if cadence != "quinzenal" else 6)
+    if validation_window is not None:
+        target_holdout = max(int(validation_window), 2)
+    elif cadence == "diaria":
+        target_holdout = max(min(periods, 30), 14)
+    else:
+        target_holdout = max(periods + (2 if cadence == "quinzenal" else 1), 4 if cadence != "quinzenal" else 6)
     holdout_periods = min(target_holdout, max(2, len(fit_df) // 3))
     train_df = fit_df.iloc[:-holdout_periods].copy()
     validation_df = fit_df.iloc[-holdout_periods:].copy()
@@ -826,7 +979,7 @@ def _run_retrospective_validation(
             "retrospective_rmse": 0.0,
             "retrospective_periods": 0,
             "retrospective_interval_coverage": 0.0,
-            "retrospective_validation_label": "janela retrospectiva ampliada",
+            "retrospective_validation_label": validation_label,
         }
 
     model = _build_prophet_model(
@@ -867,7 +1020,7 @@ def _run_retrospective_validation(
             "retrospective_rmse": 0.0,
             "retrospective_periods": 0,
             "retrospective_interval_coverage": 0.0,
-            "retrospective_validation_label": "janela retrospectiva ampliada",
+            "retrospective_validation_label": validation_label,
         }
 
     mae = float((comparison["y"] - comparison["yhat"]).abs().mean())
@@ -882,9 +1035,21 @@ def _run_retrospective_validation(
         actual=comparison["y"],
         predicted=comparison["yhat"],
         interval_width=interval_width,
+        history=train_df["y"],
     )
-    adjusted_lower = (comparison["yhat"] - calibration_margin).clip(lower=0)
-    adjusted_upper = comparison["yhat"] + calibration_margin
+    raw_half_width = ((comparison["yhat_upper"] - comparison["yhat_lower"]) / 2).clip(lower=0).fillna(0)
+    history_series = pd.to_numeric(train_df["y"], errors="coerce").dropna()
+    if not history_series.empty:
+        recent = history_series.tail(min(30, len(history_series)))
+        recent_mean = float(recent.mean())
+        recent_std = float(recent.std(ddof=0)) if len(recent) > 1 else 0.0
+        recent_max = float(recent.max())
+        volatility_cap = max(recent_std * 2.25, recent_mean * 0.35, recent_max * 0.20, 1.0)
+        effective_half_width = raw_half_width.clip(lower=calibration_margin, upper=volatility_cap)
+    else:
+        effective_half_width = raw_half_width.clip(lower=calibration_margin)
+    adjusted_lower = (comparison["yhat"] - effective_half_width).clip(lower=0)
+    adjusted_upper = comparison["yhat"] + effective_half_width
     coverage = float(
         (
             (comparison["y"] >= adjusted_lower) &
@@ -903,9 +1068,9 @@ def _run_retrospective_validation(
         "retrospective_periods": int(len(comparison)),
         "retrospective_interval_coverage": coverage,
         "retrospective_raw_interval_coverage": raw_coverage,
-        "retrospective_interval_margin": float(calibration_margin),
+        "retrospective_interval_margin": float(effective_half_width.median()) if len(effective_half_width.index) else float(calibration_margin),
         "retrospective_covered_periods": covered_periods,
-        "retrospective_validation_label": "janela retrospectiva ampliada",
+        "retrospective_validation_label": validation_label,
     }
 
 
@@ -916,6 +1081,7 @@ def _select_best_model_config(
     use_weather: bool,
     periods: int,
     cadence: str,
+    validation_window: int | None = None,
     regressor_columns: list[str] | None = None,
     forecast_profile: str = "default",
 ) -> tuple[dict[str, Any], dict[str, float], list[dict[str, Any]]]:
@@ -939,6 +1105,7 @@ def _select_best_model_config(
                 use_weather=bool(candidate.get("use_weather", use_weather)),
                 periods=periods,
                 cadence=cadence,
+                validation_window=validation_window,
                 model_config=candidate,
                 regressor_columns=regressor_columns,
             )
@@ -968,6 +1135,8 @@ def build_monthly_forecast(
     interval_width: float = 0.8,
     cadence: str = "quinzenal",
     forecast_profile: str = "default",
+    validation_window: int | None = None,
+    fill_missing: bool = True,
 ) -> dict[str, Any]:
     if monthly_df is None or monthly_df.empty:
         return _empty_result("no_data", "Não há dados suficientes para gerar previsão.")
@@ -976,13 +1145,24 @@ def build_monthly_forecast(
     if not required_columns.issubset(monthly_df.columns):
         return _empty_result("invalid_data", "A série temporal precisa conter as colunas ds e y.")
 
-    series_df, gap_info = _regularize_series(monthly_df, cadence)
-    series_df = series_df.dropna(subset=["ds", "y"]).sort_values("ds")
-    series_df = _stabilize_monthly_signal(series_df)
-    cadence_label = "quinzenas" if cadence == "quinzenal" else "meses"
+    plot_series_df, gap_info = _regularize_series(monthly_df, cadence, fill_missing=fill_missing)
+    series_df = plot_series_df.dropna(subset=["ds", "y"]).sort_values("ds")
+    if cadence != "diaria":
+        series_df = _stabilize_monthly_signal(series_df)
+    else:
+        series_df = series_df.copy()
+        series_df["y_model"] = pd.to_numeric(series_df["y"], errors="coerce").fillna(0).clip(lower=0)
+    cadence_label = {
+        "quinzenal": "quinzenas",
+        "diaria": "dias",
+    }.get(cadence, "meses")
 
-    if len(series_df) < 3:
-        result = _empty_result("insufficient_data", "São necessários pelo menos 3 pontos mensais para calcular a previsão.")
+    minimum_points = 14 if cadence == "diaria" else 3
+    if len(series_df) < minimum_points:
+        result = _empty_result(
+            "insufficient_data",
+            f"São necessários pelo menos {minimum_points} pontos para calcular a previsão nesta cadência.",
+        )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
 
@@ -1027,6 +1207,7 @@ def build_monthly_forecast(
             use_weather=use_weather,
             periods=periods,
             cadence=cadence,
+            validation_window=validation_window,
             regressor_columns=active_regressor_columns,
             forecast_profile=forecast_profile,
         )
@@ -1052,7 +1233,7 @@ def build_monthly_forecast(
     except Exception as exc:
         result = _empty_result(
             "unavailable",
-            f"O ambiente atual não conseguiu ajustar o modelo Prophet com segurança. {exc}",
+            f"O ambiente atual n?o conseguiu ajustar o sistema de previs?o com seguran?a. {exc}",
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
@@ -1077,7 +1258,7 @@ def build_monthly_forecast(
     except Exception as exc:
         result = _empty_result(
             "unavailable",
-            f"O ambiente atual não conseguiu gerar a previsão com Prophet. {exc}",
+            f"O ambiente atual n?o conseguiu gerar a previs?o com o sistema. {exc}",
         )
         result["metrics"].update(gap_info | {"cadence_label": cadence_label})
         return result
@@ -1087,6 +1268,8 @@ def build_monthly_forecast(
     forecast_view["yhat"] = forecast_view["yhat"].clip(lower=0)
     forecast_view["yhat_lower"] = forecast_view["yhat_lower"].clip(lower=0)
     forecast_view["yhat_upper"] = forecast_view[["yhat_upper", "yhat"]].max(axis=1)
+    plot_history = plot_series_df.merge(forecast_view[["ds", "yhat"]], on="ds", how="left")
+    plot_history = plot_history.sort_values("ds").reset_index(drop=True)
     history = series_df.merge(forecast_view[["ds", "yhat"]], on="ds", how="left")
     forecast_view = _smooth_forecast_projection(history, forecast_view, forecast_profile)
 
@@ -1098,11 +1281,12 @@ def build_monthly_forecast(
 
     return {
         "status": "ok",
-        "message": "Previsão gerada com Prophet.",
-        "history": history,
+        "message": "Previs?o gerada com o sistema.",
+        "history": plot_history,
         "forecast": _apply_empirical_interval_calibration(
             forecast_view,
             retrospective_metrics.get("retrospective_interval_margin", 0.0),
+            history_df=history,
         ),
         "metrics": {
             "mae": mae,
@@ -1115,6 +1299,7 @@ def build_monthly_forecast(
             "confidence": float(interval_width),
             "signal_smoothing": "rolling_median_ewma" if len(series_df) >= 6 else "none",
             "auto_recalibration_enabled": True,
+            "fill_missing_enabled": bool(fill_missing),
             "selected_model_config": selected_config.get("config_name", "padrao"),
             "selected_changepoint_prior_scale": float(selected_config.get("changepoint_prior_scale", 0.03)),
             "selected_seasonality_prior_scale": float(selected_config.get("seasonality_prior_scale", 5.0)),
@@ -1136,6 +1321,15 @@ def build_monthly_forecast(
     }
 
 
+def _unit_from_cadence_label(cadence_label: str) -> str:
+    mapping = {
+        "quinzenas": "quinzena",
+        "meses": "mês",
+        "dias": "dia",
+    }
+    return mapping.get(cadence_label, "período")
+
+
 def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
     status = result.get("status")
     if status != "ok":
@@ -1145,8 +1339,8 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
     direction = "crescimento" if metrics["trend_pct"] >= 0 else "queda"
     intervalo_nominal = int(metrics["confidence"] * 100)
     cadence_label = metrics.get("cadence_label", "períodos")
+    unit_label = _unit_from_cadence_label(cadence_label)
     cobertura_empirica = metrics.get("retrospective_interval_coverage", 0.0) * 100
-    cobertura_original = metrics.get("retrospective_raw_interval_coverage", 0.0) * 100
     smoothing_label = SMOOTHING_LABELS.get(metrics.get("signal_smoothing", "none"), metrics.get("signal_smoothing", "none"))
     recalibration_status = "ativa" if metrics.get("auto_recalibration_enabled") else "inativa"
     selected_model_label = MODEL_CONFIG_LABELS.get(
@@ -1157,25 +1351,28 @@ def build_forecast_summary_markdown(result: dict[str, Any]) -> str:
     covered_periods = metrics.get("retrospective_covered_periods", 0)
     calibration_margin = metrics.get("retrospective_interval_margin", 0.0)
     validation_label = metrics.get("retrospective_validation_label", "janela retrospectiva")
+    forecast_periods = int(metrics.get("forecast_periods", 0))
     return (
         "### Resumo preditivo\n"
         f"- Série histórica utilizada: **{metrics['observations']} observações**.\n"
-        f"- Horizonte projetado: **{metrics['forecast_periods']} {cadence_label}**.\n"
+        f"- Horizonte projetado: **{forecast_periods} {cadence_label}**.\n"
         f"- Períodos ausentes tratados antes do ajuste: **{metrics.get('missing_months_filled', 0)}**.\n"
+        f"- Tratamento manual de lacunas com preenchimento em zero: **{'ativo' if metrics.get('fill_missing_enabled', True) else 'desativado'}**.\n"
         f"- Estabilização usada no treino: **{smoothing_label}**.\n"
         f"- Autoajuste histórico: **{recalibration_status}**.\n"
         f"- Configuração escolhida com base no histórico recente: **{selected_model_label}**.\n"
-        f"- Erro médio absoluto da série agregada: **{metrics['mae']:.2f} kg por quinzena**.\n"
-        f"- Erro quadrático médio da série agregada: **{metrics['rmse']:.2f} kg por quinzena**.\n"
+        f"- Erro médio absoluto da série agregada: **{metrics['mae']:.2f} kg por {unit_label}**.\n"
+        f"- Erro quadrático médio da série agregada: **{metrics['rmse']:.2f} kg por {unit_label}**.\n"
         f"- Validação retrospectiva adotada: **{validation_label}**, cobrindo **{retrospective_periods} períodos** já conhecidos.\n"
-        f"- Erro médio na validação retrospectiva: **{metrics.get('retrospective_mae', 0.0):.2f} kg por quinzena**.\n"
+        f"- Erro médio na validação retrospectiva: **{metrics.get('retrospective_mae', 0.0):.2f} kg por {unit_label}**.\n"
         f"- Intervalo preditivo nominal exibido: **{intervalo_nominal}%**.\n"
         f"- Cobertura empírica após recalibração: **{cobertura_empirica:.2f}%** ({covered_periods} de {retrospective_periods} períodos ficaram dentro do intervalo).\n"
         f"- Margem adicional aplicada ao intervalo com base no erro histórico: **±{calibration_margin:.2f} kg**.\n"
         f"- Último volume observado: **{metrics['last_actual']:.2f} kg**.\n"
         f"- Volume previsto no fim do horizonte: **{metrics['last_forecast']:.2f} kg**.\n"
         f"- Tendência estimada para o horizonte projetado: **{direction} de {abs(metrics['trend_pct']):.2f}%**.\n"
-        "- Como interpretar: o intervalo exibido é ajustado com base no erro recente da própria previsão para representar melhor a variação observada no histórico."
+        "- Como interpretar: o intervalo exibido é ajustado com base no erro recente da própria previsão. "
+        "A leitura mais confiável da incerteza nesta tela vem da cobertura empírica retrospectiva e da margem recalibrada pelo histórico."
     )
 
 
@@ -1196,7 +1393,7 @@ def build_public_data_markdown(result: dict[str, Any]) -> str:
         f"- Situação da base pública de feriados: **{holiday_status}**.",
         f"- Informações externas usadas na previsão: **{', '.join(feature_labels) if feature_labels else 'nenhuma'}**.",
         f"- Períodos ausentes tratados na série: **{result.get('metrics', {}).get('missing_months_filled', 0)}**.",
-        "- Classificação do tipo de resíduo: derivada internamente a partir do campo `produto`, com categorias operacionais como domiciliar, hospitalar e reciclável.",
+        "- Classificação do tipo de resíduo: lida diretamente do campo persistido `tipo_de_residuo` quando disponível na base importada.",
     ]
     if insights:
         lines.append("- Indícios observados na série:")

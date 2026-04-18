@@ -165,6 +165,7 @@ def _recreate_registro_view(conn):
                 p.diferenca_peso::DOUBLE PRECISION AS diferenca_peso,
                 p.diferenca_peso_porcentagem::DOUBLE PRECISION AS diferenca_peso_porcentagem,
                 p.nro_nota_fiscal,
+                p.tipo_de_residuo,
                 s.codigo AS setor,
                 NULL::TEXT AS destino_procedencia
             FROM pesagem p
@@ -206,6 +207,18 @@ def _ensure_database_business_standards(conn):
 
     _drop_registro_view(conn)
     conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))
+    conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS tipo_de_residuo TEXT"))
+    conn.execute(
+        text(
+            """
+            UPDATE pesagem p
+            SET tipo_de_residuo = pr.nome
+            FROM produto pr
+            WHERE pr.id_produto = p.id_produto
+              AND COALESCE(BTRIM(p.tipo_de_residuo), '') <> COALESCE(BTRIM(pr.nome), '')
+            """
+        )
+    )
     _convert_column_type_if_needed(
         conn,
         table_name="pesagem",

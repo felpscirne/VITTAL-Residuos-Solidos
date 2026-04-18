@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 from sqlalchemy import text
 
@@ -6,9 +8,11 @@ from app.extensions import cache
 from app.services.error_messages import sanitize_audit_error_message
 from app.services.localization import get_import_status_label
 
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
+
 
 class SqlImportAuditRepositoryAdapter:
-    def _ensure_audit_table_schema(self):
+    def _ensure_audit_table_exists(self):
         with engine.begin() as conn:
             conn.execute(
                 text(
@@ -31,60 +35,6 @@ class SqlImportAuditRepositoryAdapter:
                         details TEXT,
                         error_message TEXT
                     )
-                    """
-                )
-            )
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'running'"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS source_file VARCHAR(255)"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(255)"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS files_count INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_read INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_valid INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_new INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS rows_updated INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_rows INTEGER NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(255)"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS details TEXT"))
-            conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
-            conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_import_auditoria_started_at ON import_auditoria (started_at)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_import_auditoria_status ON import_auditoria (status)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_import_audit_id ON pesagem (import_audit_id)"))
-            conn.execute(
-                text(
-                    """
-                    UPDATE pesagem p
-                    SET import_audit_id = NULL
-                    WHERE import_audit_id IS NOT NULL
-                      AND NOT EXISTS (
-                          SELECT 1
-                          FROM import_auditoria ia
-                          WHERE ia.id = p.import_audit_id
-                      )
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1
-                            FROM pg_constraint
-                            WHERE conname = 'pesagem_import_audit_id_fkey'
-                        ) THEN
-                            ALTER TABLE pesagem
-                            ADD CONSTRAINT pesagem_import_audit_id_fkey
-                            FOREIGN KEY (import_audit_id)
-                            REFERENCES import_auditoria(id)
-                            ON DELETE SET NULL;
-                        END IF;
-                    END
-                    $$;
                     """
                 )
             )
@@ -113,13 +63,17 @@ class SqlImportAuditRepositoryAdapter:
         LIMIT 50
         """
         try:
-            self._ensure_audit_table_schema()
+            self._ensure_audit_table_exists()
             df = pd.read_sql(query, engine)
             if df.empty:
                 return []
 
             for col in ['started_at', 'finished_at', 'deleted_at']:
-                df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%Y %H:%M:%S')
+                df[col] = (
+                    pd.to_datetime(df[col], errors='coerce', utc=True)
+                    .dt.tz_convert(APP_TIMEZONE)
+                    .dt.strftime('%d/%m/%Y %H:%M:%S')
+                )
                 df[col] = df[col].fillna('')
 
             df["error_message"] = df["error_message"].apply(sanitize_audit_error_message)

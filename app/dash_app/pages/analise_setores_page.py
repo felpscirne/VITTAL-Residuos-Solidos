@@ -291,7 +291,20 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
         return fig_vazia, "", summary, render_management_insight(summary)
 
     df = get_dados_setor_temporal(setor_selecionado, ano_selecionado)
-    if not df.empty:
+    if df.empty:
+        fig = px.line(
+            title=f"Media mensal de peso corrigido: {setor_selecionado} ({ano_selecionado})",
+            template=template,
+        )
+        fig.add_annotation(
+            text="Nao ha dados suficientes para exibir a serie temporal neste recorte.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+    else:
         df = df.sort_values(by="mes")
         df["periodo_data"] = pd.to_datetime(
             {
@@ -301,14 +314,14 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
             }
         )
 
-    fig = px.line(
-        df,
-        x="periodo_data" if not df.empty else [],
-        y="media_peso" if not df.empty else [],
-        markers=True,
-        title=f"Média mensal de peso corrigido: {setor_selecionado} ({ano_selecionado})",
-        template=template,
-    )
+        fig = px.line(
+            df,
+            x="periodo_data",
+            y="media_peso",
+            markers=True,
+            title=f"Media mensal de peso corrigido: {setor_selecionado} ({ano_selecionado})",
+            template=template,
+        )
     fig.update_layout(
         xaxis_title="Mês",
         yaxis_title="Peso médio (kg)",

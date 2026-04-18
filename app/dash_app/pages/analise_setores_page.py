@@ -1,4 +1,4 @@
-from dash import dcc, html, callback, Input, Output
+from dash import Input, Output, callback, dcc, html
 import pandas as pd
 import plotly.express as px
 import dash_mantine_components as dmc
@@ -11,10 +11,12 @@ from app.services.event_markers import apply_event_markers, get_events_for_perio
 from app.services.management_insights import render_management_insight
 
 
+APP_TIMEZONE = "America/Sao_Paulo"
+
 df_setores = get_dados_setores_macro()
 setores_options_temporal = sorted(
-    [{"label": s, "value": s} for s in df_setores["setor"].unique()],
-    key=lambda x: x["label"],
+    [{"label": setor, "value": setor} for setor in df_setores["setor"].unique()],
+    key=lambda item: item["label"],
 ) if not df_setores.empty else []
 anos_options_temporal, ano_inicial_temporal = get_anos_options()
 setor_inicial_temporal = setores_options_temporal[0]["value"] if setores_options_temporal else None
@@ -36,7 +38,13 @@ def fig_relacao_peso_volume(df, template):
 
 def fig_media_por_setor(df, template):
     df_sorted = df.sort_values(by="Média de Peso (kg)", ascending=False)
-    fig = px.bar(df_sorted, x="setor", y="Média de Peso (kg)", title="Ranking: média do peso por setor", template=template)
+    fig = px.bar(
+        df_sorted,
+        x="setor",
+        y="Média de Peso (kg)",
+        title="Ranking: média de peso por setor",
+        template=template,
+    )
     fig.update_xaxes(tickangle=45)
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
@@ -59,15 +67,21 @@ def fig_contagem_por_setor(df, template):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
-    fig.update_xaxes(tickformat="%b", dtick="M1")
     return fig
+
+
+def _local_date_label(value):
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert(APP_TIMEZONE).tz_localize(None)
+    return ts.strftime("%d/%m/%Y")
 
 
 layout = dmc.Container(
     [
         dmc.Title("Análise de setores", order=2),
         dmc.Text(
-            "Compare todos os setores entre si ou analise a tendência de um setor específico ao longo do tempo.",
+            "Compare todos os setores entre si ou acompanhe a tendência de um setor específico ao longo do tempo.",
             c="dimmed",
             mb="lg",
         ),
@@ -84,7 +98,7 @@ layout = dmc.Container(
                 dmc.TabsPanel(
                     [
                         dmc.Alert(
-                            "Este gráfico cruza número de viagens com peso médio para identificar setores fora da curva.",
+                            "Este gráfico cruza número de registros com peso médio para identificar setores fora do padrão mais comum.",
                             title="Ajuda analítica",
                             color="blue",
                             variant="light",
@@ -98,7 +112,7 @@ layout = dmc.Container(
                 dmc.TabsPanel(
                     [
                         dmc.Alert(
-                            "Observe setores com maior peso médio e setores com maior demanda operacional.",
+                            "Observe separadamente os setores com maior peso médio e os setores com maior demanda operacional.",
                             title="Ajuda analítica",
                             color="blue",
                             variant="light",
@@ -132,7 +146,7 @@ layout = dmc.Container(
                     size="sm",
                     mb="md",
                 ),
-                dcc.Graph(id="grafico-cluster-setores"),
+                dcc.Loading(dcc.Graph(id="grafico-cluster-setores"), type="circle"),
                 dcc.Markdown(id="resumo-cluster-setores"),
             ],
             withBorder=True,
@@ -143,7 +157,7 @@ layout = dmc.Container(
         ),
         dmc.Title("Drill-down: análise temporal por setor", order=3, mb="md"),
         dmc.Alert(
-            "Compare o desempenho mensal de um setor e observe possível influência de eventos sazonais.",
+            "Acompanhe o comportamento mensal de um setor e observe a possível influência de eventos ocorridos no período.",
             color="gray",
             variant="light",
             mb="md",
@@ -199,14 +213,31 @@ layout = dmc.Container(
         Output("grafico-contagem-setor", "figure"),
         Output("resumo-setores-overview", "children"),
         Output("insight-setores-overview-gerencial", "children"),
-        Output("grafico-cluster-setores", "figure"),
-        Output("resumo-cluster-setores", "children"),
     ],
     [Input("mantine-provider", "forceColorScheme")],
 )
 def update_overview_graphs_theme(theme):
     template = "plotly_dark" if theme == "dark" else "plotly_white"
-    summary = summarize_setores_overview(df_setores)
+    current_df_setores = get_dados_setores_macro()
+    summary = summarize_setores_overview(current_df_setores)
+    return (
+        fig_relacao_peso_volume(current_df_setores, template),
+        fig_media_por_setor(current_df_setores, template),
+        fig_contagem_por_setor(current_df_setores, template),
+        summary,
+        render_management_insight(summary),
+    )
+
+
+@callback(
+    [
+        Output("grafico-cluster-setores", "figure"),
+        Output("resumo-cluster-setores", "children"),
+    ],
+    [Input("mantine-provider", "forceColorScheme")],
+)
+def update_setor_cluster_graph(theme):
+    template = "plotly_dark" if theme == "dark" else "plotly_white"
     cluster_result = get_setor_clustering_analysis()
     cluster_df = cluster_result.get("data")
 
@@ -227,29 +258,19 @@ def update_overview_graphs_theme(theme):
             template=template,
         )
         cluster_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        cluster_summary = cluster_result.get("summary", "")
-    else:
-        cluster_fig = px.scatter(title="Grupos de setores por comportamento operacional", template=template)
-        cluster_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        cluster_fig.add_annotation(
-            text=cluster_result.get("message", "Ainda não há dados suficientes para agrupar setores."),
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            showarrow=False,
-        )
-        cluster_summary = cluster_result.get("summary", cluster_result.get("message", ""))
+        return cluster_fig, cluster_result.get("summary", "")
 
-    return (
-        fig_relacao_peso_volume(df_setores, template),
-        fig_media_por_setor(df_setores, template),
-        fig_contagem_por_setor(df_setores, template),
-        summary,
-        render_management_insight(summary),
-        cluster_fig,
-        cluster_summary,
+    cluster_fig = px.scatter(title="Grupos de setores por comportamento operacional", template=template)
+    cluster_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    cluster_fig.add_annotation(
+        text=cluster_result.get("message", "Ainda não há dados suficientes para agrupar setores."),
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+        showarrow=False,
     )
+    return cluster_fig, cluster_result.get("summary", cluster_result.get("message", ""))
 
 
 @callback(
@@ -294,6 +315,7 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
+    fig.update_xaxes(tickformat="%b", dtick="M1")
 
     events_html = []
     try:
@@ -306,7 +328,7 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
         if found_events:
             items = []
             for event in found_events:
-                dt_str = f"{event.start_date.strftime('%d/%m/%Y')} a {event.end_date.strftime('%d/%m/%Y')}"
+                dt_str = f"{_local_date_label(event.start_date)} a {_local_date_label(event.end_date)}"
                 items.append(
                     dmc.Paper(
                         [
@@ -319,7 +341,10 @@ def update_temporal_graph_logic(setor_selecionado, ano_selecionado, theme):
                         mb="xs",
                     )
                 )
-            events_html = [dmc.Title("Eventos neste período:", order=5, mt="md", mb="sm"), dmc.ScrollArea(h=200, children=items)]
+            events_html = [
+                dmc.Title("Eventos neste período:", order=5, mt="md", mb="sm"),
+                dmc.ScrollArea(h=200, children=items),
+            ]
     except Exception:
         events_html = []
 

@@ -3,13 +3,7 @@ import pandas as pd
 from app.models import Event
 
 APP_TIMEZONE = "America/Sao_Paulo"
-GENERAL_SECTOR_LABELS = {
-    "geral",
-    "geral (todos)",
-    "todos",
-    "todos os setores",
-    "todos os setores afetados",
-}
+ALL_SECTORS_LABEL = "Todos os Setores"
 
 
 def _normalize_sector_values(affected_sectors):
@@ -47,7 +41,7 @@ def get_events_for_period(start_date=None, end_date=None, setor=None):
 
         if normalized_setor:
             affected_values = {_normalize_sector_token(value) for value in _normalize_sector_values(event.affected_sectors)}
-            if affected_values and normalized_setor not in affected_values and not (affected_values & GENERAL_SECTOR_LABELS):
+            if affected_values and normalized_setor not in affected_values and _normalize_sector_token(ALL_SECTORS_LABEL) not in affected_values:
                 continue
 
         filtered_events.append(event)

@@ -1,9 +1,13 @@
 .venv/
 .env
 .env.local
+
 __pycache__/
+**/__pycache__/
 *.py[cod]
+
 instance/
 instance/cache/
+
 sheets/
 *.ods

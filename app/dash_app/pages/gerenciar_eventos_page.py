@@ -202,8 +202,37 @@ def normalize_sector_selection(selected_values):
 
 
 @callback(
+    Output("table-events", "data"),
+    Input("url", "pathname"),
+    Input("btn-save-event", "n_clicks"),
+    Input("btn-delete-event", "n_clicks"),
+)
+def load_events_table(pathname, _save_clicks, _delete_clicks):
+    if pathname != "/gerenciar-eventos":
+        return no_update
+
+    events_data = []
+    try:
+        events = Event.query.order_by(Event.start_date.desc()).all()
+        for event in events:
+            events_data.append(
+                {
+                    "id": event.id,
+                    "title": event.title,
+                    "type": event.event_type,
+                    "start": event.start_date.strftime("%d/%m/%Y"),
+                    "end": event.end_date.strftime("%d/%m/%Y"),
+                    "sectors": event.affected_sectors or ALL_SECTORS_LABEL,
+                }
+            )
+    except Exception:
+        return []
+
+    return events_data
+
+
+@callback(
     [
-        Output("table-events", "data"),
         Output("evt-msg-output", "children"),
         Output("btn-delete-event", "disabled"),
         Output("evt-title", "value"),
@@ -225,6 +254,9 @@ def normalize_sector_selection(selected_values):
     prevent_initial_call=True,
 )
 def manage_events(pathname, n_save, n_delete, title, etype, date_range, sectors, desc, selected_rows, rows):
+    if pathname != "/gerenciar-eventos":
+        return no_update, no_update, no_update, no_update, no_update, no_update, no_update
+
     msg = ""
     user_can_edit = current_user.is_authenticated and current_user.role in ["management", "superadmin"]
 
@@ -238,6 +270,7 @@ def manage_events(pathname, n_save, n_delete, title, etype, date_range, sectors,
     ret_type = no_update
     ret_daterange = no_update
     ret_sectors = no_update
+    btn_disabled = True
 
     if trigger_id == "btn-save-event" and user_can_edit:
         if not title or not date_range or len(date_range) != 2:
@@ -282,25 +315,7 @@ def manage_events(pathname, n_save, n_delete, title, etype, date_range, sectors,
             db.session.rollback()
             msg = dmc.Alert(f"Erro ao excluir: {exc}", color="red", variant="filled")
 
-    events_data = []
-    try:
-        events = Event.query.order_by(Event.start_date.desc()).all()
-        for event in events:
-            events_data.append(
-                {
-                    "id": event.id,
-                    "title": event.title,
-                    "type": event.event_type,
-                    "start": event.start_date.strftime("%d/%m/%Y"),
-                    "end": event.end_date.strftime("%d/%m/%Y"),
-                    "sectors": event.affected_sectors or ALL_SECTORS_LABEL,
-                }
-            )
-    except Exception:
-        pass
-
-    btn_disabled = True
-    return events_data, msg, btn_disabled, ret_title, ret_desc, ret_type, ret_daterange, ret_sectors
+    return msg, btn_disabled, ret_title, ret_desc, ret_type, ret_daterange, ret_sectors
 
 
 @callback(

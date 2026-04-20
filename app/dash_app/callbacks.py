@@ -1,5 +1,5 @@
 import dash
-from dash import html, Input, Output, State
+from dash import html, Input, Output, State, ALL
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 from flask_login import current_user
@@ -21,11 +21,10 @@ from app.dash_app.pages import (
     visualizar_eventos_page,
     fluxo_de_caixa_page,
 )
+from app.models import Role
 
 
 def register_global_callbacks(app):
-    public_routes = {"/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"}
-
     page_map = {
         "/": overview_page.layout,
         "/estudo-ifescs": estudo_ifescs_page.layout,
@@ -45,19 +44,67 @@ def register_global_callbacks(app):
     }
 
     def get_allowed_routes():
-        if not current_user.is_authenticated:
-            return []
+        if current_user.is_authenticated:
+            role = getattr(current_user, "role_ref", None)
+        else:
+            role = Role.query.filter_by(name="anonymous").first()
 
         allowed = []
-        role = getattr(current_user, "role_ref", None)
         if role:
             for page in role.pages:
                 allowed.append(page.route)
         return list(dict.fromkeys(allowed))
 
+    def nav_link(label, href, icon, pathname):
+        is_active = pathname == href
+        return dmc.NavLink(
+            label=label,
+            id={"type": "nav-link", "route": href},
+            leftSection=DashIconify(icon=icon, width=20),
+            active=is_active,
+            variant="filled" if is_active else "subtle",
+            color="ifsc-green" if is_active else "gray",
+            style={"cursor": "pointer"},
+        )
+
+    def auth_link(label, href, icon, pathname, color="ifsc-green", variant="filled"):
+        is_active = pathname == href
+        item = dmc.NavLink(
+            label=label,
+            leftSection=DashIconify(icon=icon, width=20),
+            active=is_active,
+            variant=variant if is_active else "subtle",
+            color=color if is_active else "gray",
+        )
+        return html.A(
+            item,
+            href=href,
+            style={
+                "display": "block",
+                "textDecoration": "none",
+                "color": "inherit",
+                "marginBottom": "4px",
+            },
+        )
+
+    @app.callback(
+        Output("url", "pathname"),
+        Input({"type": "nav-link", "route": ALL}, "n_clicks"),
+        State("url", "pathname"),
+        prevent_initial_call=True,
+    )
+    def navigate_internal(_clicks, current_pathname):
+        triggered = dash.ctx.triggered_id
+        if not triggered or not isinstance(triggered, dict):
+            return dash.no_update
+        route = triggered.get("route")
+        if not route or route == current_pathname:
+            return dash.no_update
+        return route
+
     @app.callback(
         Output("page-content-dynamic", "children"),
-        [Input("url", "pathname")],
+        Input("url", "pathname"),
     )
     def display_page(pathname):
         if pathname in ["/login", "/logout", "/register"]:
@@ -66,15 +113,15 @@ def register_global_callbacks(app):
         if pathname not in page_map:
             return html.H1("404: Página não encontrada", className="text-center mt-5")
 
-        if current_user.is_authenticated:
-            if pathname not in get_allowed_routes():
+        allowed_routes = get_allowed_routes()
+        if pathname not in allowed_routes:
+            if current_user.is_authenticated:
                 return dmc.Alert(
                     "Você não possui permissão para acessar esta página.",
                     title="Acesso negado",
                     color="red",
                     variant="light",
                 )
-        elif pathname not in public_routes:
             return dmc.Alert(
                 "Faça login com um perfil autorizado para acessar esta página.",
                 title="Acesso restrito",
@@ -93,104 +140,90 @@ def register_global_callbacks(app):
         if pathname in ["/login", "/logout", "/register"]:
             return dash.no_update, dash.no_update
 
-        display_name = "Usuário"
         allowed_routes = get_allowed_routes()
-
+        display_name = "Usuário"
         if current_user.is_authenticated:
             display_name = getattr(current_user, "name", None) or current_user.email
 
-        def get_link(label, href, icon):
-            return dmc.NavLink(
-                label=label,
-                href=href,
-                leftSection=DashIconify(icon=icon, width=20),
-                active=(pathname == href),
-                variant="filled",
-                color="ifsc-green",
-                refresh=False,
-            )
-
         links_gerais = []
-        if current_user.is_authenticated:
-            if "/" in allowed_routes:
-                links_gerais.append(get_link("Visão Geral", "/", "radix-icons:dashboard"))
-            if "/estudo-ifescs" in allowed_routes:
-                links_gerais.append(get_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader"))
-            if "/analise-produtos" in allowed_routes:
-                links_gerais.append(get_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube"))
-            if "/fluxo-de-caixa" in allowed_routes:
-                links_gerais.append(get_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart"))
-            if "/visualizar-eventos" in allowed_routes:
-                links_gerais.append(get_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell"))
-        else:
-            links_gerais.append(get_link("Visão Geral", "/", "radix-icons:dashboard"))
-            links_gerais.append(get_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader"))
-            links_gerais.append(get_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube"))
-            links_gerais.append(get_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart"))
-            links_gerais.append(get_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell"))
+        if "/" in allowed_routes:
+            links_gerais.append(nav_link("Visão Geral", "/", "radix-icons:dashboard", pathname))
+        if "/estudo-ifescs" in allowed_routes:
+            links_gerais.append(nav_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader", pathname))
+        if "/analise-produtos" in allowed_routes:
+            links_gerais.append(nav_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube", pathname))
+        if "/fluxo-de-caixa" in allowed_routes:
+            links_gerais.append(nav_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart", pathname))
+        if "/visualizar-eventos" in allowed_routes:
+            links_gerais.append(nav_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell", pathname))
 
-        links_protegidos = []
+        links_analises = []
         if "/analise-setores" in allowed_routes:
-            links_protegidos.append(get_link("Análise de Setores", "/analise-setores", "radix-icons:pie-chart"))
+            links_analises.append(nav_link("Análise de Setores", "/analise-setores", "radix-icons:pie-chart", pathname))
         if "/analise-empresas" in allowed_routes:
-            links_protegidos.append(get_link("Análise de Empresas", "/analise-empresas", "radix-icons:backpack"))
+            links_analises.append(nav_link("Análise de Empresas", "/analise-empresas", "radix-icons:backpack", pathname))
         if "/analise-horarios" in allowed_routes:
-            links_protegidos.append(get_link("Análise de Horários", "/analise-horarios", "radix-icons:clock"))
+            links_analises.append(nav_link("Análise de Horários", "/analise-horarios", "radix-icons:clock", pathname))
         if "/analise-frotas" in allowed_routes:
-            links_protegidos.append(get_link("Análise de Frota", "/analise-frotas", "radix-icons:rocket"))
+            links_analises.append(nav_link("Análise de Frota", "/analise-frotas", "radix-icons:rocket", pathname))
         if "/registros" in allowed_routes:
-            links_protegidos.append(get_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass"))
+            links_analises.append(nav_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass", pathname))
 
         links_gestao = []
         if "/previsoes" in allowed_routes:
-            links_gestao.append(get_link("Previsões", "/previsoes", "radix-icons:activity-log"))
+            links_gestao.append(nav_link("Previsões", "/previsoes", "radix-icons:activity-log", pathname))
         if "/auditoria-peso" in allowed_routes:
-            links_gestao.append(get_link("Auditoria de Peso", "/auditoria-peso", "radix-icons:clipboard"))
+            links_gestao.append(nav_link("Auditoria de Peso", "/auditoria-peso", "radix-icons:clipboard", pathname))
         if "/gerenciar-eventos" in allowed_routes:
-            links_gestao.append(get_link("Gerenciar Eventos", "/gerenciar-eventos", "radix-icons:calendar"))
+            links_gestao.append(nav_link("Gerenciar Eventos", "/gerenciar-eventos", "radix-icons:calendar", pathname))
         if "/gerenciar-arquivos" in allowed_routes:
-            links_gestao.append(get_link("Gerenciar Arquivos", "/gerenciar-arquivos", "radix-icons:file"))
+            links_gestao.append(nav_link("Gerenciar Arquivos", "/gerenciar-arquivos", "radix-icons:file", pathname))
         if "/gerenciar-permissoes" in allowed_routes:
-            links_gestao.append(get_link("Gerenciar Permissões", "/gerenciar-permissoes", "radix-icons:lock-closed"))
+            links_gestao.append(nav_link("Gerenciar Permissões", "/gerenciar-permissoes", "radix-icons:lock-closed", pathname))
 
         links_login = []
         if current_user.is_authenticated:
             links_login.append(
-                dmc.NavLink(
-                    label=f"Sair ({display_name})",
-                    href="/logout",
-                    leftSection=DashIconify(icon="radix-icons:exit", width=20),
-                    variant="subtle",
+                auth_link(
+                    f"Sair ({display_name})",
+                    "/logout",
+                    "radix-icons:exit",
+                    pathname,
                     color="red",
-                    refresh=True,
+                    variant="subtle",
                 )
             )
         else:
-            links_login.append(get_link("Entrar", "/login", "radix-icons:enter"))
-            links_login.append(get_link("Registrar", "/register", "radix-icons:person"))
+            links_login.append(auth_link("Entrar", "/login", "radix-icons:enter", pathname))
+            links_login.append(auth_link("Registrar", "/register", "radix-icons:person", pathname))
 
         sidebar_children = []
-
         if links_gerais:
-            sidebar_children.extend([
-                dmc.Text("Geral", size="xs", fw=500, c="dimmed", mt="md", mb="xs"),
-                *links_gerais,
-                dmc.Divider(my="sm"),
-            ])
+            sidebar_children.extend(
+                [
+                    dmc.Text("Geral", size="xs", fw=500, c="dimmed", mt="md", mb="xs"),
+                    *links_gerais,
+                    dmc.Divider(my="sm"),
+                ]
+            )
 
-        if links_protegidos:
-            sidebar_children.extend([
-                dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
-                *links_protegidos,
-                dmc.Divider(my="sm"),
-            ])
+        if links_analises:
+            sidebar_children.extend(
+                [
+                    dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
+                    *links_analises,
+                    dmc.Divider(my="sm"),
+                ]
+            )
 
         if links_gestao:
-            sidebar_children.extend([
-                dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
-                *links_gestao,
-                dmc.Divider(my="sm"),
-            ])
+            sidebar_children.extend(
+                [
+                    dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
+                    *links_gestao,
+                    dmc.Divider(my="sm"),
+                ]
+            )
 
         sidebar_children.extend(links_login)
 

@@ -3,7 +3,6 @@ ROLE_LABELS = {
     "student": "Estudantil",
     "operator": "Operador",
     "management": "Gestão",
-    "superadmin": "Superadministrador",
 }
 
 

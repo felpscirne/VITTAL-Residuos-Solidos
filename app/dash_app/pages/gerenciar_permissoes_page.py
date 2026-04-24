@@ -11,7 +11,7 @@ from app.services.localization import get_role_label
 
 def get_roles_options():
     try:
-        roles = Role.query.filter(Role.name != "superadmin").order_by(Role.description, Role.name).all()
+        roles = Role.query.order_by(Role.description, Role.name).all()
         return [{"label": role.description or get_role_label(role.name), "value": str(role.id)} for role in roles]
     except Exception:
         return []

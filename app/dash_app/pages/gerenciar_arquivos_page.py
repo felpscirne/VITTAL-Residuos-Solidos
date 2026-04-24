@@ -58,11 +58,11 @@ def _get_current_role():
 
 
 def _user_can_import_files():
-    return _get_current_role() in {"operator", "management", "superadmin"}
+    return _get_current_role() in {"operator", "management"}
 
 
 def _user_can_delete_data():
-    return _get_current_role() in {"management", "superadmin"}
+    return _get_current_role() == "management"
 
 
 layout = html.Div([

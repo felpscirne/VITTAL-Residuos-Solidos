@@ -77,14 +77,14 @@ CREATE TABLE pesagem (
     id_cliente                       INTEGER     NOT NULL REFERENCES empresa(id_empresa),
     id_veiculo                       INTEGER              REFERENCES veiculo(id_veiculo),
     id_setor                         INTEGER     NOT NULL REFERENCES setor(id_setor),
-    peso_entrada                     REAL,
-    peso_saida                       REAL,
-    peso_liquido                     REAL,
-    peso_embalagem_liquido           REAL,
-    peso_embalagem_liquido_corrigido REAL,
-    peso_nota_fiscal                 REAL,
-    diferenca_peso                   REAL,
-    diferenca_peso_porcentagem       REAL,
+    peso_entrada                     NUMERIC(18,3),
+    peso_saida                       NUMERIC(18,3),
+    peso_liquido                     NUMERIC(18,3),
+    peso_embalagem_liquido           NUMERIC(18,3),
+    peso_embalagem_liquido_corrigido NUMERIC(18,3),
+    peso_nota_fiscal                 NUMERIC(18,3),
+    diferenca_peso                   NUMERIC(18,3),
+    diferenca_peso_porcentagem       NUMERIC(12,4),
     nro_nota_fiscal                  VARCHAR(50)
 );
 

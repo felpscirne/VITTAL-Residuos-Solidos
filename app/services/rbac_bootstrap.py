@@ -8,15 +8,6 @@ from sqlalchemy import text
 from app.extensions import db
 
 APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
-WEIGHT_NUMERIC_COLUMNS = [
-    "peso_entrada",
-    "peso_saida",
-    "peso_liquido",
-    "peso_embalagem_liquido",
-    "peso_embalagem_liquido_corrigido",
-    "peso_nota_fiscal",
-    "diferenca_peso",
-]
 
 PAGES_TO_SEED = {
     "/": "Visão Geral do Painel",
@@ -41,33 +32,14 @@ ROLE_DESCRIPTIONS = {
     "student": "Estudantil",
     "operator": "Operador",
     "management": "Gestão",
-    "superadmin": "Superadministrador",
 }
 
-ROLES_TO_SEED = ["anonymous", "student", "operator", "management", "superadmin"]
+ROLES_TO_SEED = ["anonymous", "student", "operator", "management"]
 
 DEFAULT_PERMISSIONS = {
-    "anonymous": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos"],
-    "student": [
-        "/",
-        "/estudo-ifescs",
-        "/analise-produtos",
-        "/fluxo-de-caixa",
-        "/analise-setores",
-        "/analise-empresas",
-        "/analise-horarios",
-        "/analise-frotas",
-        "/registros",
-        "/visualizar-eventos",
-    ],
-    "operator": [
-        "/",
-        "/estudo-ifescs",
-        "/analise-produtos",
-        "/fluxo-de-caixa",
-        "/visualizar-eventos",
-        "/gerenciar-arquivos",
-    ],
+    "anonymous": ["/", "/estudo-ifescs", "/visualizar-eventos"],
+    "student": ["/", "/estudo-ifescs", "/registros", "/visualizar-eventos"],
+    "operator": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos", "/gerenciar-arquivos"],
     "management": [
         "/",
         "/estudo-ifescs",
@@ -85,14 +57,13 @@ DEFAULT_PERMISSIONS = {
         "/gerenciar-eventos",
         "/visualizar-eventos",
     ],
-    "superadmin": list(PAGES_TO_SEED.keys()),
 }
 
-DEFAULT_ADMIN_USER = {
-    "email": os.getenv("SUPERADMIN_EMAIL", "admin@sistema.com").strip(),
-    "name": os.getenv("SUPERADMIN_NAME", "Super Administrador").strip(),
-    "password": os.getenv("SUPERADMIN_PASSWORD", "admin123"),
-    "role": "superadmin",
+DEFAULT_MANAGEMENT_USER = {
+    "email": os.getenv("MANAGEMENT_EMAIL", "admin@sistema.com").strip(),
+    "name": os.getenv("MANAGEMENT_NAME", "Gestor Padrao").strip(),
+    "password": os.getenv("MANAGEMENT_PASSWORD", "admin123"),
+    "role": "management",
 }
 
 
@@ -179,29 +150,6 @@ def _recreate_registro_view(conn):
     )
 
 
-def _convert_column_type_if_needed(conn, table_name, column_name, expected_type, using_expression):
-    conn.execute(
-        text(
-            f"""
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = '{table_name}'
-                      AND column_name = '{column_name}'
-                      AND data_type <> '{expected_type}'
-                ) THEN
-                    EXECUTE 'ALTER TABLE "{table_name}" ALTER COLUMN "{column_name}" TYPE ' || '{using_expression}';
-                END IF;
-            END
-            $$;
-            """
-        )
-    )
-
-
 def _ensure_database_business_standards(conn):
     _ensure_import_auditoria_table(conn)
 
@@ -218,77 +166,6 @@ def _ensure_database_business_standards(conn):
               AND COALESCE(BTRIM(p.tipo_de_residuo), '') <> COALESCE(BTRIM(pr.nome), '')
             """
         )
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="pesagem",
-        column_name="data_hora",
-        expected_type="timestamp with time zone",
-        using_expression=f"TIMESTAMPTZ USING data_hora AT TIME ZONE ''{APP_TIMEZONE}''",
-    )
-    for weight_column in WEIGHT_NUMERIC_COLUMNS:
-        _convert_column_type_if_needed(
-            conn,
-            table_name="pesagem",
-            column_name=weight_column,
-            expected_type="numeric",
-            using_expression=f"NUMERIC(18,3) USING ROUND({weight_column}::NUMERIC, 3)",
-        )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="pesagem",
-        column_name="diferenca_peso_porcentagem",
-        expected_type="numeric",
-        using_expression="NUMERIC(12,4) USING ROUND(diferenca_peso_porcentagem::NUMERIC, 4)",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="event",
-        column_name="start_date",
-        expected_type="timestamp with time zone",
-        using_expression=f"TIMESTAMPTZ USING start_date AT TIME ZONE ''{APP_TIMEZONE}''",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="event",
-        column_name="end_date",
-        expected_type="timestamp with time zone",
-        using_expression=f"TIMESTAMPTZ USING end_date AT TIME ZONE ''{APP_TIMEZONE}''",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="event",
-        column_name="created_at",
-        expected_type="timestamp with time zone",
-        using_expression="TIMESTAMPTZ USING created_at AT TIME ZONE ''UTC''",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="import_auditoria",
-        column_name="started_at",
-        expected_type="timestamp with time zone",
-        using_expression="TIMESTAMPTZ USING started_at AT TIME ZONE ''UTC''",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="import_auditoria",
-        column_name="finished_at",
-        expected_type="timestamp with time zone",
-        using_expression="TIMESTAMPTZ USING finished_at AT TIME ZONE ''UTC''",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="import_auditoria",
-        column_name="deleted_at",
-        expected_type="timestamp with time zone",
-        using_expression="TIMESTAMPTZ USING deleted_at AT TIME ZONE ''UTC''",
-    )
-    _convert_column_type_if_needed(
-        conn,
-        table_name="user",
-        column_name="confirmed_at",
-        expected_type="timestamp with time zone",
-        using_expression="TIMESTAMPTZ USING confirmed_at AT TIME ZONE ''UTC''",
     )
     conn.execute(text("UPDATE event SET created_at = COALESCE(created_at, start_date, end_date, NOW()) WHERE created_at IS NULL"))
     conn.execute(text("ALTER TABLE event ALTER COLUMN created_at SET DEFAULT NOW()"))
@@ -478,17 +355,17 @@ def run_startup_migrations():
                     {"role_name": role_name, "route": route},
                 )
 
-        admin_password = hash_password(DEFAULT_ADMIN_USER["password"])
+        admin_password = hash_password(DEFAULT_MANAGEMENT_USER["password"])
         admin_unique = str(uuid4())
         admin_role_id = db.session.execute(
             text("SELECT id FROM role WHERE name = :role_name"),
-            {"role_name": DEFAULT_ADMIN_USER["role"]},
+            {"role_name": DEFAULT_MANAGEMENT_USER["role"]},
         ).scalar_one()
         inserted_admin = db.session.execute(
             user_insert,
             {
-                "name": DEFAULT_ADMIN_USER["name"],
-                "email": DEFAULT_ADMIN_USER["email"],
+                "name": DEFAULT_MANAGEMENT_USER["name"],
+                "email": DEFAULT_MANAGEMENT_USER["email"],
                 "password": admin_password,
                 "active": True,
                 "confirmed_at": datetime.now(timezone.utc),
@@ -500,7 +377,7 @@ def run_startup_migrations():
         if inserted_admin is None:
             admin_id = db.session.execute(
                 user_select,
-                {"email": DEFAULT_ADMIN_USER["email"]},
+                {"email": DEFAULT_MANAGEMENT_USER["email"]},
             ).scalar_one()
         else:
             admin_id = inserted_admin
@@ -508,15 +385,15 @@ def run_startup_migrations():
         db.session.execute(
             user_role_update,
             {
-                "email": DEFAULT_ADMIN_USER["email"],
-                "role_name": DEFAULT_ADMIN_USER["role"],
+                "email": DEFAULT_MANAGEMENT_USER["email"],
+                "role_name": DEFAULT_MANAGEMENT_USER["role"],
             },
         )
         db.session.execute(
             user_admin_sync,
             {
-                "name": DEFAULT_ADMIN_USER["name"],
-                "email": DEFAULT_ADMIN_USER["email"],
+                "name": DEFAULT_MANAGEMENT_USER["name"],
+                "email": DEFAULT_MANAGEMENT_USER["email"],
                 "password": admin_password,
                 "active": True,
                 "confirmed_at": datetime.now(timezone.utc),

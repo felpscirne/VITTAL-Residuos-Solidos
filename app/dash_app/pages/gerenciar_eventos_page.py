@@ -165,7 +165,7 @@ def update_layout_by_role(pathname):
         return {"display": "none"}, {"base": 12, "md": 12}, {"display": "none"}
 
     role = current_user.role
-    if role in ["management", "superadmin"]:
+    if role == "management":
         return {"display": "block"}, {"base": 12, "md": 8}, {"display": "block"}
     return {"display": "none"}, {"base": 12, "md": 12}, {"display": "none"}
 
@@ -258,7 +258,7 @@ def manage_events(pathname, n_save, n_delete, title, etype, date_range, sectors,
         return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
     msg = ""
-    user_can_edit = current_user.is_authenticated and current_user.role in ["management", "superadmin"]
+    user_can_edit = current_user.is_authenticated and current_user.role == "management"
 
     import dash
 

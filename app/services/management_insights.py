@@ -7,7 +7,7 @@ from flask_login import current_user
 
 
 def user_can_view_management_insights():
-    return getattr(current_user, "is_authenticated", False) and getattr(current_user, "role", None) in {"management", "superadmin"}
+    return getattr(current_user, "is_authenticated", False) and getattr(current_user, "role", None) == "management"
 
 
 def _strip_summary_title(markdown_text):

@@ -47,25 +47,25 @@ def _build_model_questions_markdown(df_volume, df_produtos, kpis):
     if df_volume.empty:
         return (
             "### Modelo de Melhoria\n"
-            "- O que queremos alcancar? Organizar o acompanhamento do processo.\n"
-            "- Como saber se houve melhoria? Monitorando indicadores periodicos.\n"
-            "- Que mudanca pode resultar em melhoria? Padronizacao de coleta e registro."
+            "- O que queremos alcançar? Organizar o acompanhamento do processo.\n"
+            "- Como saber se houve melhoria? Monitorando indicadores periódicos.\n"
+            "- Que mudança pode resultar em melhoria? Padronização de coleta e registro."
         )
 
     media_periodica = float(df_volume["y"].mean())
     pico_row = df_volume.loc[df_volume["y"].idxmax()]
     pico_periodo = pico_row["ds"].strftime("%d/%m/%Y")
     pico_valor = _format_kg(pico_row["y"])
-    produto_lider = "Nao identificado"
+    produto_lider = "Não identificado"
     if not df_produtos.empty:
         produto_lider = str(df_produtos.iloc[0]["produto"])
 
     return (
         "### Modelo de Melhoria aplicado ao IFEsCS\n"
-        f"- O que queremos alcancar? Reduzir sobrecargas operacionais em dias acima da media historica de **{_format_kg(media_periodica)}**.\n"
-        f"- Como saber se houve melhoria? Comparando o comportamento atual com o pico recente de **{pico_valor}** registrado em **{pico_periodo}**, observando tendencia, distribuicao dos dados e estabilidade do processo.\n"
-        f"- Que mudanca pode resultar em melhoria? Reorganizar a operacao com foco nos fluxos ligados ao item de maior recorrencia, hoje identificado como **{produto_lider}**, e acompanhar o efeito dessa acao ao longo do tempo.\n"
-        f"- Leitura IFEsCS: os dados cobrem o periodo entre **{kpis['inicio']}** e **{kpis['fim']}**, servindo como base para aprendizagem estatistica aplicada e apoio a decisao."
+        f"- O que queremos alcançar? Reduzir sobrecargas operacionais em dias acima da média histórica de **{_format_kg(media_periodica)}**.\n"
+        f"- Como saber se houve melhoria? Comparando o comportamento atual com o pico recente de **{pico_valor}** registrado em **{pico_periodo}**, observando tendência, distribuição dos dados e estabilidade do processo.\n"
+        f"- Que mudança pode resultar em melhoria? Reorganizar a operação com foco nos fluxos ligados ao item de maior recorrência, hoje identificado como **{produto_lider}**, e acompanhar o efeito dessa ação ao longo do tempo.\n"
+        f"- Leitura IFEsCS: os dados cobrem o período entre **{kpis['inicio']}** e **{kpis['fim']}**, servindo como base para aprendizagem estatística aplicada e apoio à decisão."
     )
 
 
@@ -74,26 +74,26 @@ def _build_pdsa_markdown(df_volume, df_produtos):
         return (
             "### Ciclo PDSA\n"
             "- Plan: definir um objetivo de melhoria.\n"
-            "- Do: aplicar uma mudanca em pequena escala.\n"
+            "- Do: aplicar uma mudança em pequena escala.\n"
             "- Study: comparar os indicadores antes e depois.\n"
-            "- Act: padronizar a mudanca ou ajustar a estrategia."
+            "- Act: padronizar a mudança ou ajustar a estratégia."
         )
 
     media_periodica = float(df_volume["y"].mean())
     minimo = float(df_volume["y"].min())
     maximo = float(df_volume["y"].max())
     amplitude = maximo - minimo
-    produto_lider = "Nao identificado"
+    produto_lider = "Não identificado"
     if not df_produtos.empty:
         produto_lider = str(df_produtos.iloc[0]["produto"])
 
     return (
         "### Ciclo PDSA com leitura orientada por dados\n"
-        f"- **Plan**: formular a meta de reduzir a amplitude operacional atual de **{_format_kg(amplitude)}** entre os periodos observados.\n"
-        f"- **Do**: testar uma mudanca localizada, como reorganizacao de rotina, reforco de equipe ou acao focada no fluxo de **{produto_lider}**.\n"
-        f"- **Study**: verificar se a media periodica permanece abaixo ou proxima de **{_format_kg(media_periodica)}** com menor variacao entre dias.\n"
-        f"- **Act**: institucionalizar a mudanca quando os indicadores mostrarem ganho, ou revisar a hipotese quando nao houver melhora mensuravel.\n"
-        "- **Metodo IFEsCS**: o estudo parte de dados reais organizados, articulando ensino, pesquisa e extensao para gerar leitura estatistica contextualizada."
+        f"- **Plan**: formular a meta de reduzir a amplitude operacional atual de **{_format_kg(amplitude)}** entre os períodos observados.\n"
+        f"- **Do**: testar uma mudança localizada, como reorganização de rotina, reforço de equipe ou ação focada no fluxo de **{produto_lider}**.\n"
+        f"- **Study**: verificar se a média periódica permanece abaixo ou próxima de **{_format_kg(media_periodica)}** com menor variação entre dias.\n"
+        f"- **Act**: institucionalizar a mudança quando os indicadores mostrarem ganho, ou revisar a hipótese quando não houver melhora mensurável.\n"
+        "- **Método IFEsCS**: o estudo parte de dados reais organizados, articulando ensino, pesquisa e extensão para gerar leitura estatística contextualizada."
     )
 
 
@@ -101,37 +101,37 @@ def _build_cause_effect_markdown(df_volume, df_produtos):
     if df_volume.empty:
         return (
             "### Causa e efeito\n"
-            "- Um indicador isolado nao explica o processo.\n"
-            "- A leitura de causa e efeito exige observar contexto, sequencia temporal e variacao.\n"
-            "- No IFEsCS, os dados devem apoiar perguntas, nao apenas respostas prontas.\n"
-            "- A prioridade e compreender o sistema antes de culpar pessoas ou eventos isolados."
+            "- Um indicador isolado não explica o processo.\n"
+            "- A leitura de causa e efeito exige observar contexto, sequência temporal e variação.\n"
+            "- No IFEsCS, os dados devem apoiar perguntas, não apenas respostas prontas.\n"
+            "- A prioridade é compreender o sistema antes de culpar pessoas ou eventos isolados."
         )
 
     pico = df_volume.loc[df_volume["y"].idxmax()]
     vale = df_volume.loc[df_volume["y"].idxmin()]
-    produto_lider = "Nao identificado"
+    produto_lider = "Não identificado"
     if not df_produtos.empty:
         produto_lider = str(df_produtos.iloc[0]["produto"])
 
     return (
         "### Leitura de causa e efeito\n"
-        f"- O pico de **{_format_kg(pico['y'])}** em **{pico['ds'].strftime('%d/%m/%Y')}** nao deve ser interpretado como causa por si so; ele e um sinal para investigacao.\n"
-        f"- Da mesma forma, o menor valor observado, **{_format_kg(vale['y'])}** em **{vale['ds'].strftime('%d/%m/%Y')}**, nao prova melhora estrutural sem analise do processo.\n"
-        f"- O papel do gestor e relacionar os sinais dos dados com hipoteses concretas, como alteracoes de rotina, sazonalidade, alocacao de equipe ou concentracao do fluxo em **{produto_lider}**.\n"
-        "- No pensamento estatistico defendido pelo IFEsCS, dados ajudam a testar explicacoes plausiveis e a diferenciar percepcao isolada de comportamento sistemico.\n"
-        "- Em termos didaticos, causa e efeito exigem sequencia temporal, conhecimento do processo e comparacao entre periodos, e nao apenas uma coincidencia visual no grafico.\n"
-        "- Essa leitura dialoga com Deming ao lembrar que um sistema gera resultados, e que agir sem entender a fonte da variacao costuma produzir correcoes superficiais."
+        f"- O pico de **{_format_kg(pico['y'])}** em **{pico['ds'].strftime('%d/%m/%Y')}** não deve ser interpretado como causa por si só; ele é um sinal para investigação.\n"
+        f"- Da mesma forma, o menor valor observado, **{_format_kg(vale['y'])}** em **{vale['ds'].strftime('%d/%m/%Y')}**, não prova melhora estrutural sem análise do processo.\n"
+        f"- O papel do gestor é relacionar os sinais dos dados com hipóteses concretas, como alterações de rotina, sazonalidade, alocação de equipe ou concentração do fluxo em **{produto_lider}**.\n"
+        "- No pensamento estatístico defendido pelo IFEsCS, dados ajudam a testar explicações plausíveis e a diferenciar percepção isolada de comportamento sistêmico.\n"
+        "- Em termos didáticos, causa e efeito exigem sequência temporal, conhecimento do processo e comparação entre períodos, e não apenas uma coincidência visual no gráfico.\n"
+        "- Essa leitura dialoga com Deming ao lembrar que um sistema gera resultados, e que agir sem entender a fonte da variação costuma produzir correções superficiais."
     )
 
 
 def _build_variation_markdown(df_volume):
     if df_volume.empty:
         return (
-            "### Variacao, erro e media\n"
-            "- A media resume o processo, mas nao mostra sua instabilidade.\n"
-            "- A variacao entre periodos e essencial para compreender risco e previsibilidade.\n"
+            "### Variação, erro e média\n"
+            "- A média resume o processo, mas não mostra sua instabilidade.\n"
+            "- A variação entre períodos é essencial para compreender risco e previsibilidade.\n"
             "- O erro deve ser acompanhado continuamente.\n"
-            "- Um processo pode ter media aceitavel e ainda assim ser instavel."
+            "- Um processo pode ter média aceitável e ainda assim ser instável."
         )
 
     media = float(df_volume["y"].mean())
@@ -140,52 +140,52 @@ def _build_variation_markdown(df_volume):
     coef_var = (desvio / media * 100) if media else 0.0
 
     return (
-        "### Por que a media sozinha nao basta\n"
-        f"- A media observada e **{_format_kg(media)}**, mas a leitura do processo fica incompleta sem a variabilidade associada.\n"
-        f"- O desvio padrao atual e **{_format_kg(desvio)}**, com amplitude total de **{_format_kg(amplitude)}** entre o menor e o maior periodo.\n"
-        f"- O coeficiente de variacao aproximado e **{coef_var:.2f}%**, mostrando quanto o processo oscila em relacao ao centro da serie.\n"
-        "- Em melhoria de processos, acompanhar erro, dispersao e estabilidade costuma revelar mais do que observar apenas a media, pois sao esses sinais que indicam previsibilidade, risco operacional e necessidade de intervencao.\n"
-        "- A media descreve o centro do comportamento; o erro mostra o quanto a previsao ou a meta falham; e a variancia mostra o quao confiavel ou instavel e o processo ao longo do tempo.\n"
-        "- Em linguagem de gestao, um processo com media aceitavel e alta variacao segue sendo um processo arriscado, porque ele nao entrega regularidade.\n"
-        "- Box reforca esse ponto ao aproximar estatistica de experimentacao e aprendizagem: melhorar nao e apenas deslocar a media, mas entender como reduzir a variacao indesejada e aprender com o erro."
+        "### Por que a média sozinha não basta\n"
+        f"- A média observada é **{_format_kg(media)}**, mas a leitura do processo fica incompleta sem a variabilidade associada.\n"
+        f"- O desvio padrão atual é **{_format_kg(desvio)}**, com amplitude total de **{_format_kg(amplitude)}** entre o menor e o maior período.\n"
+        f"- O coeficiente de variação aproximado é **{coef_var:.2f}%**, mostrando quanto o processo oscila em relação ao centro da série.\n"
+        "- Em melhoria de processos, acompanhar erro, dispersão e estabilidade costuma revelar mais do que observar apenas a média, pois são esses sinais que indicam previsibilidade, risco operacional e necessidade de intervenção.\n"
+        "- A média descreve o centro do comportamento; o erro mostra o quanto a previsão ou a meta falham; e a variância mostra o quão confiável ou instável é o processo ao longo do tempo.\n"
+        "- Em linguagem de gestão, um processo com média aceitável e alta variação segue sendo um processo arriscado, porque ele não entrega regularidade.\n"
+        "- Box reforça esse ponto ao aproximar estatística de experimentação e aprendizagem: melhorar não é apenas deslocar a média, mas entender como reduzir a variação indesejada e aprender com o erro."
     )
 
 
 def _build_chart_reading_markdown(df_volume, df_produtos):
     if df_volume.empty:
         return (
-            "### Como ler os graficos\n"
-            "- Observe a distribuicao temporal dos dados.\n"
-            "- Identifique pontos de maior concentracao.\n"
-            "- Compare variacoes antes de formular hipoteses de melhoria."
+            "### Como ler os gráficos\n"
+            "- Observe a distribuição temporal dos dados.\n"
+            "- Identifique pontos de maior concentração.\n"
+            "- Compare variações antes de formular hipóteses de melhoria."
         )
 
     ultimo_periodo = df_volume["ds"].max().strftime("%d/%m/%Y")
     primeiro_periodo = df_volume["ds"].min().strftime("%d/%m/%Y")
     variacao = float(df_volume["y"].max() - df_volume["y"].min())
-    lider = "Nao identificado"
+    lider = "Não identificado"
     if not df_produtos.empty:
         lider = str(df_produtos.iloc[0]["produto"])
 
     return (
         "### Como interpretar esta pagina\n"
-        f"- O grafico de serie mostra o comportamento do processo entre **{primeiro_periodo}** e **{ultimo_periodo}**.\n"
-        f"- A amplitude entre o menor e o maior valor observado e de **{_format_kg(variacao)}**, o que ajuda a discutir estabilidade e variabilidade.\n"
-        f"- O grafico de categorias destaca quais itens concentram mais registros, com destaque atual para **{lider}**.\n"
-        "- A leitura recomendada no IFEsCS parte da observacao dos dados, passa pela formulacao de hipoteses e chega a uma acao mensuravel de melhoria."
+        f"- O gráfico de série mostra o comportamento do processo entre **{primeiro_periodo}** e **{ultimo_periodo}**.\n"
+        f"- A amplitude entre o menor e o maior valor observado é de **{_format_kg(variacao)}**, o que ajuda a discutir estabilidade e variabilidade.\n"
+        f"- O gráfico de categorias destaca quais itens concentram mais registros, com destaque atual para **{lider}**.\n"
+        "- A leitura recomendada no IFEsCS parte da observação dos dados, passa pela formulação de hipóteses e chega a uma ação mensurável de melhoria."
     )
 
 
 def _build_readings_markdown():
     return (
         "### Leituras fundamentais\n"
-        "- **Base central do IFEsCS - Deming**: [*A nova economia para a industria, o governo e a educacao*](https://books.google.com/books/about/A_nova_economia_para_a_ind%C3%BAstria_o_gove.html?id=nZtYQCbqZO8C). Referencia central para sistema, variacao, previsibilidade, aprendizagem e responsabilidade gerencial.\n"
-        "- **Base central do IFEsCS - Langley e IHI**: [Model for Improvement em portugues](https://www.ihi.org/pt-br/library/model-for-improvement). Sintetiza as tres perguntas do Modelo de Melhoria e o uso do ciclo PDSA.\n"
-        "- **Ferramenta em portugues**: [Planilha PDSA em portugues](https://www.ihi.org/pt-br/resources/tools/plan-do-study-act-pdsa-worksheet). Material pratico para documentar testes de mudanca e aprendizagem em ciclos curtos.\n"
-        "- **Mediacao e aprendizagem em portugues**: [Estabelecendo Medidas - IHI](https://www.ihi.org/index.php/pt-br/library/model-for-improvement/establishing-measures). Fonte importante para sustentar que medir melhoria nao e apenas calcular media, mas acompanhar variacao, tendencia e aprendizagem ao longo do tempo.\n"
-        "- **Apoio metodologico em estatistica - Box, Hunter e Hunter**: [*Statistics for Experimenters*](https://www.wiley-vch.de/en/areas-interest/mathematics-statistics/statistics-for-experimenters-978-0-471-71813-0). Referencia importante para erro, variacao, experimentacao e aprendizagem com dados.\n"
-        "- **Aplicacao em melhoria da qualidade**: [Lee et al. - reducao de erro de medicacao com melhoria continua](https://pmc.ncbi.nlm.nih.gov/articles/PMC4129856/). Exemplo aplicado de observacao sistematica, erro e intervencao em contexto assistencial.\n"
-        "- **Observacao metodologica**: quando nao ha fonte primaria equivalente em portugues, mantem-se a referencia internacional para preservar fidelidade conceitual."
+        "- **Base central do IFEsCS - Deming**: [*A nova economia para a indústria, o governo e a educação*](https://books.google.com/books/about/A_nova_economia_para_a_ind%C3%BAstria_o_gove.html?id=nZtYQCbqZO8C). Referência central para sistema, variação, previsibilidade, aprendizagem e responsabilidade gerencial.\n"
+        "- **Base central do IFEsCS - Langley e IHI**: [Model for Improvement em português](https://www.ihi.org/pt-br/library/model-for-improvement). Sintetiza as três perguntas do Modelo de Melhoria e o uso do ciclo PDSA.\n"
+        "- **Ferramenta em português**: [Planilha PDSA em português](https://www.ihi.org/pt-br/resources/tools/plan-do-study-act-pdsa-worksheet). Material prático para documentar testes de mudança e aprendizagem em ciclos curtos.\n"
+        "- **Mediação e aprendizagem em português**: [Estabelecendo Medidas - IHI](https://www.ihi.org/index.php/pt-br/library/model-for-improvement/establishing-measures). Fonte importante para sustentar que medir melhoria não é apenas calcular média, mas acompanhar variação, tendência e aprendizagem ao longo do tempo.\n"
+        "- **Apoio metodológico em estatística - Box, Hunter e Hunter**: [*Statistics for Experimenters*](https://www.wiley-vch.de/en/areas-interest/mathematics-statistics/statistics-for-experimenters-978-0-471-71813-0). Referência importante para erro, variação, experimentação e aprendizagem com dados.\n"
+        "- **Aplicação em melhoria da qualidade**: [Lee et al. - redução de erro de medicação com melhoria contínua](https://pmc.ncbi.nlm.nih.gov/articles/PMC4129856/). Exemplo aplicado de observação sistemática, erro e intervenção em contexto assistencial.\n"
+        "- **Observação metodológica**: quando não há fonte primária equivalente em português, mantém-se a referência internacional para preservar fidelidade conceitual."
     )
 
 
@@ -207,15 +207,15 @@ layout = dmc.Container(
     [
         dmc.Title("Ambiente de Estudo IFEsCS", order=2, mb="xs"),
         dmc.Text(
-            "Espaco educacional para leitura de dados, aprendizagem do Modelo de Melhoria e aplicacao do ciclo PDSA com base na metodologia do IFEsCS.",
+            "Espaço educacional para leitura de dados, aprendizagem do Modelo de Melhoria e aplicação do ciclo PDSA com base na metodologia do IFEsCS.",
             c="dimmed",
             mb="lg",
         ),
         dmc.Alert(
             children=[
-                dmc.Title("Abordagem metodologica", order=5, mb="xs"),
+                dmc.Title("Abordagem metodológica", order=5, mb="xs"),
                 dmc.Text(
-                    "A pagina transforma os dados do dashboard em suporte pedagogico para letramento estatistico, tomada de decisao e melhoria continua."
+                    "A página transforma os dados do dashboard em suporte pedagógico para letramento estatístico, tomada de decisão e melhoria contínua."
                 ),
             ],
             color="ifsc-green",
@@ -367,7 +367,7 @@ def update_estudo_ifescs_page(color_scheme):
         df_volume,
         x="ds",
         y="y",
-        title="Serie Diaria para Leitura de Variacao e Melhoria",
+        title="Série Diária para Leitura de Variação e Melhoria",
         template=template_name,
         granularity="diaria",
         labels={"ds": "Dia", "y": "Volume (kg)"},
@@ -379,10 +379,10 @@ def update_estudo_ifescs_page(color_scheme):
         df_produtos,
         x="produto",
         y="qtde",
-        title="Produtos mais frequentes para discussao pedagogica",
+        title="Produtos mais frequentes para discussão pedagógica",
         labels={"produto": "Categoria", "qtde": "Registros"},
         template=template_name,
-    ) if not df_produtos.empty else px.bar(template=template_name, title="Produtos mais frequentes para discussao pedagogica")
+    ) if not df_produtos.empty else px.bar(template=template_name, title="Produtos mais frequentes para discussão pedagógica")
     fig_produtos.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -403,8 +403,8 @@ def update_estudo_ifescs_page(color_scheme):
 
     return (
         _create_highlight_card("Total de Registros", total_registros, "radix-icons:stack", "ifsc-green"),
-        _create_highlight_card("Periodo Observado", periodo, "radix-icons:calendar", "ifsc-green"),
-        _create_highlight_card("Media Diaria", media_label, "radix-icons:bar-chart", "ifsc-green"),
+        _create_highlight_card("Período Observado", periodo, "radix-icons:calendar", "ifsc-green"),
+        _create_highlight_card("Média Diária", media_label, "radix-icons:bar-chart", "ifsc-green"),
         _create_highlight_card("Maior Pico", pico_label, "radix-icons:activity-log", "ifsc-green"),
         fig_serie,
         fig_produtos,
@@ -417,25 +417,25 @@ def update_estudo_ifescs_page(color_scheme):
         _pdsa_step_card(
             "Plan",
             "Definir o objetivo de melhoria",
-            "Selecionar um problema observavel nos dados, estabelecer uma meta e justificar por que ela e importante para o processo.",
+            "Selecionar um problema observável nos dados, estabelecer uma meta e justificar por que ela é importante para o processo.",
             "blue",
         ),
         _pdsa_step_card(
             "Do",
-            "Executar uma mudanca em pequena escala",
-            "Aplicar uma acao pontual e controlada, sem alterar todo o processo de uma vez.",
+            "Executar uma mudança em pequena escala",
+            "Aplicar uma ação pontual e controlada, sem alterar todo o processo de uma vez.",
             "green",
         ),
         _pdsa_step_card(
             "Study",
             "Comparar o antes e o depois",
-            "Observar se a acao gerou alteracao nos indicadores, na variacao do processo ou na estabilidade do comportamento diario.",
+            "Observar se a ação gerou alteração nos indicadores, na variação do processo ou na estabilidade do comportamento diário.",
             "yellow",
         ),
         _pdsa_step_card(
             "Act",
             "Padronizar ou reajustar",
-            "Se a mudanca funcionou, incorporar a pratica. Se nao funcionou, revisar a hipotese e reiniciar o ciclo.",
+            "Se a mudança funcionou, incorporar a prática. Se não funcionou, revisar a hipótese e reiniciar o ciclo.",
             "grape",
         ),
     )

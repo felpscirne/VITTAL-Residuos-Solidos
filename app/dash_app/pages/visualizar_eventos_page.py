@@ -22,6 +22,7 @@ layout = html.Div([
                         {'name': 'Data Fim', 'id': 'end'},
                         {'name': 'Título', 'id': 'title'},
                         {'name': 'Tipo', 'id': 'type'},
+                        {'name': 'Descrição', 'id': 'description'},
                         {'name': 'Setores Afetados', 'id': 'sectors'},
                     ],
                     data=[],
@@ -36,7 +37,9 @@ layout = html.Div([
                     style_data={
                         "backgroundColor": "#fff", 
                         "color": "#000",
-                        "fontFamily": "sans-serif"
+                        "fontFamily": "sans-serif",
+                        "whiteSpace": "normal",
+                        "height": "auto",
                     },
                     style_cell={'textAlign': 'left', 'padding': '10px', 'border': '1px solid #dee2e6'},
                 ),
@@ -69,6 +72,7 @@ def update_view_events(pathname, n):
                 'end': e.end_date.strftime('%d/%m/%Y'),               
                 'title': e.title,
                 'type': e.event_type,                                 
+                'description': e.description or "",
                 'sectors': e.affected_sectors or "Geral"              
             })
         return data

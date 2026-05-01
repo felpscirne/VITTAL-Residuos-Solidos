@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_security import SQLAlchemyUserDatastore, user_registered
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.extensions import bcrypt, cache, db, mail, security
 from app.models import Role, User
@@ -19,6 +20,10 @@ def create_app():
     server = Flask(__name__, instance_relative_config=False)
     email_delivery_enabled = _env_bool("ENABLE_OUTBOUND_EMAIL", False)
     app_timezone = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
+    trust_proxy_headers = _env_bool("TRUST_PROXY_HEADERS", False)
+
+    if trust_proxy_headers:
+        server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
     server.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
     server.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
@@ -72,6 +77,10 @@ def create_app():
 
     user_datastore = SQLAlchemyUserDatastore(db, User, Role)
     security.init_app(server, user_datastore)
+
+    @server.get("/health")
+    def healthcheck():
+        return {"status": "ok"}, 200
 
     @user_registered.connect_via(server)
     def user_registered_sighandler(app, user, confirm_token, form_data, **kwargs):

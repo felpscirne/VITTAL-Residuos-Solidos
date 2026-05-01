@@ -100,6 +100,7 @@ layout = html.Div(
                                             {"name": "Data Fim", "id": "end"},
                                             {"name": "Título", "id": "title"},
                                             {"name": "Tipo", "id": "type"},
+                                            {"name": "Descrição", "id": "description"},
                                             {"name": "Setores Afetados", "id": "sectors"},
                                         ],
                                         data=[],
@@ -222,6 +223,7 @@ def load_events_table(pathname, _save_clicks, _delete_clicks):
                     "type": event.event_type,
                     "start": event.start_date.strftime("%d/%m/%Y"),
                     "end": event.end_date.strftime("%d/%m/%Y"),
+                    "description": event.description or "",
                     "sectors": event.affected_sectors or ALL_SECTORS_LABEL,
                 }
             )

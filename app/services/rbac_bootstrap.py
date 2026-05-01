@@ -111,6 +111,92 @@ def _ensure_import_auditoria_table(conn):
     conn.execute(text("ALTER TABLE import_auditoria ADD COLUMN IF NOT EXISTS error_message TEXT"))
 
 
+def _ensure_domain_base_tables(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS produto (
+                id_produto SERIAL PRIMARY KEY,
+                nome VARCHAR(100) NOT NULL UNIQUE,
+                descricao TEXT
+            )
+            """
+        )
+    )
+
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS empresa (
+                id_empresa SERIAL PRIMARY KEY,
+                nome VARCHAR(150) NOT NULL UNIQUE,
+                papel VARCHAR(20) NOT NULL
+                    CHECK (papel IN ('cliente','transportadora','ambos','interno'))
+            )
+            """
+        )
+    )
+
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS veiculo (
+                id_veiculo SERIAL PRIMARY KEY,
+                placa VARCHAR(20) NOT NULL UNIQUE,
+                id_empresa INTEGER REFERENCES empresa(id_empresa) ON DELETE SET NULL
+            )
+            """
+        )
+    )
+
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS setor (
+                id_setor SERIAL PRIMARY KEY,
+                codigo VARCHAR(30) NOT NULL UNIQUE,
+                nome VARCHAR(100),
+                tipo VARCHAR(20) NOT NULL
+                    CHECK (tipo IN ('coleta','destino','ajuste','interno'))
+            )
+            """
+        )
+    )
+
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS pesagem (
+                ticket INTEGER PRIMARY KEY,
+                data_hora TIMESTAMPTZ NOT NULL,
+                id_produto INTEGER NOT NULL REFERENCES produto(id_produto),
+                id_transportadora INTEGER REFERENCES empresa(id_empresa),
+                id_cliente INTEGER NOT NULL REFERENCES empresa(id_empresa),
+                id_veiculo INTEGER REFERENCES veiculo(id_veiculo),
+                id_setor INTEGER NOT NULL REFERENCES setor(id_setor),
+                peso_entrada NUMERIC(18,3),
+                peso_saida NUMERIC(18,3),
+                peso_liquido NUMERIC(18,3),
+                peso_embalagem_liquido NUMERIC(18,3),
+                peso_embalagem_liquido_corrigido NUMERIC(18,3),
+                peso_nota_fiscal NUMERIC(18,3),
+                diferenca_peso NUMERIC(18,3),
+                diferenca_peso_porcentagem NUMERIC(12,4),
+                nro_nota_fiscal VARCHAR(50),
+                tipo_de_residuo TEXT,
+                import_audit_id INTEGER REFERENCES import_auditoria(id) ON DELETE SET NULL
+            )
+            """
+        )
+    )
+
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_data_hora ON pesagem (data_hora)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_id_setor ON pesagem (id_setor)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_id_cliente ON pesagem (id_cliente)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_id_produto ON pesagem (id_produto)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pesagem_id_veiculo ON pesagem (id_veiculo)"))
+
+
 def _drop_registro_view(conn):
     conn.execute(text("DROP VIEW IF EXISTS registro"))
 
@@ -153,6 +239,7 @@ def _recreate_registro_view(conn):
 
 def _ensure_database_business_standards(conn):
     _ensure_import_auditoria_table(conn)
+    _ensure_domain_base_tables(conn)
 
     _drop_registro_view(conn)
     conn.execute(text("ALTER TABLE pesagem ADD COLUMN IF NOT EXISTS import_audit_id INTEGER"))

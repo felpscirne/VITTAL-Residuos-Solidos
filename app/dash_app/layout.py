@@ -11,7 +11,15 @@ header_content = dmc.Group(
     children=[
         dmc.Group(
             children=[
-                dmc.Burger(id="burger-button", hiddenFrom="sm"),
+                dmc.ActionIcon(
+                    DashIconify(icon="radix-icons:hamburger-menu", width=22),
+                    id="burger-button",
+                    hiddenFrom="sm",
+                    variant="subtle",
+                    color="gray",
+                    size="lg",
+                    n_clicks=0,
+                ),
                 dcc.Link(
                     dmc.Group(
                         gap="xs",
@@ -90,6 +98,7 @@ main_layout = dmc.MantineProvider(
     children=[
         dcc.Location(id='url', refresh='callback'),
         dcc.Store(id='theme-store', data='light', storage_type='local'),
+        dcc.Store(id='mobile-nav-open', data=False),
         
         dmc.AppShell(
             children=[

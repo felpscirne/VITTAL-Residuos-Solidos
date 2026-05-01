@@ -55,11 +55,11 @@ def register_global_callbacks(app):
                 allowed.append(page.route)
         return list(dict.fromkeys(allowed))
 
-    def nav_link(label, href, icon, pathname):
+    def nav_link(label, href, icon, pathname, scope):
         is_active = pathname == href
         return dmc.NavLink(
             label=label,
-            id={"type": "nav-link", "route": href},
+            id={"type": "nav-link", "route": href, "scope": scope},
             leftSection=DashIconify(icon=icon, width=20),
             active=is_active,
             variant="filled" if is_active else "subtle",
@@ -89,7 +89,7 @@ def register_global_callbacks(app):
 
     @app.callback(
         Output("url", "pathname"),
-        Input({"type": "nav-link", "route": ALL}, "n_clicks"),
+        Input({"type": "nav-link", "route": ALL, "scope": ALL}, "n_clicks"),
         State("url", "pathname"),
         prevent_initial_call=True,
     )
@@ -145,109 +145,123 @@ def register_global_callbacks(app):
         if current_user.is_authenticated:
             display_name = getattr(current_user, "name", None) or current_user.email
 
-        links_gerais = []
-        if "/" in allowed_routes:
-            links_gerais.append(nav_link("Visão Geral", "/", "radix-icons:dashboard", pathname))
-        if "/estudo-ifescs" in allowed_routes:
-            links_gerais.append(nav_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader", pathname))
-        if "/registros" in allowed_routes:
-            links_gerais.append(nav_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass", pathname))
-        if "/visualizar-eventos" in allowed_routes:
-            links_gerais.append(nav_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell", pathname))
+        def build_sidebar(scope):
+            links_gerais = []
+            if "/" in allowed_routes:
+                links_gerais.append(nav_link("Visão Geral", "/", "radix-icons:dashboard", pathname, scope))
+            if "/estudo-ifescs" in allowed_routes:
+                links_gerais.append(nav_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader", pathname, scope))
+            if "/registros" in allowed_routes:
+                links_gerais.append(nav_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass", pathname, scope))
+            if "/visualizar-eventos" in allowed_routes:
+                links_gerais.append(nav_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell", pathname, scope))
 
-        links_analises = []
-        if "/analise-produtos" in allowed_routes:
-            links_analises.append(nav_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube", pathname))
-        if "/fluxo-de-caixa" in allowed_routes:
-            links_analises.append(nav_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart", pathname))
-        if "/analise-setores" in allowed_routes:
-            links_analises.append(nav_link("Análise de Setores", "/analise-setores", "radix-icons:pie-chart", pathname))
-        if "/analise-empresas" in allowed_routes:
-            links_analises.append(nav_link("Análise de Empresas", "/analise-empresas", "radix-icons:backpack", pathname))
-        if "/analise-horarios" in allowed_routes:
-            links_analises.append(nav_link("Análise de Horários", "/analise-horarios", "radix-icons:clock", pathname))
-        if "/analise-frotas" in allowed_routes:
-            links_analises.append(nav_link("Análise de Frota", "/analise-frotas", "radix-icons:rocket", pathname))
+            links_analises = []
+            if "/analise-produtos" in allowed_routes:
+                links_analises.append(nav_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube", pathname, scope))
+            if "/fluxo-de-caixa" in allowed_routes:
+                links_analises.append(nav_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart", pathname, scope))
+            if "/analise-setores" in allowed_routes:
+                links_analises.append(nav_link("Análise de Setores", "/analise-setores", "radix-icons:pie-chart", pathname, scope))
+            if "/analise-empresas" in allowed_routes:
+                links_analises.append(nav_link("Análise de Empresas", "/analise-empresas", "radix-icons:backpack", pathname, scope))
+            if "/analise-horarios" in allowed_routes:
+                links_analises.append(nav_link("Análise de Horários", "/analise-horarios", "radix-icons:clock", pathname, scope))
+            if "/analise-frotas" in allowed_routes:
+                links_analises.append(nav_link("Análise de Frota", "/analise-frotas", "radix-icons:rocket", pathname, scope))
 
-        links_gestao = []
-        if "/previsoes" in allowed_routes:
-            links_gestao.append(nav_link("Previsões", "/previsoes", "radix-icons:activity-log", pathname))
-        if "/auditoria-peso" in allowed_routes:
-            links_gestao.append(nav_link("Auditoria de Peso", "/auditoria-peso", "radix-icons:clipboard", pathname))
-        if "/gerenciar-eventos" in allowed_routes:
-            links_gestao.append(nav_link("Gerenciar Eventos", "/gerenciar-eventos", "radix-icons:calendar", pathname))
-        if "/gerenciar-arquivos" in allowed_routes:
-            links_gestao.append(nav_link("Gerenciar Arquivos", "/gerenciar-arquivos", "radix-icons:file", pathname))
-        if "/gerenciar-permissoes" in allowed_routes:
-            links_gestao.append(nav_link("Gerenciar Permissões", "/gerenciar-permissoes", "radix-icons:lock-closed", pathname))
+            links_gestao = []
+            if "/previsoes" in allowed_routes:
+                links_gestao.append(nav_link("Previsões", "/previsoes", "radix-icons:activity-log", pathname, scope))
+            if "/auditoria-peso" in allowed_routes:
+                links_gestao.append(nav_link("Auditoria de Peso", "/auditoria-peso", "radix-icons:clipboard", pathname, scope))
+            if "/gerenciar-eventos" in allowed_routes:
+                links_gestao.append(nav_link("Gerenciar Eventos", "/gerenciar-eventos", "radix-icons:calendar", pathname, scope))
+            if "/gerenciar-arquivos" in allowed_routes:
+                links_gestao.append(nav_link("Gerenciar Arquivos", "/gerenciar-arquivos", "radix-icons:file", pathname, scope))
+            if "/gerenciar-permissoes" in allowed_routes:
+                links_gestao.append(nav_link("Gerenciar Permissões", "/gerenciar-permissoes", "radix-icons:lock-closed", pathname, scope))
 
-        links_login = []
-        if current_user.is_authenticated:
-            links_login.append(
-                auth_link(
-                    f"Sair ({display_name})",
-                    "/logout",
-                    "radix-icons:exit",
-                    pathname,
-                    color="red",
-                    variant="subtle",
+            links_login = []
+            if current_user.is_authenticated:
+                links_login.append(
+                    auth_link(
+                        f"Sair ({display_name})",
+                        "/logout",
+                        "radix-icons:exit",
+                        pathname,
+                        color="red",
+                        variant="subtle",
+                    )
                 )
+            else:
+                links_login.append(auth_link("Entrar", "/login", "radix-icons:enter", pathname))
+                links_login.append(auth_link("Registrar", "/register", "radix-icons:person", pathname))
+
+            sidebar_children = []
+            if links_gerais:
+                sidebar_children.extend(
+                    [
+                        dmc.Text("Geral", size="xs", fw=500, c="dimmed", mt="md", mb="xs"),
+                        *links_gerais,
+                        dmc.Divider(my="sm"),
+                    ]
+                )
+
+            if links_analises:
+                sidebar_children.extend(
+                    [
+                        dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
+                        *links_analises,
+                        dmc.Divider(my="sm"),
+                    ]
+                )
+
+            if links_gestao:
+                sidebar_children.extend(
+                    [
+                        dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
+                        *links_gestao,
+                        dmc.Divider(my="sm"),
+                    ]
+                )
+
+            sidebar_children.extend(links_login)
+
+            return dmc.ScrollArea(
+                offsetScrollbars=True,
+                type="scroll",
+                children=sidebar_children,
             )
-        else:
-            links_login.append(auth_link("Entrar", "/login", "radix-icons:enter", pathname))
-            links_login.append(auth_link("Registrar", "/register", "radix-icons:person", pathname))
 
-        sidebar_children = []
-        if links_gerais:
-            sidebar_children.extend(
-                [
-                    dmc.Text("Geral", size="xs", fw=500, c="dimmed", mt="md", mb="xs"),
-                    *links_gerais,
-                    dmc.Divider(my="sm"),
-                ]
-            )
-
-        if links_analises:
-            sidebar_children.extend(
-                [
-                    dmc.Text("Análises", size="xs", fw=500, c="dimmed", mb="xs"),
-                    *links_analises,
-                    dmc.Divider(my="sm"),
-                ]
-            )
-
-        if links_gestao:
-            sidebar_children.extend(
-                [
-                    dmc.Text("Gestão", size="xs", fw=500, c="dimmed", mb="xs"),
-                    *links_gestao,
-                    dmc.Divider(my="sm"),
-                ]
-            )
-
-        sidebar_children.extend(links_login)
-
-        sidebar = dmc.ScrollArea(
-            offsetScrollbars=True,
-            type="scroll",
-            children=sidebar_children,
-        )
-        return sidebar, sidebar
+        return build_sidebar("desktop"), build_sidebar("mobile")
 
     @app.callback(
-        Output("mobile-nav-overlay", "style"),
-        Output("mobile-nav-panel", "style"),
-        Output("burger-button", "opened"),
+        Output("mobile-nav-open", "data"),
         Input("burger-button", "n_clicks"),
         Input("mobile-nav-close", "n_clicks"),
         Input("mobile-nav-overlay", "n_clicks"),
         Input("url", "pathname"),
-        State("burger-button", "opened"),
+        State("mobile-nav-open", "data"),
         prevent_initial_call=True,
     )
-    def toggle_mobile_navbar(burger_clicks, close_clicks, overlay_clicks, pathname, burger_opened):
-        burger_opened = bool(burger_opened)
+    def update_mobile_nav_state(burger_clicks, close_clicks, overlay_clicks, pathname, is_open):
         triggered_id = dash.ctx.triggered_id
+        if triggered_id == "burger-button":
+            return not bool(is_open)
+
+        if triggered_id in {"mobile-nav-close", "mobile-nav-overlay", "url"}:
+            return False
+
+        return dash.no_update
+
+    @app.callback(
+        Output("mobile-nav-overlay", "style"),
+        Output("mobile-nav-panel", "style"),
+        Input("mobile-nav-open", "data"),
+        Input("mantine-provider", "forceColorScheme"),
+    )
+    def render_mobile_navbar(is_open, color_scheme):
         open_overlay_style = {
             "position": "fixed",
             "inset": "0",
@@ -262,7 +276,7 @@ def register_global_callbacks(app):
             "width": "85vw",
             "maxWidth": "360px",
             "height": "100vh",
-            "backgroundColor": "#ffffff",
+            "backgroundColor": "#1a1b1e" if color_scheme == "dark" else "#ffffff",
             "padding": "1rem",
             "boxShadow": "0 10px 30px rgba(0, 0, 0, 0.18)",
             "zIndex": 200,
@@ -271,16 +285,7 @@ def register_global_callbacks(app):
         }
         closed_style = {"display": "none"}
 
-        if triggered_id == "burger-button":
-            next_opened = not burger_opened
-            if next_opened:
-                return open_overlay_style, open_panel_style, True
-            return closed_style, closed_style, False
+        if is_open:
+            return open_overlay_style, open_panel_style
 
-        if triggered_id in {"mobile-nav-close", "mobile-nav-overlay"}:
-            return closed_style, closed_style, False
-
-        if triggered_id == "url" and burger_opened:
-            return closed_style, closed_style, False
-
-        return dash.no_update, dash.no_update, dash.no_update
+        return closed_style, closed_style

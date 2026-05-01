@@ -20,7 +20,7 @@ header_content = dmc.Group(
                             dmc.Stack(
                                 gap=0,
                                 children=[
-                                    dmc.Text("VITTAL Transbordo", size="md", fw=700, c="ifsc-green", lh=1.2),
+                                    dmc.Text("VITTAL Resíduos Sólidos", size="md", fw=700, c="ifsc-green", lh=1.2),
                                     dmc.Text("IFEsCS · IFRS Campus Rio Grande", size="xs", c="dimmed", lh=1.2),
                                 ]
                             )

@@ -21,6 +21,7 @@ def load_heatmap_data():
     SELECT EXTRACT(DOW FROM data_hora) as dia_semana_num, EXTRACT(HOUR FROM data_hora) as hora_do_dia,
            EXTRACT(YEAR FROM data_hora) as ano, EXTRACT(MONTH FROM data_hora) as mes, COUNT(*) as numero_de_registros
     FROM registro
+    WHERE UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
     GROUP BY ano, mes, dia_semana_num, hora_do_dia
     """
     df = pd.read_sql(query, engine)

@@ -4,6 +4,10 @@ from app.extensions import cache
 
 TYPE_ALL = "todos"
 
+EXCLUDE_ADJUST_SQL = "UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'"
+EXCLUDE_OUTPUT_SQL = "UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'"
+EXCLUDE_NON_OPERATIONAL_SQL = f"{EXCLUDE_ADJUST_SQL} AND {EXCLUDE_OUTPUT_SQL}"
+
 # --- 1. DADOS GERAIS / OVERVIEW ---
 
 
@@ -83,7 +87,11 @@ def _build_daily_query(where_clause):
 
 @cache.memoize(timeout=600)
 def get_kpis_gerais():
-    query = "SELECT COUNT(*) AS total_registros, MIN(data_hora) AS data_inicio, MAX(data_hora) AS data_fim FROM registro"
+    query = f"""
+    SELECT COUNT(*) AS total_registros, MIN(data_hora) AS data_inicio, MAX(data_hora) AS data_fim
+    FROM registro
+    WHERE {EXCLUDE_NON_OPERATIONAL_SQL}
+    """
     try:
         df = pd.read_sql(query, engine)
         kpis = df.iloc[0]
@@ -97,7 +105,13 @@ def get_kpis_gerais():
 
 @cache.memoize(timeout=3600)
 def get_qtde_por_ano():
-    query = "SELECT EXTRACT(YEAR FROM data_hora) AS ano, COUNT(*) AS qtde FROM registro GROUP BY ano ORDER BY ano"
+    query = f"""
+    SELECT EXTRACT(YEAR FROM data_hora) AS ano, COUNT(*) AS qtde
+    FROM registro
+    WHERE {EXCLUDE_NON_OPERATIONAL_SQL}
+    GROUP BY ano
+    ORDER BY ano
+    """
     try:
         df = pd.read_sql(query, engine)
         df['ano'] = df['ano'].astype(str)
@@ -107,7 +121,15 @@ def get_qtde_por_ano():
 
 @cache.memoize(timeout=3600)
 def get_top_produtos_geral():
-    query = "SELECT produto, COUNT(*) AS qtde FROM registro GROUP BY produto ORDER BY qtde DESC LIMIT 10"
+    query = f"""
+    SELECT produto, COUNT(*) AS qtde
+    FROM registro
+    WHERE produto IS NOT NULL
+      AND {EXCLUDE_NON_OPERATIONAL_SQL}
+    GROUP BY produto
+    ORDER BY qtde DESC
+    LIMIT 10
+    """
     return pd.read_sql(query, engine)
 
 
@@ -118,10 +140,14 @@ def get_volume_quinzenal(tipo_residuo=TYPE_ALL):
         """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor != 'ACERTO DE PESO'
+        AND {exclude_adjust}
+        AND {exclude_output}
         """,
         params,
         tipo_residuo,
+    ).format(
+        exclude_adjust=EXCLUDE_ADJUST_SQL,
+        exclude_output=EXCLUDE_OUTPUT_SQL,
     )
     query = _build_quinzenal_query(where_clause)
     try:
@@ -141,10 +167,14 @@ def get_volume_diario(tipo_residuo=TYPE_ALL, fill_gaps=True):
         """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor != 'ACERTO DE PESO'
+        AND {exclude_adjust}
+        AND {exclude_output}
         """,
         params,
         tipo_residuo,
+    ).format(
+        exclude_adjust=EXCLUDE_ADJUST_SQL,
+        exclude_output=EXCLUDE_OUTPUT_SQL,
     )
     query = _build_daily_query(where_clause)
     try:
@@ -166,8 +196,8 @@ def get_entradas_quinzenais(tipo_residuo=TYPE_ALL):
         """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor != 'ACERTO DE PESO'
-        AND setor != 'CANDIOTA'
+        AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+        AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
         """,
         params,
         tipo_residuo,
@@ -190,8 +220,8 @@ def get_entradas_diarias(tipo_residuo=TYPE_ALL, fill_gaps=True):
         """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor != 'ACERTO DE PESO'
-        AND setor != 'CANDIOTA'
+        AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+        AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
         """,
         params,
         tipo_residuo,
@@ -216,7 +246,7 @@ def get_saidas_quinzenais(tipo_residuo=TYPE_ALL):
         """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor = 'CANDIOTA'
+        AND UPPER(COALESCE(setor, '')) LIKE 'CANDIOTA%%'
         """,
         params,
         tipo_residuo,
@@ -239,7 +269,7 @@ def get_saidas_diarias(tipo_residuo=TYPE_ALL, fill_gaps=True):
         """
         data_hora IS NOT NULL
         AND peso_embalagem_liquido_corrigido IS NOT NULL
-        AND setor = 'CANDIOTA'
+        AND UPPER(COALESCE(setor, '')) LIKE 'CANDIOTA%%'
         """,
         params,
         tipo_residuo,
@@ -325,7 +355,7 @@ def get_setor_volume_mensal(setor, tipo_residuo=TYPE_ALL):
 @cache.memoize(timeout=3600)
 def get_list_setores():
     try:
-        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL ORDER BY setor"
+        query = f"SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND {EXCLUDE_NON_OPERATIONAL_SQL} ORDER BY setor"
         df = pd.read_sql(query, engine)
         return df['setor'].tolist()
     except Exception:
@@ -339,8 +369,9 @@ def get_tipos_residuo_options():
             SELECT DISTINCT COALESCE(tipo_de_residuo, produto) AS tipo_residuo
             FROM registro
             WHERE COALESCE(tipo_de_residuo, produto) IS NOT NULL
+              AND {exclude_non_operational}
             ORDER BY tipo_residuo
-        """
+        """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
         df = pd.read_sql(query, engine)
         tipos_presentes = [
             str(t) for t in df["tipo_residuo"].dropna().tolist() if str(t).strip()
@@ -368,8 +399,8 @@ def get_dados_setores_macro():
     FROM registro 
     WHERE 
         setor IS NOT NULL AND
-        setor != 'ACERTO DE PESO' AND
-        setor != 'CANDIOTA'
+        UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%' AND
+        UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     GROUP BY setor
     """
     return pd.read_sql(query, engine)
@@ -383,10 +414,11 @@ def get_dados_setor_temporal(setor, ano):
     FROM registro
     WHERE 
         setor = %(setor)s AND 
+        {exclude_non_operational} AND
         EXTRACT(YEAR FROM data_hora) = %(ano)s
     GROUP BY mes
     ORDER BY mes
-    """
+    """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
     return pd.read_sql(query, engine, params={'setor': setor, 'ano': ano})
 
 # --- 4. ANÁLISE DE EMPRESAS ---
@@ -400,15 +432,16 @@ def get_ranking_empresas():
         SUM(peso_embalagem_liquido_corrigido) as peso_total
     FROM registro 
     WHERE fornecedor_cliente IS NOT NULL
+      AND {exclude_non_operational}
     GROUP BY fornecedor_cliente 
     ORDER BY quantidade DESC
     LIMIT 50
-    """
+    """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
     return pd.read_sql(query, engine)
 
 @cache.memoize(timeout=3600)
 def get_empresa_temporal(empresa, ano):
-    base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
+    base_query = f" FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s AND {EXCLUDE_NON_OPERATIONAL_SQL}"
     params = {'ano': ano}
     
     if empresa != 'todas':
@@ -426,9 +459,14 @@ def get_empresa_temporal(empresa, ano):
 
 @cache.memoize(timeout=3600)
 def get_ranking_produtos():
-    query = """
+    query = f"""
     SELECT produto, COUNT(*) as quantidade, SUM(peso_embalagem_liquido_corrigido) as peso_total
-    FROM registro WHERE produto IS NOT NULL GROUP BY produto ORDER BY quantidade DESC LIMIT 50 
+    FROM registro
+    WHERE produto IS NOT NULL
+      AND {EXCLUDE_NON_OPERATIONAL_SQL}
+    GROUP BY produto
+    ORDER BY quantidade DESC
+    LIMIT 50
     """
     return pd.read_sql(query, engine)
 
@@ -441,9 +479,10 @@ def get_produtos_resumo():
         SUM(peso_embalagem_liquido_corrigido) as peso_total
     FROM registro 
     WHERE produto IS NOT NULL
+      AND {exclude_non_operational}
     GROUP BY produto 
     ORDER BY quantidade DESC
-    """
+    """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
     return pd.read_sql(query, engine)
 
 @cache.memoize(timeout=3600)
@@ -451,9 +490,11 @@ def get_fornecedores_por_produto(produto, limit=20):
     query = """
     SELECT fornecedor_cliente, COUNT(*) as quantidade
     FROM registro
-    WHERE produto = %(produto)s AND fornecedor_cliente IS NOT NULL
+    WHERE produto = %(produto)s
+      AND fornecedor_cliente IS NOT NULL
+      AND {exclude_non_operational}
     GROUP BY fornecedor_cliente ORDER BY quantidade DESC
-    """
+    """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
     if limit:
         query += f" LIMIT {limit}"
         
@@ -464,9 +505,11 @@ def get_produtos_por_setor(setor, limit=20):
     query = """
     SELECT produto, COUNT(*) as quantidade
     FROM registro
-    WHERE setor = %(setor)s AND produto IS NOT NULL
+    WHERE setor = %(setor)s
+      AND produto IS NOT NULL
+      AND {exclude_non_operational}
     GROUP BY produto ORDER BY quantidade DESC
-    """
+    """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
     if limit:
         query += f" LIMIT {limit}"
 
@@ -485,8 +528,8 @@ def get_fluxo_macro(tipo_residuo=TYPE_ALL):
     SELECT 
         EXTRACT(YEAR FROM data_hora) as year,
         EXTRACT(MONTH FROM data_hora) as month,
-        SUM(CASE WHEN setor = 'CANDIOTA' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as saidas,
-        SUM(CASE WHEN setor != 'CANDIOTA' AND setor != 'ACERTO DE PESO' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as entradas
+        SUM(CASE WHEN UPPER(COALESCE(setor, '')) LIKE 'CANDIOTA%%' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as saidas,
+        SUM(CASE WHEN UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%' AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as entradas
     FROM registro
     WHERE data_hora IS NOT NULL{tipo_clause}
     GROUP BY year, month
@@ -522,7 +565,7 @@ def get_fluxo_micro(tipo_residuo=TYPE_ALL):
         COALESCE(tipo_de_residuo, produto) as tipo_residuo,
         SUM(peso_embalagem_liquido_corrigido) as peso_kg
     FROM registro
-    WHERE setor != 'ACERTO DE PESO'{tipo_clause}
+    WHERE UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'{tipo_clause}
     GROUP BY year, month, setor, tipo_residuo
     ORDER BY year, month, setor, tipo_residuo
     """
@@ -546,8 +589,9 @@ def get_heatmap_data():
         EXTRACT(MONTH FROM data_hora) as mes,
         COUNT(*) as numero_de_registros
     FROM registro
+    WHERE {exclude_non_operational}
     GROUP BY ano, mes, dia_semana_num, hora_do_dia
-    """
+    """.format(exclude_non_operational=EXCLUDE_NON_OPERATIONAL_SQL)
     return pd.read_sql(query, engine)
 
 # --- 8. ANÁLISE DE FROTA ---
@@ -562,7 +606,7 @@ def get_frota_data():
         AVG(peso_liquido) as peso_medio_por_viagem
     FROM registro
     WHERE 
-        setor != 'CANDIOTA' AND setor != 'ACERTO DE PESO'
+        UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%' AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
         AND peso_liquido > 0 AND placa_veiculo IS NOT NULL
     GROUP BY placa_veiculo, fornecedor_cliente
     ORDER BY total_viagens DESC;
@@ -577,7 +621,10 @@ def get_frota_data():
 @cache.memoize(timeout=3600)
 def get_produtos_options():
     try:
-        df = pd.read_sql("SELECT DISTINCT produto FROM registro WHERE produto IS NOT NULL ORDER BY produto", engine)
+        df = pd.read_sql(
+            f"SELECT DISTINCT produto FROM registro WHERE produto IS NOT NULL AND {EXCLUDE_NON_OPERATIONAL_SQL} ORDER BY produto",
+            engine,
+        )
         return [{'label': p, 'value': p} for p in df['produto']]
     except Exception:
         return []
@@ -585,7 +632,7 @@ def get_produtos_options():
 @cache.memoize(timeout=3600)
 def get_setores_options():
     try:
-        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND setor != 'ACERTO DE PESO' AND setor != 'CANDIOTA' ORDER BY setor"
+        query = "SELECT DISTINCT setor FROM registro WHERE setor IS NOT NULL AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%' AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%' ORDER BY setor"
         df = pd.read_sql(query, engine)
         return [{'label': s, 'value': s} for s in df['setor']]
     except Exception:
@@ -594,7 +641,10 @@ def get_setores_options():
 @cache.memoize(timeout=3600)
 def get_anos_options():
     try:
-        anos_df = pd.read_sql("SELECT DISTINCT EXTRACT(YEAR FROM data_hora) AS ano FROM registro ORDER BY ano DESC", engine)
+        anos_df = pd.read_sql(
+            f"SELECT DISTINCT EXTRACT(YEAR FROM data_hora) AS ano FROM registro WHERE {EXCLUDE_NON_OPERATIONAL_SQL} ORDER BY ano DESC",
+            engine,
+        )
         options = [{'label': str(int(ano)), 'value': int(ano)} for ano in anos_df['ano']]
         valor_inicial = options[0]['value'] if options else None
         return options, valor_inicial

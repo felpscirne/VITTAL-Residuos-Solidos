@@ -76,6 +76,8 @@ def _prepare_audit_dataframe(selected_entidade: str) -> pd.DataFrame:
     FROM registro
     WHERE peso_nota_fiscal > 0
       AND peso_embalagem_liquido_corrigido > 0
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     """
     params: dict[str, Any] = {}
     if selected_entidade and selected_entidade != "todas":
@@ -311,8 +313,8 @@ def get_setor_clustering_analysis() -> dict[str, Any]:
         AVG(ABS(((peso_embalagem_liquido_corrigido - peso_nota_fiscal) / NULLIF(peso_nota_fiscal, 0)) * 100)) AS discrepancia_media_abs
     FROM registro
     WHERE setor IS NOT NULL
-      AND setor != 'ACERTO DE PESO'
-      AND setor != 'CANDIOTA'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     GROUP BY setor
     ORDER BY quantidade DESC
     """
@@ -344,6 +346,8 @@ def get_empresa_clustering_analysis() -> dict[str, Any]:
         AVG(ABS(((peso_embalagem_liquido_corrigido - peso_nota_fiscal) / NULLIF(peso_nota_fiscal, 0)) * 100)) AS discrepancia_media_abs
     FROM registro
     WHERE fornecedor_cliente IS NOT NULL
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     GROUP BY fornecedor_cliente
     ORDER BY quantidade DESC
     """

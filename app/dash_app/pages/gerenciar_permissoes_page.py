@@ -8,10 +8,16 @@ from app.models import Page, Role
 from app.services.error_messages import get_safe_database_error_message
 from app.services.localization import get_role_label
 
+EDITABLE_ROLE_NAMES = ["anonymous", "student", "operator", "management"]
+
 
 def get_roles_options():
     try:
-        roles = Role.query.order_by(Role.description, Role.name).all()
+        roles = (
+            Role.query.filter(Role.name.in_(EDITABLE_ROLE_NAMES))
+            .order_by(Role.description, Role.name)
+            .all()
+        )
         return [{"label": role.description or get_role_label(role.name), "value": str(role.id)} for role in roles]
     except Exception:
         return []
@@ -93,6 +99,8 @@ def load_role_permissions(role_id_str):
         role = Role.query.get(int(role_id_str))
         if not role:
             return []
+        if role.name not in EDITABLE_ROLE_NAMES:
+            return []
         return [str(page.id) for page in role.pages]
     except Exception:
         return []
@@ -123,6 +131,15 @@ def save_permissions(n_clicks, role_id_str, selected_page_ids_str):
                 color="red",
                 variant="light",
                 title="Não foi possível salvar",
+                icon=DashIconify(icon="akar-icons:triangle-alert"),
+            )
+            return no_update, feedback
+        if role.name not in EDITABLE_ROLE_NAMES:
+            feedback = dmc.Alert(
+                "Esse perfil nÃ£o pode ser editado por esta tela.",
+                color="red",
+                variant="light",
+                title="Acesso bloqueado",
                 icon=DashIconify(icon="akar-icons:triangle-alert"),
             )
             return no_update, feedback

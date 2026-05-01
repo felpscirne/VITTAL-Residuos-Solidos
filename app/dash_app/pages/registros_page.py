@@ -8,7 +8,6 @@ from dash_iconify import DashIconify
 from app.application.analytics import get_anos_options, get_registros_filtrados
 
 anos_options_raw, ano_inicial = get_anos_options()
-# Garantindo que as opções sejam string para o dmc.Select
 anos_options = [{'label': str(opt['label']), 'value': str(opt['value'])} for opt in anos_options_raw]
 
 
@@ -138,15 +137,11 @@ layout = html.Div([
      State('filtro-ticket-tabela', 'value')]
 )
 def update_table(n_clicks, ano, mes, ticket):
-    # Remove initial check to allow loading on start
-    # if n_clicks == 0: return [], []
+
     
     try:
-        # Convertendo o ano de volta para int se necessario, dependendo de como o get_registros_filtrados espera.
-        # Geralmente args de SQL sao strings ou ints, mas vamos garantir.
         ano_int = int(ano) if ano else None
         
-        # dmc.TextInput retorna string. dmc.NumberInput retorna number (int/float) ou None.
         
         df = get_registros_filtrados(ano_int, mes, ticket)
         data_tabela = df.to_dict('records')

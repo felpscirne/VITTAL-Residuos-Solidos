@@ -19,7 +19,7 @@ def create_dash_app(server):
         assets_folder='assets' 
     )
     
-    app.title = "VITTAL Transbordo | IFEsCS"
+    app.title = "VITTAL Resíduos Sólidos | IFEsCS"
 
     
     from . import layout

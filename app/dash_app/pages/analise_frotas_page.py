@@ -15,7 +15,9 @@ def load_frota_data():
     SELECT placa_veiculo, COALESCE(fornecedor_cliente, 'Nao Especificada') as entidade_responsavel,
            COUNT(*) as total_viagens, AVG(peso_liquido) as peso_medio_por_viagem
     FROM registro
-    WHERE setor != 'CANDIOTA' AND setor != 'ACERTO DE PESO' AND peso_liquido > 0
+    WHERE UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND peso_liquido > 0
     GROUP BY placa_veiculo, fornecedor_cliente
     ORDER BY total_viagens DESC;
     """

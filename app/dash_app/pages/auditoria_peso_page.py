@@ -15,7 +15,10 @@ def get_entidades_options():
     query = """
     SELECT DISTINCT fornecedor_cliente
     FROM registro
-    WHERE fornecedor_cliente IS NOT NULL AND peso_nota_fiscal > 0
+    WHERE fornecedor_cliente IS NOT NULL
+      AND peso_nota_fiscal > 0
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     ORDER BY fornecedor_cliente;
     """
     df = pd.read_sql(query, engine)
@@ -147,7 +150,10 @@ def update_audit_table(selected_entidade, min_discrepancia):
            (peso_embalagem_liquido_corrigido - peso_nota_fiscal) as diferenca_kg,
            ((peso_embalagem_liquido_corrigido - peso_nota_fiscal) / peso_nota_fiscal) * 100 as diferenca_percentual
     FROM registro
-    WHERE peso_nota_fiscal > 0 AND peso_embalagem_liquido_corrigido > 0
+    WHERE peso_nota_fiscal > 0
+      AND peso_embalagem_liquido_corrigido > 0
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     """
     params = {}
     entidade_label = selected_entidade if selected_entidade != "todas" else "todas as entidades"

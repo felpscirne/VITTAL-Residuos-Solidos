@@ -1,8 +1,5 @@
 import os
-from datetime import datetime, timezone
-from uuid import uuid4
 
-from flask_security.utils import hash_password
 from sqlalchemy import text
 
 from app.extensions import db
@@ -39,7 +36,19 @@ ROLES_TO_SEED = ["anonymous", "student", "operator", "management"]
 DEFAULT_PERMISSIONS = {
     "anonymous": ["/", "/estudo-ifescs", "/visualizar-eventos"],
     "student": ["/", "/estudo-ifescs", "/registros", "/visualizar-eventos"],
-    "operator": ["/", "/estudo-ifescs", "/analise-produtos", "/fluxo-de-caixa", "/visualizar-eventos", "/gerenciar-arquivos"],
+    "operator": [
+        "/",
+        "/estudo-ifescs",
+        "/analise-produtos",
+        "/fluxo-de-caixa",
+        "/analise-setores",
+        "/analise-empresas",
+        "/analise-horarios",
+        "/analise-frotas",
+        "/registros",
+        "/gerenciar-arquivos",
+        "/visualizar-eventos",
+    ],
     "management": [
         "/",
         "/estudo-ifescs",
@@ -58,14 +67,6 @@ DEFAULT_PERMISSIONS = {
         "/visualizar-eventos",
     ],
 }
-
-DEFAULT_MANAGEMENT_USER = {
-    "email": os.getenv("MANAGEMENT_EMAIL", "admin@sistema.com").strip(),
-    "name": os.getenv("MANAGEMENT_NAME", "Gestor Padrao").strip(),
-    "password": os.getenv("MANAGEMENT_PASSWORD", "admin123"),
-    "role": "management",
-}
-
 
 def _ensure_import_auditoria_table(conn):
     conn.execute(
@@ -286,48 +287,6 @@ def run_startup_migrations():
         """
     )
 
-    user_insert = text(
-        """
-        INSERT INTO "user" (name, email, password, active, confirmed_at, fs_uniquifier, role_id)
-        VALUES (:name, :email, :password, :active, :confirmed_at, :fs_uniquifier, :role_id)
-        ON CONFLICT (email) DO NOTHING
-        RETURNING id
-        """
-    )
-
-    user_select = text(
-        """
-        SELECT id
-        FROM "user"
-        WHERE email = :email
-        """
-    )
-
-    user_role_update = text(
-        """
-        UPDATE "user"
-        SET role_id = (
-            SELECT r.id
-            FROM role r
-            WHERE r.name = :role_name
-        )
-        WHERE email = :email
-        """
-    )
-
-    user_admin_sync = text(
-        """
-        UPDATE "user"
-        SET
-            name = :name,
-            password = :password,
-            active = :active,
-            confirmed_at = COALESCE(confirmed_at, :confirmed_at),
-            role_id = :role_id
-        WHERE email = :email
-        """
-    )
-
     with db.session.begin():
         for role_name in ROLES_TO_SEED:
             db.session.execute(
@@ -355,50 +314,4 @@ def run_startup_migrations():
                     {"role_name": role_name, "route": route},
                 )
 
-        admin_password = hash_password(DEFAULT_MANAGEMENT_USER["password"])
-        admin_unique = str(uuid4())
-        admin_role_id = db.session.execute(
-            text("SELECT id FROM role WHERE name = :role_name"),
-            {"role_name": DEFAULT_MANAGEMENT_USER["role"]},
-        ).scalar_one()
-        inserted_admin = db.session.execute(
-            user_insert,
-            {
-                "name": DEFAULT_MANAGEMENT_USER["name"],
-                "email": DEFAULT_MANAGEMENT_USER["email"],
-                "password": admin_password,
-                "active": True,
-                "confirmed_at": datetime.now(timezone.utc),
-                "fs_uniquifier": admin_unique,
-                "role_id": admin_role_id,
-            },
-        ).scalar()
-
-        if inserted_admin is None:
-            admin_id = db.session.execute(
-                user_select,
-                {"email": DEFAULT_MANAGEMENT_USER["email"]},
-            ).scalar_one()
-        else:
-            admin_id = inserted_admin
-
-        db.session.execute(
-            user_role_update,
-            {
-                "email": DEFAULT_MANAGEMENT_USER["email"],
-                "role_name": DEFAULT_MANAGEMENT_USER["role"],
-            },
-        )
-        db.session.execute(
-            user_admin_sync,
-            {
-                "name": DEFAULT_MANAGEMENT_USER["name"],
-                "email": DEFAULT_MANAGEMENT_USER["email"],
-                "password": admin_password,
-                "active": True,
-                "confirmed_at": datetime.now(timezone.utc),
-                "role_id": admin_role_id,
-            },
-        )
-
-    return {"roles": len(ROLES_TO_SEED), "pages": len(PAGES_TO_SEED), "admin_id": admin_id}
+    return {"roles": len(ROLES_TO_SEED), "pages": len(PAGES_TO_SEED)}

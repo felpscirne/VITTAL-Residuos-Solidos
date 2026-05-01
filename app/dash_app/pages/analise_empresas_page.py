@@ -17,6 +17,8 @@ def load_company_data():
     SELECT fornecedor_cliente, COUNT(*) as quantidade, SUM(peso_embalagem_liquido_corrigido) as peso_total
     FROM registro
     WHERE fornecedor_cliente IS NOT NULL
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
     GROUP BY fornecedor_cliente
     ORDER BY quantidade DESC
     """
@@ -248,7 +250,12 @@ def update_temporal_graphs(ano_selecionado, empresa_selecionada, color_scheme):
         summary = "### Resumo analítico\n- Selecione um ano para visualizar a série."
         return empty_fig, empty_fig, summary, render_management_insight(summary)
 
-    base_query = " FROM registro WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s"
+    base_query = """
+    FROM registro
+    WHERE EXTRACT(YEAR FROM data_hora) = %(ano)s
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
+      AND UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%'
+    """
     params = {"ano": ano_selecionado}
     if empresa_selecionada and empresa_selecionada != "todas":
         base_query += " AND fornecedor_cliente = %(empresa)s"

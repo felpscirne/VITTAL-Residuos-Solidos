@@ -150,14 +150,16 @@ def register_global_callbacks(app):
             links_gerais.append(nav_link("Visão Geral", "/", "radix-icons:dashboard", pathname))
         if "/estudo-ifescs" in allowed_routes:
             links_gerais.append(nav_link("Ambiente de Estudo", "/estudo-ifescs", "radix-icons:reader", pathname))
-        if "/analise-produtos" in allowed_routes:
-            links_gerais.append(nav_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube", pathname))
-        if "/fluxo-de-caixa" in allowed_routes:
-            links_gerais.append(nav_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart", pathname))
+        if "/registros" in allowed_routes:
+            links_gerais.append(nav_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass", pathname))
         if "/visualizar-eventos" in allowed_routes:
             links_gerais.append(nav_link("Quadro de Avisos", "/visualizar-eventos", "radix-icons:bell", pathname))
 
         links_analises = []
+        if "/analise-produtos" in allowed_routes:
+            links_analises.append(nav_link("Análise de Produtos", "/analise-produtos", "radix-icons:cube", pathname))
+        if "/fluxo-de-caixa" in allowed_routes:
+            links_analises.append(nav_link("Fluxo de Caixa", "/fluxo-de-caixa", "radix-icons:bar-chart", pathname))
         if "/analise-setores" in allowed_routes:
             links_analises.append(nav_link("Análise de Setores", "/analise-setores", "radix-icons:pie-chart", pathname))
         if "/analise-empresas" in allowed_routes:
@@ -166,8 +168,6 @@ def register_global_callbacks(app):
             links_analises.append(nav_link("Análise de Horários", "/analise-horarios", "radix-icons:clock", pathname))
         if "/analise-frotas" in allowed_routes:
             links_analises.append(nav_link("Análise de Frota", "/analise-frotas", "radix-icons:rocket", pathname))
-        if "/registros" in allowed_routes:
-            links_analises.append(nav_link("Buscar Registros", "/registros", "radix-icons:magnifying-glass", pathname))
 
         links_gestao = []
         if "/previsoes" in allowed_routes:

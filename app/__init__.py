@@ -46,7 +46,7 @@ def create_app():
     server.config["SECURITY_SEND_REGISTER_EMAIL"] = _env_bool("SECURITY_SEND_REGISTER_EMAIL", email_delivery_enabled)
     server.config["SECURITY_RECOVERABLE"] = True
     server.config["SECURITY_CHANGEABLE"] = True
-    server.config["SECURITY_EMAIL_SUBJECT_REGISTER"] = "Bem-vindo ao VITTAL Transbordo - IFEsCS"
+    server.config["SECURITY_EMAIL_SUBJECT_REGISTER"] = "Bem-vindo ao VITTAL Resíduos Sólidos - IFEsCS"
     server.config["AUTO_MIGRATE_ON_STARTUP"] = os.getenv("AUTO_MIGRATE_ON_STARTUP", "True").lower() in ["true", "1"]
 
     server.config["SECURITY_POST_LOGIN_VIEW"] = "/"

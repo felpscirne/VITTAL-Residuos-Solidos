@@ -14,8 +14,8 @@ from app.services.management_insights import render_management_insight
 def load_fluxo_macro_data():
     query = """
     SELECT EXTRACT(YEAR FROM data_hora) as year, EXTRACT(MONTH FROM data_hora) as month,
-           SUM(CASE WHEN setor = 'CANDIOTA' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as saidas,
-           SUM(CASE WHEN setor != 'CANDIOTA' AND setor != 'ACERTO DE PESO' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as entradas
+           SUM(CASE WHEN UPPER(COALESCE(setor, '')) LIKE 'CANDIOTA%%' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as saidas,
+           SUM(CASE WHEN UPPER(COALESCE(setor, '')) NOT LIKE 'CANDIOTA%%' AND UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%' THEN peso_embalagem_liquido_corrigido ELSE 0 END) as entradas
     FROM registro
     GROUP BY year, month
     ORDER BY year, month
@@ -36,7 +36,7 @@ def load_fluxo_micro_data():
     SELECT EXTRACT(YEAR FROM data_hora) as year, EXTRACT(MONTH FROM data_hora) as month, setor,
            SUM(peso_embalagem_liquido_corrigido) as peso_kg
     FROM registro
-    WHERE setor != 'ACERTO DE PESO'
+    WHERE UPPER(COALESCE(setor, '')) NOT LIKE 'ACERTO%%'
     GROUP BY year, month, setor
     ORDER BY year, month, setor
     """
@@ -52,7 +52,7 @@ def get_setores_options_dynamic():
     df = load_fluxo_micro_data()
     if df.empty:
         return []
-    setores = df[df["setor"] != "CANDIOTA"]["setor"].unique()
+    setores = df[~df["setor"].fillna("").str.upper().str.startswith("CANDIOTA")]["setor"].unique()
     return sorted([{"label": s, "value": s} for s in setores], key=lambda x: x["label"])
 
 
@@ -72,7 +72,8 @@ def create_macro_fluxo_graph(df, template):
 
 
 def create_micro_fluxo_graph(df, setor_selecionado, template):
-    df_comparativo = pd.concat([df[df["setor"] == "CANDIOTA"], df[df["setor"] == setor_selecionado]])
+    candiota_mask = df["setor"].fillna("").str.upper().str.startswith("CANDIOTA")
+    df_comparativo = pd.concat([df[candiota_mask], df[df["setor"] == setor_selecionado]])
     fig = px.line(
         df_comparativo,
         x="periodo_data",
@@ -204,7 +205,7 @@ def update_micro_graph(setor_selecionado, color_scheme):
         fig = px.line(template=template).update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         summary = "### Resumo analítico\n- Não há dados de fluxo disponíveis."
         return fig, dmc.Text("Sem dados.", c="dimmed"), summary, render_management_insight(summary)
-    total_saida = df[df["setor"] == "CANDIOTA"]["peso_kg"].sum()
+    total_saida = df[df["setor"].fillna("").str.upper().str.startswith("CANDIOTA")]["peso_kg"].sum()
     total_setor = df[df["setor"] == setor_selecionado]["peso_kg"].sum()
     pct = (total_setor / total_saida * 100) if total_saida > 0 else 0
     kpi = dmc.Stack(

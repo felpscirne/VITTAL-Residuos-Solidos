@@ -21,6 +21,12 @@ class SqlAnalyticsRepositoryAdapter:
     def get_volume_quinzenal(self, tipo_residuo="todos"):
         return data_repository.get_volume_quinzenal(tipo_residuo=tipo_residuo)
 
+    def get_volume_movimentado_diario(self, tipo_residuo="todos", fill_gaps=True):
+        return data_repository.get_volume_movimentado_diario(tipo_residuo=tipo_residuo, fill_gaps=fill_gaps)
+
+    def get_volume_movimentado_quinzenal(self, tipo_residuo="todos"):
+        return data_repository.get_volume_movimentado_quinzenal(tipo_residuo=tipo_residuo)
+
     def get_volume_mensal(self, tipo_residuo="todos"):
         return self.get_volume_quinzenal(tipo_residuo=tipo_residuo)
 

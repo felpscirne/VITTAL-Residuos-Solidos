@@ -190,6 +190,58 @@ def get_volume_diario(tipo_residuo=TYPE_ALL, fill_gaps=True):
 
 
 @cache.memoize(timeout=3600)
+def get_volume_movimentado_quinzenal(tipo_residuo=TYPE_ALL):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND {exclude_adjust}
+        """,
+        params,
+        tipo_residuo,
+    ).format(
+        exclude_adjust=EXCLUDE_ADJUST_SQL,
+    )
+    query = _build_quinzenal_query(where_clause)
+    try:
+        df = pd.read_sql(query, engine, params=params)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
+def get_volume_movimentado_diario(tipo_residuo=TYPE_ALL, fill_gaps=True):
+    params = {}
+    where_clause = _apply_tipo_residuo_filter(
+        """
+        data_hora IS NOT NULL
+        AND peso_embalagem_liquido_corrigido IS NOT NULL
+        AND {exclude_adjust}
+        """,
+        params,
+        tipo_residuo,
+    ).format(
+        exclude_adjust=EXCLUDE_ADJUST_SQL,
+    )
+    query = _build_daily_query(where_clause)
+    try:
+        df = pd.read_sql(query, engine, params=params)
+        if not df.empty:
+            df["ds"] = pd.to_datetime(df["ds"])
+            df["y"] = pd.to_numeric(df["y"], errors="coerce").fillna(0)
+            if fill_gaps:
+                df = _fill_daily_gaps(df, ["y"])
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ds", "y"])
+
+
+@cache.memoize(timeout=3600)
 def get_entradas_quinzenais(tipo_residuo=TYPE_ALL):
     params = {}
     where_clause = _apply_tipo_residuo_filter(

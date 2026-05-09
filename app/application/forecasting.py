@@ -12,6 +12,9 @@ class ForecastingRepositoryPort(Protocol):
     def get_volume_quinzenal(self, tipo_residuo="todos"):
         ...
 
+    def get_volume_movimentado_quinzenal(self, tipo_residuo="todos"):
+        ...
+
     def get_entradas_quinzenais(self, tipo_residuo="todos"):
         ...
 
@@ -22,6 +25,9 @@ class ForecastingRepositoryPort(Protocol):
         ...
 
     def get_volume_diario(self, tipo_residuo="todos", fill_gaps=True):
+        ...
+
+    def get_volume_movimentado_diario(self, tipo_residuo="todos", fill_gaps=True):
         ...
 
     def get_entradas_diarias(self, tipo_residuo="todos", fill_gaps=True):
@@ -104,6 +110,19 @@ class ForecastingService:
     @cache.memoize(timeout=3600)
     def get_volume_diario_forecast(self, periods=15, interval_width=0.8, tipo_residuo="todos", validation_window=30, fill_missing=True, cache_version="daily-gap-v2"):
         daily_df = self._repository.get_volume_diario(tipo_residuo=tipo_residuo, fill_gaps=False)
+        return build_monthly_forecast(
+            daily_df,
+            periods=periods,
+            interval_width=interval_width,
+            cadence="diaria",
+            forecast_profile="diaria",
+            validation_window=validation_window,
+            fill_missing=fill_missing,
+        )
+
+    @cache.memoize(timeout=3600)
+    def get_volume_movimentado_diario_forecast(self, periods=15, interval_width=0.8, tipo_residuo="todos", validation_window=30, fill_missing=True, cache_version="daily-gap-v2"):
+        daily_df = self._repository.get_volume_movimentado_diario(tipo_residuo=tipo_residuo, fill_gaps=False)
         return build_monthly_forecast(
             daily_df,
             periods=periods,
@@ -208,6 +227,17 @@ def get_setor_volume_mensal_forecast(setor, periods=4, interval_width=0.8, tipo_
 # ---- Fachadas diárias (nova cadência suportada pela página de previsões) ----
 def get_volume_diario_forecast(periods=15, interval_width=0.8, tipo_residuo="todos", validation_window=30, fill_missing=True, cache_version="daily-gap-v2"):
     return _default_forecasting_service.get_volume_diario_forecast(
+        periods=periods,
+        interval_width=interval_width,
+        tipo_residuo=tipo_residuo,
+        validation_window=validation_window,
+        fill_missing=fill_missing,
+        cache_version=cache_version,
+    )
+
+
+def get_volume_movimentado_diario_forecast(periods=15, interval_width=0.8, tipo_residuo="todos", validation_window=30, fill_missing=True, cache_version="daily-gap-v2"):
+    return _default_forecasting_service.get_volume_movimentado_diario_forecast(
         periods=periods,
         interval_width=interval_width,
         tipo_residuo=tipo_residuo,

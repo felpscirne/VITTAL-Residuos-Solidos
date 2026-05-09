@@ -9,7 +9,7 @@ from app.application.forecasting import (
     get_public_data_context_markdown,
     get_saidas_diarias_forecast,
     get_setor_volume_diario_forecast,
-    get_volume_diario_forecast,
+    get_volume_movimentado_diario_forecast,
 )
 from app.services.forecast_service import (
     RIO_GRANDE_PUBLIC_CONTEXT,
@@ -381,7 +381,7 @@ def update_previsoes_gerais(color_scheme, horizonte_custom, confianca, validacao
         "Todos os resíduos",
     )
 
-    total_result = get_volume_diario_forecast(
+    total_result = get_volume_movimentado_diario_forecast(
         periods=horizonte,
         interval_width=confianca,
         tipo_residuo=tipo_residuo,

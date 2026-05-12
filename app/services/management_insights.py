@@ -41,10 +41,10 @@ def _infer_domain(markdown_text):
         return "empresa"
     if any(term in text for term in ["produto", "residuo", "mix"]):
         return "produto"
-    if any(term in text for term in ["hora", "dia", "heatmap", "pico operacional"]):
-        return "horario"
     if any(term in text for term in ["discrepancia", "nota fiscal", "auditoria", "ticket"]):
         return "auditoria"
+    if any(term in text for term in ["hora", "heatmap", "pico operacional", " dia "]):
+        return "horario"
     if any(term in text for term in ["balanco", "entrada", "saida", "candiota", "fluxo"]):
         return "fluxo"
     if any(term in text for term in ["previsao", "horizonte", "intervalo"]):

@@ -228,6 +228,7 @@ def update_audit_table(selected_entidade, min_discrepancia):
         ).round(1)
 
         chart_df = df_filtered.head(15).copy()
+        chart_df["ticket"] = chart_df["ticket"].astype(str)
         fig_ai = px.bar(
             chart_df.sort_values("probabilidade_risco_operacional", ascending=True),
             x="probabilidade_risco_operacional",

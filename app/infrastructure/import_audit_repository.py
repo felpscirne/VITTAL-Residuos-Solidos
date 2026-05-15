@@ -84,7 +84,11 @@ class SqlImportAuditRepositoryAdapter:
             return []
 
     def delete_imported_data(self, audit_id, deleted_by=None):
+        import zoneinfo
+        from datetime import datetime
+
         try:
+            deleted_by_label = deleted_by or 'Sistema'
             with engine.begin() as conn:
                 delete_result = conn.execute(
                     text(
@@ -95,6 +99,15 @@ class SqlImportAuditRepositoryAdapter:
                     ),
                     {'audit_id': audit_id},
                 )
+                deleted_count = delete_result.rowcount or 0
+
+                tz = zoneinfo.ZoneInfo(APP_TIMEZONE)
+                now_str = datetime.now(tz).strftime('%d/%m/%Y %H:%M:%S')
+                detail_line = (
+                    f'Exclusao registrada em {now_str} por {deleted_by_label}. '
+                    f'Linhas removidas: {deleted_count}'
+                )
+
                 conn.execute(
                     text(
                         """
@@ -106,25 +119,21 @@ class SqlImportAuditRepositoryAdapter:
                             deleted_by = :deleted_by,
                             details = CONCAT(
                                 COALESCE(details, ''),
-                                CASE WHEN COALESCE(details, '') = '' THEN '' ELSE E'\n' END,
-                                'Exclusao registrada em ',
-                                TO_CHAR(NOW(), 'DD/MM/YYYY HH24:MI:SS'),
-                                ' por ',
-                                COALESCE(:deleted_by, 'Sistema'),
-                                '. Linhas removidas: ',
-                                :deleted_rows::text
+                                CASE WHEN COALESCE(details, '') = '' THEN '' ELSE E'\\n' END,
+                                :detail_line
                             )
                         WHERE id = :audit_id
                         """
                     ),
                     {
                         'audit_id': audit_id,
-                        'deleted_rows': delete_result.rowcount or 0,
-                        'deleted_by': deleted_by or 'Sistema',
+                        'deleted_rows': deleted_count,
+                        'deleted_by': deleted_by_label,
+                        'detail_line': detail_line,
                     },
                 )
                 cache.clear()
-                return delete_result.rowcount or 0
+                return deleted_count
         except Exception:
             return 0
 
